@@ -1,2 +1,0 @@
--keep class org.json.** { *; }
--dontwarn org.conscrypt.**
