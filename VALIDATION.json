@@ -1,0 +1,15 @@
+{
+  "base_commit": "7dedb84b16c213b298228db635ac157374de070a",
+  "source_checks": {
+    "ApiClient.kt unchanged": true,
+    "JsonUtils.kt unchanged": true,
+    "AutomationApp.kt unchanged": true,
+    "API endpoint calls preserved": true,
+    "PortalNewOrder unchanged": true,
+    "PortalOrderDetails unchanged": true
+  },
+  "gradle_build": "NOT RUN: Gradle/Android SDK unavailable; dependency download failed",
+  "device_visual_test": "NOT RUN",
+  "biometric_device_test": "NOT RUN",
+  "apk_created": false
+}
