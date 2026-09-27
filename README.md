@@ -1,1 +1,0 @@
-# ghadirpartner-android-r2
