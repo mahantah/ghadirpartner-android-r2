@@ -1,0 +1,41 @@
+name: Build Ghadir Partner Android Liquid Glass R4
+on:
+  push:
+    branches: [main, codex/android-liquid-glass-r4]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  portal:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Install Android platform
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: ghadir-portal-r4-debug-signing-v1
+      - name: Build and lint customer app
+        run: gradle --no-daemon --console=plain :app:assemblePortalDebug :app:lintPortalDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-5.4.3.3-R4-Debug-APK
+          path: app/build/outputs/apk/portal/debug/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: R4-Build-Reports
+          path: app/build/reports/
