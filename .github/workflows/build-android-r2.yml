@@ -1,7 +1,7 @@
 name: Build Ghadir Partner Android Compact R5
 on:
   push:
-    branches: [main, codex/android-compact-r5]
+    branches: [main, codex/compact-r5]
   workflow_dispatch:
 permissions:
   contents: read
