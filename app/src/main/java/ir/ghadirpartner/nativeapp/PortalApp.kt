@@ -661,8 +661,7 @@ private fun PortalNewOrder(api: ApiClient, initialOfferCode: String = "", onSucc
             })
         }
         if (cart.isNotEmpty()) {
-            if(order.s("shipping_address").isNotBlank()) item { Text("آدرس تحویل: "+order.s("shipping_address"),color=Ink) }
-        item { SectionTitle("اقلام سفارش") }
+            item { SectionTitle("اقلام سفارش") }
             items(cart, key = { it.product }) { line ->
                 GlassSurface(shape = RoundedCornerShape(18.dp), color = Color.White) {
                     Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
