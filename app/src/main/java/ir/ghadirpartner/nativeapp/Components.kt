@@ -161,31 +161,16 @@ fun GhadirButton(text: String, onClick: () -> Unit, enabled: Boolean = true, sec
 
 @Composable
 fun OrderCard(number: String, customer: String, status: String, payment: String, amount: Long, date: String, onClick: () -> Unit) {
-    GlassCard(
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).animateContentSize()
-    ) {
-        Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.Start) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    GlassCard(modifier=Modifier.fillMaxWidth().clickable(onClick=onClick),shape=RoundedCornerShape(14.dp)) {
+        Column(Modifier.fillMaxWidth().padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                Text(faDigits(number),color=Ink,fontSize=14.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
                 StatusPill(status)
-                Spacer(Modifier.weight(1f))
-                Text(faDigits(number), color = NavyDeep, fontWeight = FontWeight.Black, fontSize = 16.sp)
             }
-            if (customer.isNotBlank()) {
-                Spacer(Modifier.height(8.dp))
-                Text(customer, color = NavySoft, fontWeight = FontWeight.SemiBold)
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(formatDateFa(date), color = Muted, fontSize = 11.sp)
-                Spacer(Modifier.weight(1f))
-                StatusPill(payment)
-            }
-            if (amount > 0) {
-                Spacer(Modifier.height(10.dp))
-                Text("${formatMoney(amount)} تومان", color = Ink, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+            if(customer.isNotBlank()) Text(customer,color=Muted,fontSize=12.sp)
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                Text(formatDateFa(date),color=Muted,fontSize=11.sp,modifier=Modifier.weight(1f))
+                Text(if(amount>0) "${formatMoney(amount)} تومان" else payment,color=Ink,fontSize=13.sp)
             }
         }
     }

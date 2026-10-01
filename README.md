@@ -1,5 +1,5 @@
-# Ghadir Partner Android — R4
+# Ghadir Partner Android R5
 
-راهنمای جاری: [README_R4_FA.md](README_R4_FA.md)
+راهنمای جاری: [README_R5_FA.md](README_R5_FA.md)
 
-Source candidate; Android build and device validation pending. No APK included.
+Source candidate only. Native build and device QA pending. Invoice reference pending.

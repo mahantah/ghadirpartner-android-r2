@@ -29,16 +29,12 @@ internal fun biometricEnabled(context: Context, account: String): Boolean =
 
 @Composable
 internal fun PortalGlassHeader(title: String, dashboard: Boolean, unread: Int, onBell: () -> Unit) {
-    Box(Modifier.fillMaxWidth().height(if(dashboard) 132.dp else 92.dp).padding(horizontal=20.dp,vertical=8.dp)) {
-        NotificationBell(unread,onBell,Modifier.align(Alignment.TopEnd))
-        if(dashboard) Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(6.dp)) {
-            Image(painterResource(R.drawable.ghadir_logo),"لوگوی قدیر پارتنر",Modifier.size(54.dp).clip(RoundedCornerShape(16.dp)))
-            Text(title,color=Color.White,fontSize=20.sp,fontWeight=FontWeight.Bold)
-            Text("قدیر پارتنر",color=Color.White,fontSize=12.sp)
-        } else Column(Modifier.align(Alignment.CenterStart).padding(end=60.dp)) {
-            Text(title,color=Color.White,fontSize=20.sp,fontWeight=FontWeight.Bold)
-            Text("قدیر پارتنر",color=Color.White,fontSize=12.sp)
+    Row(Modifier.fillMaxWidth().height(64.dp).padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title,color=Color.White,fontSize=18.sp,fontWeight=FontWeight.Bold,maxLines=1)
+            if(!dashboard) Text("قدیر پارتنر",color=Muted,fontSize=11.sp)
         }
+        NotificationBell(unread,onBell)
     }
 }
 

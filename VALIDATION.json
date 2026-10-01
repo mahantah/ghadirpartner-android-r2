@@ -1,18 +1,18 @@
 {
-  "version": "5.4.3.3-r4",
-  "backend": "V5.3.4.18-PORTAL-INBOX",
+  "version": "5.4.3.3-r5",
+  "source_base": "local R4 delivered in this conversation",
   "passed": [
     "PHP syntax",
-    "recipient targeting and offer dates",
-    "order ownership and read ownership",
-    "OTP exclusion",
-    "admin authorization and message persistence",
-    "admin form browser test with mocked API"
+    "Tehran window boundaries",
+    "address route save/delete/ownership",
+    "address snapshot isolation",
+    "serial masking until delivered",
+    "purchased device count customer/status/product scope",
+    "new Kotlin files structural parser"
   ],
-  "android_build": "NOT RUN: no local SDK/Gradle; GitHub write returned 403",
-  "device_visual_test": "NOT RUN",
-  "biometric_device_test": "NOT RUN",
+  "android_build": "NOT RUN",
+  "device_test": "NOT RUN",
+  "invoice_reference": "AWAITING USER SAMPLE",
   "apk_created": false,
-  "live_deployment": false,
-  "system_push": false
+  "published": false
 }

@@ -1,7 +1,7 @@
-name: Build Ghadir Partner Android Liquid Glass R4
+name: Build Ghadir Partner Android Compact R5
 on:
   push:
-    branches: [main, codex/android-liquid-glass-r4]
+    branches: [main, codex/android-compact-r5]
   workflow_dispatch:
 permissions:
   contents: read
@@ -31,11 +31,11 @@ jobs:
         run: gradle --no-daemon --console=plain :app:assemblePortalDebug :app:lintPortalDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: GhadirPartner-5.4.3.3-R4-Debug-APK
+          name: GhadirPartner-5.4.3.3-R5-Debug-APK
           path: app/build/outputs/apk/portal/debug/*.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: R4-Build-Reports
+          name: R5-Build-Reports
           path: app/build/reports/

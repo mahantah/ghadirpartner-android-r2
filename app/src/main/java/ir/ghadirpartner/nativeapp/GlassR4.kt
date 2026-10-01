@@ -19,23 +19,18 @@ import androidx.compose.ui.unit.dp
 
 val PortalGlass get() = BuildConfig.APP_MODE == "portal"
 val Ink get() = if (PortalGlass) Color.White else Navy
-val GlassFill = Color.White.copy(alpha = .065f)
+val GlassFill = Color(0xFF172840)
 
 /** R4 material: translucent body, specular top edge and subtle inner reflection. */
-fun Modifier.glass(shape: Shape = RoundedCornerShape(20.dp), accent: Boolean = false): Modifier =
+fun Modifier.liquidGlass(shape: Shape = RoundedCornerShape(20.dp), accent: Boolean = false): Modifier =
     clip(shape).background(if (accent) Orange else GlassFill)
         .background(Brush.verticalGradient(listOf(Color.White.copy(alpha=if(accent) .28f else .10f), Color.White.copy(alpha=.015f))))
         .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha=.50f), Color.White.copy(alpha=.16f))), shape)
 
-fun Modifier.portalBackdrop(): Modifier = background(Brush.verticalGradient(listOf(Navy, Color(0xFF050A18)))).drawBehind {
-    val scale = size.width / 390f
-    fun glow(center: Offset, radius: Float, color: Color) {
-        drawCircle(Brush.radialGradient(listOf(color.copy(alpha=.28f),color.copy(alpha=.10f),Color.Transparent),center,radius),radius,center)
-    }
-    glow(Offset(100f*scale, 340f*scale), 300f*scale, Orange)
-    glow(Offset(370f*scale,630f*scale),245f*scale,Color(0xFF1066E5))
-    glow(Offset(80f*scale,size.height),235f*scale,Orange)
-}
+fun Modifier.glass(shape: Shape = RoundedCornerShape(16.dp), accent: Boolean = false): Modifier =
+    clip(shape).background(if(accent) Orange else Color(0xFF172840)).border(1.dp,Color(0xFF304159),shape)
+
+fun Modifier.portalBackdrop(): Modifier = background(Color(0xFF0B1423))
 
 @Composable
 fun GlassSurface(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(20.dp),

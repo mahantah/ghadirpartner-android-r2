@@ -41,6 +41,14 @@ private fun NativeAppRoot() {
     var authNonce by remember { mutableIntStateOf(0) }
     var biometricChecked by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    DisposableEffect(context) {
+        val activity = context as FragmentActivity
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if(event == androidx.lifecycle.Lifecycle.Event.ON_STOP) biometricChecked = false
+        }
+        activity.lifecycle.addObserver(observer)
+        onDispose { activity.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(authNonce) {
         checking = true
@@ -61,18 +69,8 @@ private fun NativeAppRoot() {
             api = api,
             onLoggedIn = { authNonce++ }
         )
-        api.isPortal && !biometricChecked && biometricEnabled(context, me!!.s("username")) -> BiometricGate(
-            onUnlocked = { biometricChecked = true },
-            onUnavailable = { biometricChecked = true },
-            onUsePassword = {
-                scope.launch {
-                    api.logout()
-                    me = null
-                    authNonce++
-                }
-            }
-        )
-        api.isPortal -> PortalApp(
+        api.isPortal -> Box {
+            PortalApp(
             api = api,
             me = me!!,
             onLogout = {
@@ -83,6 +81,22 @@ private fun NativeAppRoot() {
                 }
             }
         )
+            if(!biometricChecked && biometricEnabled(context,me!!.s("username"))) {
+                androidx.compose.ui.window.Dialog(onDismissRequest={},properties=androidx.compose.ui.window.DialogProperties(dismissOnBackPress=false,dismissOnClickOutside=false,usePlatformDefaultWidth=false)) {
+                    BiometricGate(
+            onUnlocked = { biometricChecked = true },
+            onUnavailable = { scope.launch { api.logout(); me = null; authNonce++ } },
+            onUsePassword = {
+                scope.launch {
+                    api.logout()
+                    me = null
+                    authNonce++
+                }
+            }
+        )
+                }
+            }
+        }
         else -> AutomationApp(
             api = api,
             me = me!!,

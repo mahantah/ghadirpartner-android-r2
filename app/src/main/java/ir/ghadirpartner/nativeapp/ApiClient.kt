@@ -221,6 +221,7 @@ class ApiClient(private val context: Context) {
         }
     }
     suspend fun saveSerialsPdf(order: JSONObject): String = withContext(Dispatchers.IO) {
+        require(order.optString("status")=="تحویل شد") { "دریافت سریال فقط پس از تحویل امکان‌پذیر است" }
         val rows = mutableListOf<Pair<String, String>>()
         val items = order.optJSONArray("items") ?: JSONArray()
         for (i in 0 until items.length()) {

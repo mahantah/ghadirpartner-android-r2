@@ -72,7 +72,7 @@ fun FigmaBottomBar(
                 }
                 Column(Modifier.weight(1f).heightIn(min=60.dp)
                     .clip(RoundedCornerShape(20.dp))
-                    .then(if(active) Modifier.glass(RoundedCornerShape(24.dp),accent=true) else Modifier)
+                    .then(if(active) Modifier.liquidGlass(RoundedCornerShape(24.dp),accent=true) else Modifier)
                     .selectable(active, role=Role.Tab, onClick={onSelected(item.key)})
                     .padding(vertical=8.dp), horizontalAlignment=Alignment.CenterHorizontally,
                     verticalArrangement=Arrangement.spacedBy(2.dp, Alignment.CenterVertically)) {
