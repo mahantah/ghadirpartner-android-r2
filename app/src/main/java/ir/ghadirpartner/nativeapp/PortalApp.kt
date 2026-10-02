@@ -181,13 +181,24 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
                 val loaded = coroutineScope {
                     val ordersReq = async { (api.get("/api/orders") as JSONArray).objects().sortedByDescending { it.i("id") } }
                     val offersReq = async { (api.get("/api/offers") as JSONArray).objects().filterNot { it.b("used_by_customer") } }
-                    val statsReq = async { api.get("/api/reports/customer-summary") as JSONObject }
+                    val statsReq = async {
+                        try { api.get("/api/reports/customer-summary") as? JSONObject ?: JSONObject() }
+                        catch(e: kotlinx.coroutines.CancellationException) { throw e }
+                        catch(_: Exception) { JSONObject() }
+                    }
                     Triple(ordersReq.await(), offersReq.await(), statsReq.await())
                 }
                 orders = loaded.first
                 offers = loaded.second
                 stats = loaded.third
-                stats.put("purchased_device_qty",(api.get("/api/purchased-devices") as JSONObject).i("qty"))
+                if(stats.length()==0) stats = customerSummaryFromOrders(orders)
+                try {
+                    stats.put("purchased_device_qty",(api.get("/api/purchased-devices") as JSONObject).i("qty"))
+                } catch(e: kotlinx.coroutines.CancellationException) { throw e }
+                catch(_: Exception) {
+                    val devices=(api.get("/api/catalog") as JSONArray).objects().filter {it.b("serial_required")}.map {it.s("name")}.toSet()
+                    stats.put("purchased_device_qty",orders.filter {it.s("status")=="تحویل شد"}.sumOf {o->o.arr("items").objects().filter {it.s("product") in devices}.sumOf {it.i("qty")}})
+                }
             } catch (e: Exception) { error = e.message ?: "خطا در دریافت اطلاعات" }
             loading = false
         }

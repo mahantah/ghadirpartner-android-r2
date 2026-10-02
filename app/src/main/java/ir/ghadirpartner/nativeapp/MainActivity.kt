@@ -40,6 +40,7 @@ private fun NativeAppRoot() {
     var me by remember { mutableStateOf<JSONObject?>(null) }
     var authNonce by remember { mutableIntStateOf(0) }
     var biometricChecked by remember { mutableStateOf(false) }
+    var passwordVerified by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     DisposableEffect(context) {
         val activity = context as FragmentActivity
@@ -52,7 +53,8 @@ private fun NativeAppRoot() {
 
     LaunchedEffect(authNonce) {
         checking = true
-        biometricChecked = false
+        biometricChecked = passwordVerified
+        passwordVerified = false
         me = try {
             val current = api.me()
             if (api.modeAllowed(current)) current else {
@@ -67,7 +69,7 @@ private fun NativeAppRoot() {
         checking -> SplashScreen()
         me == null -> LoginScreen(
             api = api,
-            onLoggedIn = { authNonce++ }
+            onLoggedIn = { passwordVerified = true; authNonce++ }
         )
         api.isPortal -> Box {
             PortalApp(
