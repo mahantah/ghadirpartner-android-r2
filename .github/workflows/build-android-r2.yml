@@ -29,6 +29,30 @@ jobs:
           key: ghadir-portal-r4-debug-signing-v1
       - name: Build and lint customer app
         run: gradle --no-daemon --console=plain :app:assemblePortalDebug :app:lintPortalDebug
+      - name: Enable emulator acceleration
+        run: |
+          sudo chmod a+rw /dev/kvm
+      - name: Verify cold start and resume on Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          disable-animations: true
+          script: |
+            mkdir -p app/build/reports/startup
+            adb install -r app/build/outputs/apk/portal/debug/app-portal-debug.apk
+            adb logcat -c
+            adb shell am start -W -n ir.ghadirpartner.portalapp.debug/ir.ghadirpartner.nativeapp.MainActivity
+            sleep 40
+            adb logcat -d -b crash > app/build/reports/startup/crash.txt
+            adb exec-out screencap -p > app/build/reports/startup/launch.png
+            adb shell pidof ir.ghadirpartner.portalapp.debug
+            adb shell input keyevent KEYCODE_HOME
+            adb shell am start -W -n ir.ghadirpartner.portalapp.debug/ir.ghadirpartner.nativeapp.MainActivity
+            sleep 5
+            adb logcat -d -b crash > app/build/reports/startup/crash.txt
+            adb shell pidof ir.ghadirpartner.portalapp.debug
+            test ! -s app/build/reports/startup/crash.txt
       - uses: actions/upload-artifact@v4
         with:
           name: GhadirPartner-5.4.3.3-R5-Debug-APK
