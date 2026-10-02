@@ -3,6 +3,8 @@ package ir.ghadirpartner.nativeapp
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -62,7 +64,8 @@ fun LoginScreen(api: ApiClient, onLoggedIn: () -> Unit) {
         Modifier.fillMaxSize().portalBackdrop()
     ) {
         Column(
-            Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp),
+            Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()
+                .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.height(32.dp))
