@@ -16,8 +16,18 @@ import java.util.Locale
 
 /** Landscape printable form; amounts retain server meaning, displayed in rial. */
 internal object OfficialInvoice {
-    private val widths = floatArrayOf(24f,48f,112f,36f,40f,64f,64f,50f,48f,70f,62f,68f)
+    private val widths = floatArrayOf(24f,68f,172f,36f,40f,74f,74f,50f,48f,70f,62f,68f)
     private val headings = listOf("ردیف","کد کالا","شرح کالا / خدمت","تعداد / مقدار","واحد اندازه‌گیری","مبلغ واحد","مبلغ کل","مبلغ تخفیف","مبلغ اضافات","مبلغ پس از تخفیف و اضافات","مالیات و عوارض","خالص فاکتور")
+    private fun words(n:Long):String {
+        if(n==0L)return "صفر"
+        if(n<0)return "منفی "+words(-n)
+        val small=listOf("","یک","دو","سه","چهار","پنج","شش","هفت","هشت","نه","ده","یازده","دوازده","سیزده","چهارده","پانزده","شانزده","هفده","هجده","نوزده")
+        val tens=listOf("","","بیست","سی","چهل","پنجاه","شصت","هفتاد","هشتاد","نود")
+        val hundreds=listOf("","یکصد","دویست","سیصد","چهارصد","پانصد","ششصد","هفتصد","هشتصد","نهصد")
+        fun chunk(v:Int):String { val parts=mutableListOf<String>();if(v>=100)parts.add(hundreds[v/100]);val r=v%100;if(r in 1..19)parts.add(small[r])else if(r>=20){parts.add(tens[r/10]);if(r%10>0)parts.add(small[r%10])};return parts.joinToString(" و ") }
+        val scales=listOf("","هزار","میلیون","میلیارد","تریلیون","هزار تریلیون","میلیون تریلیون")
+        var rest=n;var level=0;val parts=mutableListOf<String>();while(rest>0){val c=(rest%1000).toInt();if(c>0)parts.add((chunk(c)+" "+scales[level]).trim());rest/=1000;level++};return parts.reversed().joinToString(" و ")
+    }
     private fun value(o: JSONObject, key: String) = o.optString(key).takeUnless { it.isBlank() || it=="null" } ?: "—"
     private fun layout(text: String, width: Float, size: Float=8f, bold: Boolean=false): StaticLayout {
         val p=TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color=Color.BLACK;textSize=size;typeface=Typeface.create("sans-serif",if(bold)Typeface.BOLD else Typeface.NORMAL) }
@@ -74,7 +84,7 @@ internal object OfficialInvoice {
                 val subtotal=if(order.has("subtotal_before_discount"))order.optLong("subtotal_before_discount")else (0 until (items?.length()?:0)).sumOf {items!!.getJSONObject(it).optLong("line_total")}
                 val total=if(order.optLong("approved_total")>0)order.optLong("approved_total")else order.optLong("estimated_total")
                 box(28f,y,786f,21f,"جمع کل: ${money(subtotal)}     تخفیف: ${optionalMoney(order,"discount_amount")}     مالیات و عوارض: ${optionalMoney(order,"tax_amount")}     مبلغ نهایی سفارش: ${money(total)}",8.5f,true,true);y+=21f
-                box(28f,y,786f,25f,"شرایط و نحوه فروش: ${order.optString("requested_payment_method_label").ifBlank{order.optString("payment_method_label").ifBlank{"—"}}}",8.5f);y+=25f
+                box(28f,y,786f,25f,"شرایط و نحوه فروش: ${order.optString("requested_payment_method_label").ifBlank{order.optString("payment_method_label").ifBlank{"—"}}}     مبلغ به حروف: ${words(Math.multiplyExact(total,multiplier))} ریال",8f);y+=25f
                 val note=if(!order.has("tax_amount"))"مالیات و عوارض در اطلاعات سفارش تفکیک نشده است؛ مبلغ نهایی عیناً از سفارش درج شده است." else "مبالغ بر اساس اطلاعات ثبت‌شده سفارش است."
                 box(28f,y,786f,47f,"توضیحات: $note\nتسویه به حساب حقوقی بانک اقتصاد نوین، به نام هوشمند پرداز پویا تجارت قدیر\nشماره شبا: IR950550014100207494885001",8f);y+=47f
                 box(28f,y,393f,33f,"مهر و امضای خریدار");box(421f,y,393f,33f,"مهر و امضای فروشنده")
