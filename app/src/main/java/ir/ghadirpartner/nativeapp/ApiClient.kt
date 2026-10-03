@@ -336,61 +336,8 @@ class ApiClient(private val context: Context) {
     suspend fun saveProformaPdf(order: JSONObject): String = withContext(Dispatchers.IO) {
         val doc = PdfDocument()
         try {
-            val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
-            val page = doc.startPage(pageInfo)
-            val canvas = page.canvas
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = android.graphics.Color.rgb(16, 42, 67)
-                textAlign = Paint.Align.RIGHT
-                typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
-            }
-            fun line(text: String, y: Float, size: Float = 14f, bold: Boolean = false) {
-                paint.textSize = size
-                paint.typeface = android.graphics.Typeface.create("sans-serif", if (bold) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
-                canvas.drawText(text, 545f, y, paint)
-            }
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 2f
-            canvas.drawRoundRect(35f, 35f, 560f, 805f, 14f, 14f, paint)
-            paint.style = Paint.Style.FILL
-            line("پیش‌فاکتور رسمی قدیر پارتنر", 75f, 21f, true)
-            line("شماره سفارش: ${order.optString("number")}", 112f, 13f, true)
-            val customer = order.optString("customer_name")
-            if (customer.isNotBlank()) line("مشتری: $customer", 136f, 12f)
-            line("تاریخ ثبت: ${formatDateFa(order.optString("created_at"))}", 160f, 12f)
-            line("وضعیت: ${order.optString("status")}", 184f, 12f)
-            val invoiceType = order.optString("invoice_type")
-            if (invoiceType.isNotBlank()) line("نوع فاکتور: $invoiceType", 208f, 12f)
-            val payment = order.optString("requested_payment_method_label").ifBlank { order.optString("payment_method_label") }
-            if (payment.isNotBlank()) line("روش تسویه: $payment", 232f, 12f)
-            var y = 272f
-            line("شرح اقلام", y, 15f, true); y += 28f
-            val items = order.optJSONArray("items") ?: JSONArray()
-            for (i in 0 until items.length()) {
-                val item = items.optJSONObject(i) ?: continue
-                val product = shortProductName(item.optString("product"))
-                val qty = item.optInt("qty")
-                val unit = item.optLong("unit_price")
-                val total = item.optLong("line_total")
-                line("${i + 1}. $product × $qty", y, 12f, true); y += 20f
-                if (unit > 0) { line("قیمت واحد: ${formatMoney(unit)} تومان", y, 11f); y += 18f }
-                if (total > 0) { line("جمع قلم: ${formatMoney(total)} تومان", y, 11f); y += 20f }
-                if (y > 680f) break
-            }
-            val subtotal = order.optLong("subtotal_before_discount")
-            val discount = order.optLong("discount_amount")
-            val total = if (order.optLong("approved_total") > 0) order.optLong("approved_total") else order.optLong("estimated_total")
-            y = maxOf(y + 20f, 650f)
-            if (subtotal > 0) { line("جمع قبل از تخفیف: ${formatMoney(subtotal)} تومان", y, 12f); y += 22f }
-            if (discount > 0) { line("تخفیف: ${formatMoney(discount)} تومان", y, 12f); y += 22f }
-            line("مبلغ نهایی: ${formatMoney(total)} تومان", y, 16f, true); y += 28f
-            val notes = order.optString("notes").trim()
-            if (notes.isNotBlank() && y < 735f) {
-                line("توضیحات: ${notes.take(70)}", y, 10f); y += 22f
-            }
-            line("پشتیبانی: 09981638272", y, 11f)
-            line("این پیش‌فاکتور بر اساس همان اطلاعات سفارش ثبت‌شده در سامانه قدیر پارتنر صادر شده است.", 780f, 9f)
-            doc.finishPage(page)
+            val profile = me().optJSONObject("customer") ?: JSONObject()
+            OfficialInvoice.render(doc, order, profile)
 
             val safe = order.optString("number").replace(Regex("[^A-Za-z0-9_-]"), "-")
             val fileName = "proforma-${safe.ifBlank { order.optInt("id").toString() }}.pdf"

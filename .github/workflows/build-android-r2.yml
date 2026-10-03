@@ -28,7 +28,7 @@ jobs:
           path: ~/.android/debug.keystore
           key: ghadir-portal-r4-debug-signing-v1
       - name: Build and lint customer app
-        run: gradle --no-daemon --console=plain :app:assemblePortalDebug :app:lintPortalDebug
+        run: gradle --no-daemon --console=plain :app:assemblePortalDebug :app:assemblePortalDebugAndroidTest :app:lintPortalDebug
       - name: Enable emulator acceleration
         run: |
           sudo chmod a+rw /dev/kvm
@@ -53,9 +53,14 @@ jobs:
             adb logcat -d -b crash > app/build/reports/startup/crash.txt
             adb shell pidof ir.ghadirpartner.portalapp.debug
             test ! -s app/build/reports/startup/crash.txt
+            adb install -r app/build/outputs/apk/androidTest/portal/debug/app-portal-debug-androidTest.apk
+            adb shell am instrument -w ir.ghadirpartner.portalapp.debug.test/androidx.test.runner.AndroidJUnitRunner > app/build/reports/startup/instrumentation.txt
+            grep -q 'OK (1 test)' app/build/reports/startup/instrumentation.txt
+            adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/invoice-reference.pdf > app/build/reports/invoice-reference.pdf
+            adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/invoice-pagination.pdf > app/build/reports/invoice-pagination.pdf
       - uses: actions/upload-artifact@v4
         with:
-          name: GhadirPartner-5.4.3.3-R5-Debug-APK
+          name: GhadirPartner-5.4.3.3-R5.2-Debug-APK
           path: app/build/outputs/apk/portal/debug/*.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
