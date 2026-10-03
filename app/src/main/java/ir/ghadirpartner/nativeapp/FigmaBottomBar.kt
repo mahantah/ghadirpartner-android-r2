@@ -59,7 +59,7 @@ fun FigmaBottomBar(
         }
         // Older Android retains an opaque-enough translucent glass fallback.
         Row(Modifier.fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color.White.copy(alpha=.26f), Color.White.copy(alpha=.11f))))
+            .background(Brush.verticalGradient(listOf(Color.White.copy(alpha=.88f), Color(0xFFE8F0FA).copy(alpha=.82f))))
             .padding(8.dp).selectableGroup(), horizontalArrangement=Arrangement.spacedBy(2.dp)) {
             items.forEach { item ->
                 val active = item.key == selected
@@ -77,8 +77,8 @@ fun FigmaBottomBar(
                     .padding(vertical=8.dp), horizontalAlignment=Alignment.CenterHorizontally,
                     verticalArrangement=Arrangement.spacedBy(2.dp, Alignment.CenterVertically)) {
                     Image(painterResource(asset), null, Modifier.size(22.dp),
-                        colorFilter=ColorFilter.tint(if(active) Navy else Color.White))
-                    Text(item.label, color=if(active) Navy else Color.White, fontSize=10.sp,
+                        colorFilter=ColorFilter.tint(Navy))
+                    Text(item.label, color=Navy, fontSize=10.sp,
                         fontWeight=if(active) FontWeight.Bold else FontWeight.Normal, maxLines=1)
                 }
             }

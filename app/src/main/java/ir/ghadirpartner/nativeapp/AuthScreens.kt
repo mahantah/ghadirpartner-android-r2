@@ -43,8 +43,8 @@ fun SplashScreen() {
                 modifier = Modifier.size(126.dp).clip(RoundedCornerShape(34.dp))
             )
             Spacer(Modifier.height(22.dp))
-            Text("قدیر پارتنر", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Black)
-            Text("راهکار یکپارچه فروش و همکاری", color = Color(0xFFC5D6EB), fontSize = 13.sp)
+            Text("قدیر پارتنر", color = Navy, fontSize = 28.sp, fontWeight = FontWeight.Black)
+            Text("راهکار یکپارچه فروش و همکاری", color = Muted, fontSize = 13.sp)
             Spacer(Modifier.height(30.dp))
             CircularProgressIndicator(color = Orange, strokeWidth = 3.dp, modifier = Modifier.size(30.dp))
         }
@@ -76,10 +76,10 @@ fun LoginScreen(api: ApiClient, onLoggedIn: () -> Unit) {
                 modifier = Modifier.size(108.dp).clip(RoundedCornerShape(30.dp))
             )
             Spacer(Modifier.height(18.dp))
-            Text("قدیر پارتنر", color = Color.White, fontSize = 29.sp, fontWeight = FontWeight.Black)
+            Text("قدیر پارتنر", color = Navy, fontSize = 29.sp, fontWeight = FontWeight.Black)
             Text(
                 if (api.isPortal) "ورود مشتریان" else "ورود اتوماسیون",
-                color = Color(0xFFC9D8EA), fontSize = 14.sp
+                color = Muted, fontSize = 14.sp
             )
             Spacer(Modifier.height(34.dp))
             GlassCard(

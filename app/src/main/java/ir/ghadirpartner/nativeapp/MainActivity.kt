@@ -22,6 +22,12 @@ import org.json.JSONObject
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.statusBarColor = android.graphics.Color.rgb(238,244,252)
+        window.navigationBarColor = android.graphics.Color.rgb(255,245,233)
+        androidx.core.view.WindowCompat.getInsetsController(window,window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
         setContent {
             GhadirTheme {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {

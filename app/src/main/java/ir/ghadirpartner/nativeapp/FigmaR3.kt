@@ -31,7 +31,7 @@ internal fun biometricEnabled(context: Context, account: String): Boolean =
 internal fun PortalGlassHeader(title: String, dashboard: Boolean, unread: Int, onBell: () -> Unit) {
     Row(Modifier.fillMaxWidth().height(64.dp).padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(title,color=Color.White,fontSize=18.sp,fontWeight=FontWeight.Bold,maxLines=1)
+            Text(title,color=Navy,fontSize=18.sp,fontWeight=FontWeight.Bold,maxLines=1)
             if(!dashboard) Text("قدیر پارتنر",color=Muted,fontSize=11.sp)
         }
         NotificationBell(unread,onBell)

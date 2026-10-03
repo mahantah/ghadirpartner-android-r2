@@ -17,9 +17,10 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-val PortalGlass get() = BuildConfig.APP_MODE == "portal"
+// Standard surfaces use the light palette; liquid glass is reserved for navigation.
+val PortalGlass = false
 val Ink get() = if (PortalGlass) Color.White else Navy
-val GlassFill = Color(0xFF172840)
+val GlassFill = Color.White
 
 /** R4 material: translucent body, specular top edge and subtle inner reflection. */
 fun Modifier.liquidGlass(shape: Shape = RoundedCornerShape(20.dp), accent: Boolean = false): Modifier =
@@ -28,9 +29,17 @@ fun Modifier.liquidGlass(shape: Shape = RoundedCornerShape(20.dp), accent: Boole
         .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha=.50f), Color.White.copy(alpha=.16f))), shape)
 
 fun Modifier.glass(shape: Shape = RoundedCornerShape(16.dp), accent: Boolean = false): Modifier =
-    clip(shape).background(if(accent) Orange else Color(0xFF172840)).border(1.dp,Color(0xFF304159),shape)
+    clip(shape).background(if(accent) Orange else Color.White).border(1.dp,Border,shape)
 
-fun Modifier.portalBackdrop(): Modifier = background(Color(0xFF0B1423))
+fun Modifier.portalBackdrop(): Modifier = drawBehind {
+    drawRect(Brush.verticalGradient(listOf(Color(0xFFEEF4FC), Color(0xFFFAFCFF), Color(0xFFFFF5E9))))
+    drawCircle(Brush.radialGradient(listOf(Color(0xFFF58220).copy(alpha=.13f), Color.Transparent),
+        center=Offset(size.width*1.02f,size.height*.17f),radius=size.width*.85f),
+        radius=size.width*.85f,center=Offset(size.width*1.02f,size.height*.17f))
+    drawCircle(Brush.radialGradient(listOf(Color(0xFF4676AD).copy(alpha=.10f), Color.Transparent),
+        center=Offset(0f,size.height*.75f),radius=size.width*.85f),
+        radius=size.width*.85f,center=Offset(0f,size.height*.75f))
+}
 
 @Composable
 fun GlassSurface(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(20.dp),
@@ -64,5 +73,5 @@ fun GlassTextButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled:
 fun GlassFilterChip(selected: Boolean,onClick: () -> Unit,label: @Composable () -> Unit) {
     FilterChip(selected=selected,onClick=onClick,label=label,
         modifier=Modifier.heightIn(min=44.dp).glass(RoundedCornerShape(14.dp),accent=selected),
-        colors=FilterChipDefaults.filterChipColors(containerColor=Color.Transparent,selectedContainerColor=Color.Transparent,labelColor=Color.White,selectedLabelColor=Navy),border=null)
+        colors=FilterChipDefaults.filterChipColors(containerColor=Color.Transparent,selectedContainerColor=Color.Transparent,labelColor=Navy,selectedLabelColor=Navy),border=null)
 }
