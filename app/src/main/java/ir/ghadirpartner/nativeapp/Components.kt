@@ -4,6 +4,7 @@ import android.net.Uri
 import android.graphics.BitmapFactory
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -75,9 +76,9 @@ fun HeroCard(title: String, value: String, caption: String, icon: ImageVector, e
                 Icon(icon, null, tint = if (emphasis) Color.White else Orange)
             }
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-                Text(title, color = if (emphasis) Color(0xFFD7E5F7) else Muted, fontSize = 12.sp)
-                Text(value, color = if (emphasis) Color.White else NavyDeep, fontSize = 23.sp, fontWeight = FontWeight.Black)
-                Text(caption, color = if (emphasis) Color(0xFFBFD2E9) else Muted, fontSize = 11.sp)
+                Text(title, color = Muted, fontSize = 12.sp)
+                Text(value, color = NavyDeep, fontSize = 23.sp, fontWeight = FontWeight.Black)
+                Text(caption, color = Muted, fontSize = 11.sp)
             }
         }
     }
@@ -139,22 +140,18 @@ fun SearchBox(value: String, onValueChange: (String) -> Unit, placeholder: Strin
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = Orange,
             unfocusedBorderColor = Border,
-            focusedContainerColor = if(PortalGlass) GlassFill else Color.White,
-            unfocusedContainerColor = if(PortalGlass) GlassFill else Color.White
+            focusedContainerColor = AppSurface,
+            unfocusedContainerColor = AppSurface
         )
     )
 }
 
 @Composable
 fun GhadirButton(text: String, onClick: () -> Unit, enabled: Boolean = true, secondary: Boolean = false, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(18.dp)
-    Button(onClick=onClick, enabled=enabled,
-        modifier=modifier.fillMaxWidth().heightIn(min=48.dp).then(if(PortalGlass) Modifier.glass(shape, accent=!secondary) else Modifier),
-        shape=shape, colors=ButtonDefaults.buttonColors(
-            containerColor=if(PortalGlass) Color.Transparent else if(secondary) Orange else Navy,
-            contentColor=if(PortalGlass) { if(secondary) Color.White else Navy } else if(secondary) Navy else Color.White,
-            disabledContainerColor=if(PortalGlass) Color.White.copy(alpha=.08f) else Border,
-            disabledContentColor=if(PortalGlass) Color(0xFFB5BDCA) else Muted)) {
+    Button(onClick=onClick,enabled=enabled,modifier=modifier.fillMaxWidth().heightIn(min=48.dp),
+        shape=RoundedCornerShape(16.dp),border=if(secondary) BorderStroke(1.dp,Border) else null,
+        colors=ButtonDefaults.buttonColors(containerColor=if(secondary) AppSecondary else Orange,
+            contentColor=if(secondary) Ink else Navy,disabledContainerColor=Border,disabledContentColor=Muted)) {
         Text(text,fontWeight=FontWeight.Bold,fontSize=14.sp)
     }
 }

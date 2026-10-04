@@ -6,6 +6,7 @@ import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -28,13 +29,22 @@ internal fun biometricEnabled(context: Context, account: String): Boolean =
         .getBoolean("biometric:$account", true) // Preserve the existing default for upgraded users.
 
 @Composable
-internal fun PortalGlassHeader(title: String, dashboard: Boolean, unread: Int, onBell: () -> Unit) {
-    Row(Modifier.fillMaxWidth().height(64.dp).padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically) {
+internal fun PortalGlassHeader(title: String, dashboard: Boolean, unread: Int, onOffers: () -> Unit, onBell: () -> Unit) {
+    val context=LocalContext.current
+    Row(Modifier.fillMaxWidth().heightIn(min=84.dp).padding(horizontal=20.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+        Image(painterResource(R.drawable.r54_logo),"قدیر پارتنر",Modifier.size(40.dp))
         Column(Modifier.weight(1f)) {
-            Text(title,color=Navy,fontSize=18.sp,fontWeight=FontWeight.Bold,maxLines=1)
-            if(!dashboard) Text("قدیر پارتنر",color=Muted,fontSize=11.sp)
+            Text(title,color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold,maxLines=2)
+            Text("قدیر پارتنر",color=Muted,fontSize=12.sp)
         }
-        NotificationBell(unread,onBell)
+        Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            Image(painterResource(if(AppAppearance.dark) R.drawable.r54_offers_dark else R.drawable.r54_offers),"طرح‌ها و آفرها",Modifier.size(40.dp,44.dp).clickable(onClick=onOffers))
+            Image(painterResource(if(AppAppearance.dark) R.drawable.r54_theme_dark else R.drawable.r54_theme),if(AppAppearance.dark) "حالت روز" else "حالت شب",Modifier.size(40.dp,44.dp).clickable {AppAppearance.toggle(context)})
+            Box {
+                Image(painterResource(if(AppAppearance.dark) R.drawable.r54_bell_dark else R.drawable.r54_bell),"اعلان‌ها",Modifier.size(40.dp,44.dp).clickable(onClick=onBell))
+                if(unread>0) Badge(Modifier.align(Alignment.TopEnd),containerColor=Orange,contentColor=Navy){Text(faNumber(unread),fontSize=9.sp)}
+            }
+        }
     }
 }
 

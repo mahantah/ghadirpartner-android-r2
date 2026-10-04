@@ -42,11 +42,11 @@ fun FigmaBottomBar(
     contentPosition: Offset = Offset.Zero
 ) {
     var position by remember { mutableStateOf(Offset.Zero) }
-    val shape = RoundedCornerShape(32.dp)
+    val shape = RoundedCornerShape(24.dp)
     Box(modifier.fillMaxWidth().padding(horizontal=12.dp, vertical=12.dp)
-        .shadow(12.dp, shape).clip(shape)
+        .shadow(0.dp, shape).clip(shape)
         .onGloballyPositioned { position = it.positionInRoot() }
-        .border(1.dp, Color.White.copy(alpha=.5f), shape)) {
+        .border(1.dp, Border, shape)) {
         if (backdrop != null) {
             Box(Modifier.matchParentSize().graphicsLayer {
                 if (Build.VERSION.SDK_INT >= 31) {
@@ -59,7 +59,7 @@ fun FigmaBottomBar(
         }
         // Older Android retains an opaque-enough translucent glass fallback.
         Row(Modifier.fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color.White.copy(alpha=.88f), Color(0xFFE8F0FA).copy(alpha=.82f))))
+            .background(AppSurface.copy(alpha=.92f))
             .padding(8.dp).selectableGroup(), horizontalArrangement=Arrangement.spacedBy(2.dp)) {
             items.forEach { item ->
                 val active = item.key == selected
@@ -72,13 +72,13 @@ fun FigmaBottomBar(
                 }
                 Column(Modifier.weight(1f).heightIn(min=60.dp)
                     .clip(RoundedCornerShape(20.dp))
-                    .then(if(active) Modifier.liquidGlass(RoundedCornerShape(24.dp),accent=true) else Modifier)
+                    .then(if(active) Modifier.background(AppSecondary,RoundedCornerShape(18.dp)) else Modifier)
                     .selectable(active, role=Role.Tab, onClick={onSelected(item.key)})
                     .padding(vertical=8.dp), horizontalAlignment=Alignment.CenterHorizontally,
                     verticalArrangement=Arrangement.spacedBy(2.dp, Alignment.CenterVertically)) {
                     Image(painterResource(asset), null, Modifier.size(22.dp),
-                        colorFilter=ColorFilter.tint(Navy))
-                    Text(item.label, color=Navy, fontSize=10.sp,
+                        colorFilter=ColorFilter.tint(if(active) Orange else Muted))
+                    Text(item.label, color=if(active) Orange else Muted, fontSize=10.sp,
                         fontWeight=if(active) FontWeight.Bold else FontWeight.Normal, maxLines=1)
                 }
             }

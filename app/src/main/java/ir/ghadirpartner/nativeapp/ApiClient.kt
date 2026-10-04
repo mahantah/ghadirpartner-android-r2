@@ -67,9 +67,9 @@ private class PersistentCookieJar(context: Context) : CookieJar {
     }
 }
 
-class ApiClient(private val context: Context) {
+class ApiClient(private val context: Context, internalClient: OkHttpClient? = null) {
     private val cookieJar = PersistentCookieJar(context.applicationContext)
-    private val client = OkHttpClient.Builder()
+    private val client = internalClient ?: OkHttpClient.Builder()
         .cookieJar(cookieJar)
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
