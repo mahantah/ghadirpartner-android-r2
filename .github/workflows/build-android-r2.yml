@@ -1,0 +1,73 @@
+name: Build Ghadir Partner Android Compact R5
+on:
+  push:
+    branches: [main, codex/compact-r5]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  portal:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Install Android platform
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: ghadir-portal-r4-debug-signing-v1
+      - name: Build and lint customer app
+        run: gradle --no-daemon --console=plain :app:assemblePortalDebug :app:assemblePortalDebugAndroidTest :app:lintPortalDebug
+      - name: Enable emulator acceleration
+        run: |
+          sudo chmod a+rw /dev/kvm
+      - name: Verify cold start and resume on Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          disable-animations: true
+          script: |
+            mkdir -p app/build/reports/startup
+            adb install -r app/build/outputs/apk/portal/debug/app-portal-debug.apk
+            adb logcat -c
+            adb shell am start -W -n ir.ghadirpartner.portalapp.debug/ir.ghadirpartner.nativeapp.MainActivity
+            sleep 40
+            adb logcat -d -b crash > app/build/reports/startup/crash.txt
+            adb exec-out screencap -p > app/build/reports/startup/launch.png
+            adb shell pidof ir.ghadirpartner.portalapp.debug
+            adb shell input keyevent KEYCODE_HOME
+            adb shell am start -W -n ir.ghadirpartner.portalapp.debug/ir.ghadirpartner.nativeapp.MainActivity
+            sleep 5
+            adb logcat -d -b crash > app/build/reports/startup/crash.txt
+            adb shell pidof ir.ghadirpartner.portalapp.debug
+            test ! -s app/build/reports/startup/crash.txt
+            adb install -r app/build/outputs/apk/androidTest/portal/debug/app-portal-debug-androidTest.apk
+            adb shell am instrument -w ir.ghadirpartner.portalapp.debug.test/androidx.test.runner.AndroidJUnitRunner > app/build/reports/startup/instrumentation.txt
+            grep -q 'OK (3 tests)' app/build/reports/startup/instrumentation.txt
+            adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/invoice-reference.pdf > app/build/reports/invoice-reference.pdf
+            adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/invoice-pagination.pdf > app/build/reports/invoice-pagination.pdf
+            adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/profile-day.png > app/build/reports/profile-day.png
+            adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/profile-night.png > app/build/reports/profile-night.png
+            adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/invoice-list.png > app/build/reports/invoice-list.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GhadirPartner-5.4.3.3-R5.4-Debug-APK
+          path: app/build/outputs/apk/portal/debug/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: R5-Build-Reports
+          path: app/build/reports/

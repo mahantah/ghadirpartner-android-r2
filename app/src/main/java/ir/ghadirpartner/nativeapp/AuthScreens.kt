@@ -54,6 +54,9 @@ fun SplashScreen() {
 @Composable
 fun LoginScreen(api: ApiClient, onLoggedIn: () -> Unit) {
     val scope=rememberCoroutineScope()
+    val context=androidx.compose.ui.platform.LocalContext.current
+    var loginPrompt by remember {mutableStateOf<androidx.biometric.BiometricPrompt?>(null)}
+    DisposableEffect(Unit){onDispose{loginPrompt?.cancelAuthentication()}}
     var identity by remember {mutableStateOf("")};var password by remember {mutableStateOf("")}
     var visible by remember {mutableStateOf(false)};var loading by remember {mutableStateOf(false)}
     var error by remember {mutableStateOf("")};var resetOpen by remember {mutableStateOf(false)}
@@ -77,7 +80,20 @@ fun LoginScreen(api: ApiClient, onLoggedIn: () -> Unit) {
             OutlinedTextField(password,{password=it;error=""},label={Text("رمز عبور")},singleLine=true,modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(16.dp),visualTransformation=if(visible) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),trailingIcon={TextButton(onClick={visible=!visible}){Text(if(visible)"پنهان" else "نمایش")}})
             GhadirButton(if(loading)"در حال ورود…" else "ورود",{scope.launch{loading=true;error="";try{api.login(identity,password);onLoggedIn()}catch(e:Exception){error=e.message?:"ورود ناموفق بود"}finally{loading=false}}},enabled=!loading&&identity.isNotBlank()&&password.isNotBlank())
             if(api.isPortal)GhadirButton("ورود با کد یک‌بارمصرف",{requestOtp()},enabled=!loading&&identity.matches(Regex("09[0-9]{9}")),secondary=true)
-            if(api.isPortal)GhadirButton("ورود با اثر انگشت",{scope.launch{try{api.me();onLoggedIn()}catch(_:Exception){error="برای فعال‌سازی بیومتریک ابتدا با رمز یا پیامک وارد شوید؛ سپس آن را در پروفایل روشن کنید."}}},secondary=true)
+            if(api.isPortal)GhadirButton("ورود با اثر انگشت",{
+                val activity=context as? androidx.fragment.app.FragmentActivity
+                val allowed=androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
+                if(activity==null||androidx.biometric.BiometricManager.from(context).canAuthenticate(allowed)!=androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) {
+                    error="اثر انگشت یا تشخیص چهره روی این دستگاه فعال نیست."
+                } else {
+                    val prompt=androidx.biometric.BiometricPrompt(activity,androidx.core.content.ContextCompat.getMainExecutor(context),object:androidx.biometric.BiometricPrompt.AuthenticationCallback(){
+                        override fun onAuthenticationSucceeded(result:androidx.biometric.BiometricPrompt.AuthenticationResult){scope.launch{try{api.me();onLoggedIn()}catch(_:Exception){error="نشست شما منقضی شده است؛ با رمز یا کد پیامکی وارد شوید."}}}
+                        override fun onAuthenticationError(code:Int,message:CharSequence){error="تأیید هویت انجام نشد؛ دوباره تلاش کنید یا با رمز وارد شوید."}
+                    })
+                    loginPrompt=prompt
+                    prompt.authenticate(androidx.biometric.BiometricPrompt.PromptInfo.Builder().setTitle("ورود امن قدیر پارتنر").setAllowedAuthenticators(allowed).setNegativeButtonText("استفاده از رمز عبور").build())
+                }
+            },secondary=true)
             GhadirButton("فراموشی رمز عبور",{resetOpen=true},secondary=true)
             GlassSurface {Text("فعال‌سازی ورود بیومتریک پس از یک ورود موفق انجام می‌شود.",color=Muted,fontSize=12.sp,modifier=Modifier.padding(16.dp))}
         } else {
@@ -110,7 +126,7 @@ private fun PasswordResetDialog(api: ApiClient, onDismiss: () -> Unit) {
             Text("بازیابی رمز عبور", color = NavyDeep, fontWeight = FontWeight.Black, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Start)
         },
         text = {
-            Column(horizontalAlignment = Alignment.Start) {
+            Column(Modifier.heightIn(max=440.dp).verticalScroll(rememberScrollState()),horizontalAlignment = Alignment.Start) {
                 Box(Modifier.fillMaxWidth().height(92.dp), contentAlignment = Alignment.Center) {
                     Box(Modifier.size(74.dp).clip(CircleShape).background(Color(0xFFFFE4CF)), contentAlignment = Alignment.Center) {
                         Icon(Icons.Default.Lock, null, tint = Orange, modifier = Modifier.size(34.dp))
