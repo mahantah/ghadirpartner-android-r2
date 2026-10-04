@@ -60,7 +60,8 @@ fun PortalDocuments(api: ApiClient, me: JSONObject, selected: JSONObject? = null
                             val uri=withContext(Dispatchers.IO){
                                 val dir=File(context.cacheDir,"documents").apply{mkdirs()}
                                 val file=File(dir,"proforma-${order.i("id")}.pdf")
-                                PdfDocument().use {doc->OfficialInvoice.render(doc,order,me.obj("customer"));file.outputStream().use{doc.writeTo(it)}}
+                                val doc=PdfDocument()
+                                try {OfficialInvoice.render(doc,order,me.obj("customer"));file.outputStream().use{doc.writeTo(it)}} finally {doc.close()}
                                 FileProvider.getUriForFile(context,context.packageName+".files",file)
                             }
                             context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply{type="application/pdf";putExtra(Intent.EXTRA_STREAM,uri);addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)},"اشتراک‌گذاری پیش‌فاکتور"))
