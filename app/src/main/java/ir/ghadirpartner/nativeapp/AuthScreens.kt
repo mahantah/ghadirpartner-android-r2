@@ -70,14 +70,14 @@ fun LoginScreen(api: ApiClient, onLoggedIn: () -> Unit) {
     Column(Modifier.fillMaxSize().portalBackdrop().navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         Row(Modifier.fillMaxWidth().heightIn(min=84.dp),verticalAlignment=Alignment.CenterVertically) {
             Column(Modifier.weight(1f)){Text(if(otpOpen) "کد تأیید" else "ورود به قدیر پارتنر",color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold);Text("قدیر پارتنر",color=Muted,fontSize=12.sp)}
-            TextButton(onClick={if(otpOpen)otpOpen=false else resetOpen=false}){Text("بازگشت",color=Ink)}
+            IconButton(onClick={if(otpOpen)otpOpen=false else resetOpen=false}){Icon(painterResource(R.drawable.r54_back),"بازگشت",Modifier.size(22.dp),tint=Ink)}
         }
         Image(painterResource(R.drawable.ghadir_logo),"قدیر پارتنر",Modifier.size(72.dp).clip(RoundedCornerShape(16.dp)))
         Text(if(otpOpen) "کد تأیید را وارد کنید" else "خوش آمدید",color=Ink,fontSize=26.sp,fontWeight=FontWeight.Bold)
         Text(if(otpOpen) "کد ارسال‌شده به شماره "+faDigits(identity) else "برای پیگیری سفارش‌ها وارد حساب شوید.",color=Muted,fontSize=14.sp)
         if(!otpOpen) {
-            OutlinedTextField(identity,{identity=asciiDigits(it);error=""},label={Text(if(api.isPortal)"شماره همراه" else "نام کاربری")},singleLine=true,modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(16.dp))
-            OutlinedTextField(password,{password=it;error=""},label={Text("رمز عبور")},singleLine=true,modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(16.dp),visualTransformation=if(visible) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),trailingIcon={TextButton(onClick={visible=!visible}){Text(if(visible)"پنهان" else "نمایش")}})
+            OutlinedTextField(identity,{identity=asciiDigits(it);error=""},label={Text(if(api.isPortal)"شماره همراه" else "نام کاربری")},trailingIcon={Icon(painterResource(R.drawable.r54_phone),null,Modifier.size(22.dp),tint=Ink)},singleLine=true,modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(16.dp))
+            OutlinedTextField(password,{password=it;error=""},label={Text("رمز عبور")},singleLine=true,modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(16.dp),visualTransformation=if(visible) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),trailingIcon={IconButton(onClick={visible=!visible}){Icon(painterResource(R.drawable.r54_eye),if(visible)"پنهان کردن رمز" else "نمایش رمز",Modifier.size(22.dp),tint=Ink)}})
             GhadirButton(if(loading)"در حال ورود…" else "ورود",{scope.launch{loading=true;error="";try{api.login(identity,password);onLoggedIn()}catch(e:Exception){error=e.message?:"ورود ناموفق بود"}finally{loading=false}}},enabled=!loading&&identity.isNotBlank()&&password.isNotBlank())
             if(api.isPortal)GhadirButton("ورود با کد یک‌بارمصرف",{requestOtp()},enabled=!loading&&identity.matches(Regex("09[0-9]{9}")),secondary=true)
             if(api.isPortal)GhadirButton("ورود با اثر انگشت",{

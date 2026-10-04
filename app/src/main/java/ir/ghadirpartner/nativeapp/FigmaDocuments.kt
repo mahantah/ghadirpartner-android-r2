@@ -53,7 +53,7 @@ fun PortalDocuments(api: ApiClient, me: JSONObject, selected: JSONObject? = null
                     Text("مجموع: ${formatMoney(order.l("approved_total").takeIf{it>0}?:order.l("estimated_total"))} تومان",color=Ink,fontWeight=FontWeight.Bold)
                     Text("پیش‌فاکتور؛ به معنی پرداخت یا رزرو کالا نیست.",color=Muted,fontSize=12.sp)
                     if(selected==null)GhadirButton("مشاهده پیش‌فاکتور",{onOpen(order)},secondary=true)
-                    GhadirButton("دانلود PDF پیش‌فاکتور",{scope.launch {busy=true;try{val path=api.saveProformaPdf(order);android.widget.Toast.makeText(context,"ذخیره شد: $path",1).show()}catch(e:Exception){error=e.message?:"ذخیره ناموفق بود"}finally{busy=false}}},enabled=!busy)
+                    GhadirButton("دانلود PDF پیش‌فاکتور",{scope.launch {busy=true;try{val path=api.saveProformaPdf(order);android.widget.Toast.makeText(context,"ذخیره شد: $path",android.widget.Toast.LENGTH_LONG).show()}catch(e:Exception){error=e.message?:"ذخیره ناموفق بود"}finally{busy=false}}},enabled=!busy)
                     GhadirButton("اشتراک‌گذاری",{scope.launch {
                         busy=true
                         try {
