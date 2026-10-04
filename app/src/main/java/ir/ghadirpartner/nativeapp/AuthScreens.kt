@@ -37,7 +37,7 @@ fun SplashScreen() {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Image(
-                painter = painterResource(R.drawable.ghadir_logo),
+                painter = painterResource(R.drawable.r54_profile_logo),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.size(126.dp).clip(RoundedCornerShape(34.dp))
@@ -72,7 +72,7 @@ fun LoginScreen(api: ApiClient, onLoggedIn: () -> Unit) {
             Column(Modifier.weight(1f)){Text(if(otpOpen) "کد تأیید" else "ورود به قدیر پارتنر",color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold);Text("قدیر پارتنر",color=Muted,fontSize=12.sp)}
             IconButton(onClick={if(otpOpen)otpOpen=false else resetOpen=false}){Icon(painterResource(R.drawable.r54_back),"بازگشت",Modifier.size(22.dp),tint=Ink)}
         }
-        Image(painterResource(R.drawable.ghadir_logo),"قدیر پارتنر",Modifier.size(72.dp).clip(RoundedCornerShape(16.dp)))
+        Image(painterResource(R.drawable.r54_profile_logo),"قدیر پارتنر",Modifier.size(72.dp).clip(RoundedCornerShape(16.dp)))
         Text(if(otpOpen) "کد تأیید را وارد کنید" else "خوش آمدید",color=Ink,fontSize=26.sp,fontWeight=FontWeight.Bold)
         Text(if(otpOpen) "کد ارسال‌شده به شماره "+faDigits(identity) else "برای پیگیری سفارش‌ها وارد حساب شوید.",color=Muted,fontSize=14.sp)
         if(!otpOpen) {

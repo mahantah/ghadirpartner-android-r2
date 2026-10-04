@@ -96,7 +96,7 @@ fun PortalApp(api: ApiClient, me: JSONObject, onLogout: () -> Unit) {
         topBar = { PortalGlassHeader(if(screen=="home") "سلام، $customerName" else titles[screen] ?: "قدیر پارتنر", screen=="home", inbox.unread, onOffers={selectedOffer=null;screen="offers"}) { screen="inbox";appScope.launch {inbox.refresh()} } }
     ) { pad ->
         Box(Modifier.fillMaxSize().padding(pad)) {
-            Box(Modifier.fillMaxSize()
+            Box(Modifier.fillMaxSize().padding(bottom=if(screen!="order-detail") 96.dp else 0.dp)
                 .onGloballyPositioned { contentPosition = it.positionInRoot() }
                 .drawWithContent { backdrop.record { this@drawWithContent.drawContent() }; drawLayer(backdrop) }
                 
@@ -220,7 +220,7 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
 
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = 20.dp),
-        contentPadding = PaddingValues(top = 14.dp, bottom = 112.dp),
+        contentPadding = PaddingValues(top = 14.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(13.dp)
     ) {
         item { ErrorBanner(error) { error = "" } }
@@ -326,7 +326,7 @@ private fun PortalOrders(api: ApiClient, deliveredOnly: Boolean = false, onNavig
         Spacer(Modifier.height(9.dp)); ErrorBanner(error) { error = "" }
         Text("${faNumber(filtered.size)} سفارش", color = Muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Start)
         Spacer(Modifier.height(5.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 112.dp)) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
             if(error.isNotBlank())item {GhadirButton("تلاش دوباره",{refresh()})}
             if (filtered.isEmpty()&&error.isBlank()) item { EmptyState(if(orders.isEmpty()) "هنوز سفارشی ندارید" else "سفارشی پیدا نشد", "فیلتر یا عبارت جستجو را تغییر دهید.");GhadirButton("ثبت اولین سفارش",{onNavigate("new")});Spacer(Modifier.height(8.dp));GhadirButton("مشاهده قیمت‌ها",{onNavigate("catalog")},secondary=true) }
             items(filtered, key = { it.i("id") }) { o ->
@@ -351,7 +351,7 @@ private fun PortalOrderDetails(api: ApiClient, order: JSONObject, onBack: () -> 
 
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = 20.dp),
-        contentPadding = PaddingValues(top = 12.dp, bottom = 112.dp),
+        contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(11.dp)
     ) {
         item {
@@ -602,7 +602,7 @@ private fun PortalNewOrder(api: ApiClient, initialOfferCode: String = "", onSucc
 
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = 20.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 112.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -611,7 +611,7 @@ private fun PortalNewOrder(api: ApiClient, initialOfferCode: String = "", onSucc
         }
         item { ErrorBanner(error) { error = "" } }
         item { Text("زمان ثبت سفارش: ۹ تا ۱۸ به وقت تهران",color=Muted,fontSize=12.sp) }
-        item { AddressSelector(api) {selectedAddressId=it} }
+        item { AddressSelector(api,selectedAddressId) {selectedAddressId=it} }
         item { DropdownField("۱. نوع قیمت",priceLabels.firstOrNull {it.first==priceKey}?.second ?: "انتخاب نوع قیمت",priceLabels,{it.second}) {priceKey=it.first;selected=null} }
         item {
             DropdownField(
@@ -664,7 +664,7 @@ private fun PortalNewOrder(api: ApiClient, initialOfferCode: String = "", onSucc
                         Spacer(Modifier.weight(1f))
                         Column(horizontalAlignment = Alignment.Start) {
                             Text("قیمت واحد انتخابی", color = NavySoft, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            Text("دریافت زنده از اتوماسیون", color = Muted, fontSize = 8.sp)
+                            Text("دریافت زنده از اتوماسیون", color = Muted, fontSize = 12.sp)
                         }
                     }
                     if (selectedUnitPrice > 0 && selectedQty > 0) {
@@ -839,6 +839,7 @@ private fun PortalNewOrder(api: ApiClient, initialOfferCode: String = "", onSucc
     }
     if(confirming) AlertDialog(onDismissRequest={if(!submitting)confirming=false},title={Text("سفارش را نهایی می‌کنید؟")},text={
         Column(Modifier.heightIn(max=420.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            if(error.isNotBlank())Text(error,color=Danger)
             Text("مدل، تعداد، نشانی و روش تسویه را بررسی کنید. پس از ثبت، تغییر سفارش نیازمند بررسی پشتیبانی است.")
             cart.forEach {line->Text("${faNumber(line.qty)} × ${line.product} • ${line.priceLabel} • ${formatMoney(line.unit)} تومان")}
             Text(reviewAddress)
@@ -926,7 +927,7 @@ private fun PortalCatalog(api: ApiClient) {
     }
 
     LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),
-        contentPadding=PaddingValues(top=20.dp, bottom=112.dp),
+        contentPadding=PaddingValues(top=20.dp, bottom=24.dp),
         verticalArrangement=Arrangement.spacedBy(16.dp)) {
         item { SearchBox(query,{query=it},"جستجوی مدل یا شرکت سازنده") }
         item { DropdownField("۱. نوع قیمت",priceTypes.firstOrNull {it.first==tier}?.second ?: "انتخاب نوع قیمت",priceTypes,{it.second}) {tier=it.first;modelFilter=""} }
@@ -1015,7 +1016,7 @@ private fun PortalProfile(api: ApiClient, me: JSONObject, onUpdated: (JSONObject
     var photoActions by remember {mutableStateOf(false)}
     val cameraFile=remember { java.io.File(context.filesDir,"profile/camera-${me.i("id")}.jpg").apply {parentFile?.mkdirs()} }
     val cameraUri=remember { androidx.core.content.FileProvider.getUriForFile(context,context.packageName+".files",cameraFile) }
-    val camera=rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) {ok->if(ok){photoUri=cameraUri.toString();profilePrefs.edit().putString(photoKey,photoUri).apply();onPhotoUpdated(photoUri)}}
+    val camera=rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) {ok->if(ok){photoUri=cameraUri.buildUpon().appendQueryParameter("v",System.currentTimeMillis().toString()).build().toString();profilePrefs.edit().putString(photoKey,photoUri).apply();onPhotoUpdated(photoUri)}}
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {ok->if(ok)camera.launch(cameraUri)}
     if(photoActions) AlertDialog(onDismissRequest={photoActions=false},title={Text("تصویر پروفایل")},text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)){
         GhadirButton("انتخاب از گالری",{photoActions=false;photoLauncher.launch(arrayOf("image/*"))},secondary=true)
@@ -1027,7 +1028,7 @@ private fun PortalProfile(api: ApiClient, me: JSONObject, onUpdated: (JSONObject
     var error by remember { mutableStateOf("") }
     var saved by remember { mutableStateOf("") }
 
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp), contentPadding = PaddingValues(top=12.dp,bottom = 112.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp), contentPadding = PaddingValues(top=12.dp,bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             GlassSurface { Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
@@ -1113,10 +1114,10 @@ private fun ProfilePhoto(uri: String) {
             Image(bitmap = bitmap.asImageBitmap(), contentDescription = "عکس پروفایل", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         } else {
             Image(
-                painter = painterResource(R.drawable.ghadir_logo),
+                painter = painterResource(R.drawable.r54_profile_logo),
                 contentDescription = "لوگوی قدیر پرداخت",
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().padding(6.dp).clip(RoundedCornerShape(14.dp))
+                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp))
             )
         }
     }

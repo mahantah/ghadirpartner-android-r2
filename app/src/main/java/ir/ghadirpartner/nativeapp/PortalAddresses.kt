@@ -14,13 +14,12 @@ import org.json.JSONObject
 internal val priceTypes = listOf("serial_1_50" to "سریال آزاد ۱ تا ۵۰","serial_51_200" to "سریال آزاد ۵۱ تا ۲۰۰","sales_agent" to "عامل فروش","panel_cash" to "پنل — نقد","panel_7d" to "پنل — هفت‌روزه","panel_1m" to "پنل — یک‌ماهه")
 
 @Composable
-internal fun AddressSelector(api: ApiClient,onSelected: (String)->Unit) {
+internal fun AddressSelector(api: ApiClient,selected: String,onSelected: (String)->Unit) {
     var addresses by remember {mutableStateOf(emptyList<JSONObject>())}
-    var selected by remember {mutableStateOf("")}
     var error by remember {mutableStateOf("")}
     LaunchedEffect(Unit) {try {addresses=(api.get("/api/addresses") as JSONArray).objects()}catch(e:Exception){error=e.message ?: "دریافت آدرس ناموفق بود"}}
     Column {
-        DropdownField("آدرس تحویل",addresses.firstOrNull {it.s("id")==selected}?.s("title") ?: "آدرس اصلی پروفایل",listOf(JSONObject().put("id","").put("title","آدرس اصلی پروفایل"))+addresses,{it.s("title")+" · "+it.s("address")}) {selected=it.s("id");onSelected(selected)}
+        DropdownField("آدرس تحویل",addresses.firstOrNull {it.s("id")==selected}?.s("title") ?: "آدرس اصلی پروفایل",listOf(JSONObject().put("id","").put("title","آدرس اصلی پروفایل"))+addresses,{it.s("title")+" · "+it.s("address")}) {onSelected(it.s("id"))}
         if(error.isNotBlank()) Text(error,color=Danger)
         Text("آدرس جدید را در پروفایل ← آدرس‌های من ذخیره کنید.",color=Muted)
     }
@@ -47,7 +46,7 @@ internal fun PortalAddresses(api: ApiClient) {
             id="";title="";province="";city="";address="";postal=""
         }catch(e:Exception){error=e.message ?: "ذخیره آدرس ناموفق بود"}finally {busy=false}
     }}
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp),contentPadding=PaddingValues(bottom=112.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp),contentPadding=PaddingValues(bottom=24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
         item {ErrorBanner(error){error=""}}
         items(rows,key={it.s("id")}) {row->GlassSurface {Column(Modifier.fillMaxWidth().padding(12.dp)) {
             Text(row.s("title"),color=Ink);Text(row.s("province")+"، "+row.s("city")+"، "+row.s("address"),color=Muted)

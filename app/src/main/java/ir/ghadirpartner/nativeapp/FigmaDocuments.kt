@@ -32,7 +32,7 @@ fun PortalDocuments(api: ApiClient, me: JSONObject, selected: JSONObject? = null
         try {orders=if(selected!=null) listOf(selected) else (api.get("/api/orders") as JSONArray).objects().sortedByDescending{it.i("id")};error=""}
         catch(e:Exception){error=e.message?:"دریافت پیش‌فاکتورها ناموفق بود"}finally{busy=false}
     }
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=112.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(selected==null)item{SearchBox(query,{query=it},"شماره پیش‌فاکتور / سفارش")}
         if(error.isNotBlank())item{ErrorBanner(error){error=""};GhadirButton("تلاش دوباره",{retry++},secondary=true)}
         if(busy)item{Text("در حال آماده‌سازی…",color=Muted)}
