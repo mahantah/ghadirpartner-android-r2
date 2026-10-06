@@ -41,7 +41,7 @@ Automation:
 - POST /api/staff-password-reset/confirm
 
 Backend compatibility: customer `requested_payment_method` values are `cash`, `check`, `credit`.
-`POST /api/orders/add` carries `delivery_address_id` and `settlement_details` when supplied.
+`POST /api/orders/add` carries `address_id` and `settlement_details` when supplied.
 Settlement evidence requires finance review; submission does not confirm payment or authorize shipping.
 
 Server compatibility code is maintained separately in `mahantah/ghadirpartner`, including
