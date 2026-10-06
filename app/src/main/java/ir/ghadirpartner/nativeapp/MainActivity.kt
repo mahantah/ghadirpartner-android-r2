@@ -22,8 +22,24 @@ import org.json.JSONObject
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppAppearance.restore(this)
+        window.statusBarColor = android.graphics.Color.rgb(238,244,252)
+        window.navigationBarColor = android.graphics.Color.rgb(255,245,233)
+        androidx.core.view.WindowCompat.getInsetsController(window,window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
         setContent {
             GhadirTheme {
+                val dark = AppAppearance.dark
+                SideEffect {
+                    window.statusBarColor = if(dark) 0xFF10161F.toInt() else 0xFFFFF8F2.toInt()
+                    window.navigationBarColor = if(dark) 0xFF1B2430.toInt() else 0xFFFFFFFF.toInt()
+                    androidx.core.view.WindowCompat.getInsetsController(window,window.decorView).apply {
+                        isAppearanceLightStatusBars = !dark
+                        isAppearanceLightNavigationBars = !dark
+                    }
+                }
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                     NativeAppRoot()
                 }
@@ -40,11 +56,21 @@ private fun NativeAppRoot() {
     var me by remember { mutableStateOf<JSONObject?>(null) }
     var authNonce by remember { mutableIntStateOf(0) }
     var biometricChecked by remember { mutableStateOf(false) }
+    var passwordVerified by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    DisposableEffect(context) {
+        val activity = context as FragmentActivity
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if(event == androidx.lifecycle.Lifecycle.Event.ON_STOP) biometricChecked = false
+        }
+        activity.lifecycle.addObserver(observer)
+        onDispose { activity.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(authNonce) {
         checking = true
-        biometricChecked = false
+        biometricChecked = passwordVerified
+        passwordVerified = false
         me = try {
             val current = api.me()
             if (api.modeAllowed(current)) current else {
@@ -59,20 +85,10 @@ private fun NativeAppRoot() {
         checking -> SplashScreen()
         me == null -> LoginScreen(
             api = api,
-            onLoggedIn = { authNonce++ }
+            onLoggedIn = { passwordVerified = true; authNonce++ }
         )
-        api.isPortal && !biometricChecked && biometricEnabled(context, me!!.s("username")) -> BiometricGate(
-            onUnlocked = { biometricChecked = true },
-            onUnavailable = { biometricChecked = true },
-            onUsePassword = {
-                scope.launch {
-                    api.logout()
-                    me = null
-                    authNonce++
-                }
-            }
-        )
-        api.isPortal -> PortalApp(
+        api.isPortal -> Box {
+            PortalApp(
             api = api,
             me = me!!,
             onLogout = {
@@ -83,6 +99,22 @@ private fun NativeAppRoot() {
                 }
             }
         )
+            if(!biometricChecked && biometricEnabled(context,me!!.s("username"))) {
+                androidx.compose.ui.window.Dialog(onDismissRequest={},properties=androidx.compose.ui.window.DialogProperties(dismissOnBackPress=false,dismissOnClickOutside=false,usePlatformDefaultWidth=false)) {
+                    BiometricGate(
+            onUnlocked = { biometricChecked = true },
+            onUnavailable = { scope.launch { api.logout(); me = null; authNonce++ } },
+            onUsePassword = {
+                scope.launch {
+                    api.logout()
+                    me = null
+                    authNonce++
+                }
+            }
+        )
+                }
+            }
+        }
         else -> AutomationApp(
             api = api,
             me = me!!,

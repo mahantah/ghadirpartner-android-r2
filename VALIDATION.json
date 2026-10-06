@@ -1,18 +1,16 @@
 {
-  "version": "5.4.3.3-r4",
-  "backend": "V5.3.4.18-PORTAL-INBOX",
-  "passed": [
-    "PHP syntax",
-    "recipient targeting and offer dates",
-    "order ownership and read ownership",
-    "OTP exclusion",
-    "admin authorization and message persistence",
-    "admin form browser test with mocked API"
-  ],
-  "android_build": "NOT RUN: no local SDK/Gradle; GitHub write returned 403",
-  "device_visual_test": "NOT RUN",
-  "biometric_device_test": "NOT RUN",
-  "apk_created": false,
-  "live_deployment": false,
+  "version": "5.4.3.3-r5.4",
+  "verified_android_source_commit": "016e50dbd2d900905218d7793e0cb1dafe2291f3",
+  "android_workflow_run": "https://github.com/mahantah/ghadirpartner-android-r2/actions/runs/37201563026",
+  "android_build": "PASSED for verified_android_source_commit",
+  "android_lint": "PASSED for portal flavor at verified_android_source_commit",
+  "emulator_tests": "PASSED: 3 instrumentation tests and startup/resume on Android API 29",
+  "apk_artifact": "GhadirPartner-5.4.3.3-R5.4-Debug-APK",
+  "apk_created": true,
+  "physical_device_test": "NOT VERIFIED",
+  "live_account_acceptance": "NOT VERIFIED",
+  "integration_workflow": "Adds pull-request checks and automation build/lint; new run required",
+  "server_otp_test_run": "https://github.com/mahantah/ghadirpartner/actions/runs/37200950045",
+  "live_deployment_this_integration": false,
   "system_push": false
 }

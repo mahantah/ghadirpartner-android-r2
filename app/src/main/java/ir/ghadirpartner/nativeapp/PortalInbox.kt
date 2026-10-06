@@ -65,7 +65,7 @@ fun PortalInbox(state: PortalInboxState, onOrder: (Int) -> Unit, onOffer: (Int) 
     val scope=rememberCoroutineScope()
     var selected by remember { mutableStateOf<JSONObject?>(null) }
     var filter by remember { mutableStateOf("all") }
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=16.dp,bottom=112.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=16.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { GhadirButton(if(state.loading) "در حال بروزرسانی…" else "بروزرسانی پیام‌ها",{scope.launch {state.refresh()}},enabled=!state.loading,secondary=true) }
         if(state.error.isNotBlank()) item { Text(state.error,color=Danger) }
         item { Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -102,7 +102,7 @@ fun PortalOffers(api: ApiClient, selectedId: Int?, onUse: (String) -> Unit) {
         try {offers=(api.get("/api/offers") as JSONArray).objects();error=""} catch(e: CancellationException){throw e} catch(e: Exception){error=e.message ?: "خطا در دریافت آفرها"} finally{loading=false}
     }
     if(loading){LoadingPane();return}
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=16.dp,bottom=112.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=16.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(error.isNotBlank())item {Text(error,color=Danger);GhadirButton("تلاش دوباره",{retry++})}
         val rows=offers.filter {selectedId==null||it.i("id")==selectedId}
         if(rows.isEmpty()&&error.isBlank())item {EmptyState("آفر فعالی موجود نیست","ممکن است زمان طرح تمام شده باشد یا برای حساب شما فعال نباشد.")}
