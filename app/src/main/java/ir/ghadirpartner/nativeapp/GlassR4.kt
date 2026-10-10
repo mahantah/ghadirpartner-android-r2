@@ -34,10 +34,10 @@ fun Modifier.glass(shape: Shape = RoundedCornerShape(16.dp), accent: Boolean = f
 fun Modifier.portalBackdrop(): Modifier = background(AppBackground)
 
 @Composable
-fun GlassSurface(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(20.dp),
+fun GlassSurface(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(24.dp),
     color: Color = GlassFill, contentColor: Color = Ink, tonalElevation: Dp = 0.dp,
     shadowElevation: Dp = 0.dp, border: BorderStroke? = null, content: @Composable () -> Unit) {
-    Surface(modifier=modifier, shape=shape, color=AppSurface, contentColor=AppInk,
+    Surface(modifier=modifier, shape=shape, color=if(color==Color.White)AppSurface else color, contentColor=contentColor,
         tonalElevation=0.dp, shadowElevation=0.dp,
         border=border ?: BorderStroke(1.dp,Border), content=content)
 }

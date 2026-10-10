@@ -11,8 +11,8 @@ android {
     defaultConfig {
         minSdk 24
         targetSdk 35
-        versionCode 543054
-        versionName '5.4.3.3-r5.4'
+        versionCode 543055
+        versionName '5.4.3.3-r5.5'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
 
@@ -86,4 +86,30 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     debugImplementation 'androidx.compose.ui:ui-tooling:1.7.8'
+}
+
+// Reassemble the unmodified Figma PNG from small, checked-in binary transport parts.
+// Both Android flavors consume the identical verified image; no network is used at build time.
+def figmaAssetParts = layout.projectDirectory.dir('design-assets/figma_mix_offer')
+def figmaGeneratedRes = layout.buildDirectory.dir('generated/figma-assets/res')
+android.sourceSets.main.res.srcDir(figmaGeneratedRes)
+def prepareFigmaAssetsTask = tasks.register('prepareFigmaAssets') {
+    inputs.files(fileTree(figmaAssetParts.asFile) { include 'part-*.bin' })
+    outputs.dir(figmaGeneratedRes)
+    doLast {
+        def parts = figmaAssetParts.asFile.listFiles()?.findAll { it.name ==~ /part-\d{3}\.bin/ }?.sort { it.name }
+        if (!parts) throw new GradleException('Figma offer image parts are missing')
+        def combined = new ByteArrayOutputStream()
+        parts.each { combined.write(it.bytes) }
+        def bytes = combined.toByteArray()
+        def actual = java.security.MessageDigest.getInstance('SHA-256').digest(bytes).encodeHex().toString()
+        def expected = 'e77863cba9a10e46566434516a8bc201ea5585509378ae77f87224e21559cfad'
+        if (actual != expected) throw new GradleException('Figma offer image checksum mismatch')
+        def target = new File(figmaGeneratedRes.get().asFile, 'drawable-nodpi/figma_mix_offer.png')
+        target.parentFile.mkdirs()
+        target.bytes = bytes
+    }
+}
+tasks.matching { it.name == 'preBuild' || (it.name.startsWith('merge') && it.name.endsWith('Resources')) }.configureEach {
+    dependsOn prepareFigmaAssetsTask
 }

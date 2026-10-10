@@ -3,6 +3,8 @@ package ir.ghadirpartner.nativeapp
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.util.Locale
 
 fun JSONArray.objects(): List<JSONObject> = (0 until length()).mapNotNull { optJSONObject(it) }
 fun JSONArray.strings(): List<String> = (0 until length()).map { optString(it) }
@@ -24,7 +26,7 @@ fun faDigits(value: String): String = buildString(value.length) {
 
 fun faNumber(value: Int): String = faDigits(value.toString())
 fun faNumber(value: Long): String = faDigits(value.toString())
-fun formatMoney(value: Long): String = faDigits(DecimalFormat("#,###").format(value))
+fun formatMoney(value: Long): String = faDigits(DecimalFormat("#,###",DecimalFormatSymbols(Locale.US)).format(value).replace(',', '٬'))
 
 private fun gregorianToJalali(gyInput: Int, gm: Int, gd: Int): Triple<Int, Int, Int> {
     val gdm = intArrayOf(0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334)

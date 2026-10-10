@@ -119,11 +119,11 @@ fun StatusPill(text: String) {
     val fg = when {
         text.contains("تحویل") || text.contains("تسویه کامل") || text.contains("تأیید شده") -> Success
         text.contains("لغو") || text.contains("پرداخت نشده") -> Danger
-        text.contains("ارسال") -> if (AppAppearance.dark) Color(0xFF9FC5FF) else Color(0xFF2457A6)
-        else -> Warning
+        text.contains("ارسال") -> Ink
+        else -> Ink
     }
-    GlassSurface(color = bg, shape = RoundedCornerShape(50)) {
-        Text(text.ifBlank { "-" }, color = fg, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp))
+    Surface(color = if(AppAppearance.dark)AppSecondary else bg, shape = RoundedCornerShape(12.dp)) {
+        Text(text.ifBlank { "-" }, color = fg, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp))
     }
 }
 
@@ -134,9 +134,9 @@ fun SearchBox(value: String, onValueChange: (String) -> Unit, placeholder: Strin
         onValueChange = onValueChange,
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         placeholder = { Text(placeholder) },
-        leadingIcon = { Icon(Icons.Default.Search, null, tint = Muted) },
+        leadingIcon = { Image(painterResource(R.drawable.design_search), null, Modifier.size(22.dp)) },
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = Orange,
             unfocusedBorderColor = Border,

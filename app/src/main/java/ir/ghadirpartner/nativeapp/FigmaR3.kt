@@ -32,7 +32,7 @@ internal fun biometricEnabled(context: Context, account: String): Boolean =
 internal fun PortalGlassHeader(title: String, dashboard: Boolean, unread: Int, onOffers: () -> Unit, onBell: () -> Unit) {
     val context=LocalContext.current
     Row(Modifier.fillMaxWidth().heightIn(min=84.dp).padding(horizontal=20.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-        Image(painterResource(R.drawable.r54_logo),"قدیر پارتنر",Modifier.size(40.dp))
+        Image(painterResource(R.drawable.design_logo),"قدیر پارتنر",Modifier.size(40.dp).clip(RoundedCornerShape(16.dp)))
         Column(Modifier.weight(1f)) {
             Text(title,color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold,maxLines=2)
             Text("قدیر پارتنر",color=Muted,fontSize=12.sp)

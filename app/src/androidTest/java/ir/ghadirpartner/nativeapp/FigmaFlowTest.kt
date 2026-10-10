@@ -61,7 +61,7 @@ class FigmaFlowTest {
             shot("profile-night.png")
             compose.onNodeWithContentDescription("حالت روز").performClick()
             compose.onNodeWithText("پیش‌فاکتورهای من").performScrollTo().performClick()
-            compose.waitUntil(10000){compose.onAllNodesWithText("پیش‌فاکتور قدیر پارتنر").fetchSemanticsNodes().isNotEmpty()}
+            compose.waitUntil(10000){compose.onAllNodesWithText("دانلود PDF پیش‌فاکتور").fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithText("دانلود PDF پیش‌فاکتور").assertExists()
             shot("invoice-list.png")
             compose.onNodeWithContentDescription("اعلان‌ها").performClick()
