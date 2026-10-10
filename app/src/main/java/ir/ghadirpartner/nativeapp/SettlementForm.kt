@@ -90,7 +90,7 @@ internal fun SettlementForm(api:ApiClient,method:String,amount:Long,value:JSONOb
                     else->Text("اطلاعات اعتبار دریافت نشده است.",color=Muted)
                 }
             }}
-            if(creditLoaded&&credit.s("due_date").isNotBlank())DesignField("سررسید توافق‌شده",credit.s("due_date"),{},icon=R.drawable.design_calendar,enabled=false)
+            if(creditLoaded&&credit.s("due_date").isNotBlank())DesignField("سررسید توافق‌شده",faDigits(credit.s("due_date")),{},icon=R.drawable.design_calendar,enabled=false)
             DesignNotice("تعهد تسویه\n\nشرایط اعتبار و سررسید را پیش از ثبت بررسی کنید. تأیید نهایی درخواست با واحد مالی است.")
             Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
                 Checkbox(value.b("terms_accepted"),{set("terms_accepted",it)})
