@@ -105,8 +105,10 @@ internal fun DesignState(title:String,body:String,icon:Int,success:Boolean=false
     Column(Modifier.fillMaxWidth().padding(top=48.dp,bottom=28.dp),
         horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(20.dp)) {
         Box(Modifier.size(104.dp).clip(RoundedCornerShape(32.dp))
-            .background(if(success) {if(AppAppearance.dark)Color(0xFF16382D) else Color(0xFFE9F6EF)} else AppSecondary),
-            contentAlignment=Alignment.Center) {Image(painterResource(icon),null,Modifier.size(48.dp))}
+            .background(if(icon in setOf(R.drawable.design_offline,R.drawable.design_fingerprint_error,R.drawable.design_download_error)) {
+                if(AppAppearance.dark)Color(0xFF3D2530) else Color(0xFFFAECEC)
+            } else AppSecondary),
+            contentAlignment=Alignment.Center) {DesignGlyph(icon,null,Modifier.size(48.dp))}
         Text(title,color=Ink,fontSize=24.sp,lineHeight=40.sp,fontWeight=FontWeight.Bold,textAlign=TextAlign.Center)
         Text(body,color=Muted,fontSize=14.sp,lineHeight=23.sp,textAlign=TextAlign.Center)
     }
@@ -181,7 +183,7 @@ internal fun DesignOfferHero(title:String,body:String,button:String?=null,showIc
         Box(Modifier.matchParentSize().background(Color(0xFF0A1424).copy(alpha=.45f)))
         Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
             if(showIcon)Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
-                Image(painterResource(R.drawable.design_gift),null,Modifier.size(28.dp))
+                DesignGlyph(R.drawable.design_gift,null,Modifier.size(28.dp))
             }
             Text(title,color=Color.White,fontSize=20.sp,lineHeight=33.sp,fontWeight=FontWeight.Bold)
             Text(body,color=Color.White,fontSize=13.sp,lineHeight=22.sp)

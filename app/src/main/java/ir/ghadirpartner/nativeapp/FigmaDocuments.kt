@@ -111,7 +111,7 @@ fun OrderDeliveryTimeline(status: String) {
         Text("مراحل تحویل",fontWeight=FontWeight.Bold,color=Ink,fontSize=20.sp)
         labels.forEachIndexed {i,label->
             Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                if(i<=current&&!status.contains("لغو"))androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.design_delivered),null,Modifier.size(22.dp))
+                if(i<=current&&!status.contains("لغو"))DesignGlyph(R.drawable.design_delivered,null,Modifier.size(22.dp))
                 else Text("○",color=Muted,modifier=Modifier.width(22.dp))
                 Text(label,color=Ink,fontSize=14.sp,lineHeight=23.sp)
             }

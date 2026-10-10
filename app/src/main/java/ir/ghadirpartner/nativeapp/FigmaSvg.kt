@@ -28,3 +28,25 @@ internal fun FigmaSvg(name:String, description:String?, modifier:Modifier, tint:
     }
     Image(image,description,modifier,colorFilter=tint)
 }
+
+@Composable
+internal fun DesignGlyph(resource:Int,description:String?,modifier:Modifier,tint:ColorFilter?=null) {
+    val name=when(resource){
+        R.drawable.design_success->"success"
+        R.drawable.design_empty_orders->"empty_orders"
+        R.drawable.design_offline->"offline"
+        R.drawable.design_fingerprint->"fingerprint"
+        R.drawable.design_fingerprint_error->"fingerprint_error"
+        R.drawable.design_download_error->"download_error"
+        R.drawable.design_otp->"otp"
+        R.drawable.design_search_empty->"search_empty"
+        R.drawable.design_delivered->"delivered"
+        R.drawable.design_package->"package"
+        R.drawable.design_truck->"truck"
+        R.drawable.design_notification_check->"notification_check"
+        R.drawable.design_gift->"gift"
+        R.drawable.design_wallet->"wallet"
+        else->error("Unmapped Figma glyph")
+    }
+    FigmaSvg(name,description,modifier,tint)
+}

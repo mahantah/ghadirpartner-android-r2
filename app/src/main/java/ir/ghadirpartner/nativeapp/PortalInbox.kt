@@ -88,7 +88,7 @@ fun PortalInbox(state:PortalInboxState,onOrder:(Int)->Unit,onOffer:(Int)->Unit) 
                     else->R.drawable.design_package
                 }
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                    Image(painterResource(asset),null,Modifier.size(22.dp))
+                    DesignGlyph(asset,null,Modifier.size(22.dp))
                     Text((if(n.b("read"))"" else "● ")+n.s("title"),color=Ink,fontSize=16.sp,lineHeight=26.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
                 }
                 Text(body,color=Muted,fontSize=12.sp,lineHeight=20.sp)
@@ -132,7 +132,7 @@ fun PortalOffers(api:ApiClient,selectedId:Int?,onOpen:(Int)->Unit={},onUse:(Stri
             if(detail==null) {
                 if(mix)GhadirButton("شرایط "+o.s("title"),{detail=o.i("id");onOpen(o.i("id"))})
                 else GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){Image(painterResource(if(o.s("title").contains("اعتبار"))R.drawable.design_wallet else R.drawable.design_gift),null,Modifier.size(28.dp))}
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){DesignGlyph(if(o.s("title").contains("اعتبار"))R.drawable.design_wallet else R.drawable.design_gift,null,Modifier.size(28.dp))}
                     Text(o.s("title"),color=Ink,fontSize=20.sp,lineHeight=33.sp,fontWeight=FontWeight.Bold)
                     Text(o.s("description"),color=Ink,fontSize=13.sp,lineHeight=22.sp)
                     GhadirButton(if(o.b("used_by_customer"))"طرح استفاده‌شده؛ مشاهده جزئیات" else "جزئیات طرح",{detail=o.i("id");onOpen(o.i("id"))},secondary=true)

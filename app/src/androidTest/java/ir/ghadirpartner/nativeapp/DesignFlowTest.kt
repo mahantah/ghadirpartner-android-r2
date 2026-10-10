@@ -173,7 +173,7 @@ class DesignFlowTest {
             scenario.onActivity {activity->
                 activity.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){PortalApp(ApiClient(activity,offline),me,{})}}}
             }
-            waitText("اطلاعات حساب دریافت نشد")
+            waitText("اطلاعات حساب دریافت نشد");shot("design-account-offline.png")
             compose.onNodeWithText("خرید این ماه").assertDoesNotExist()
             compose.onNodeWithText("هنوز سفارشی ندارید").assertDoesNotExist()
             compose.onNodeWithText("تلاش دوباره").assertExists()
