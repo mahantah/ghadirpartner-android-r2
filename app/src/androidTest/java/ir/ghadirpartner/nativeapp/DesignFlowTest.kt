@@ -2,6 +2,7 @@ package ir.ghadirpartner.nativeapp
 
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.CompositionLocalProvider
@@ -62,7 +63,9 @@ class DesignFlowTest {
         if(lists.fetchSemanticsNodes().size==1)lists.onFirst().performScrollToIndex(0)
         compose.waitForIdle()
         val instrumentation=InstrumentationRegistry.getInstrumentation()
-        val bitmap=instrumentation.uiAutomation.takeScreenshot()
+        compose.mainClock.advanceTimeBy(400)
+        compose.waitForIdle()
+        val bitmap=compose.onRoot().captureToImage().asAndroidBitmap()
         File(instrumentation.targetContext.filesDir,name).outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
         bitmap.recycle()
     }
@@ -110,6 +113,7 @@ class DesignFlowTest {
             shot("design-checkout-cash.png")
             compose.onNodeWithText("چک").performClick()
             showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
+            waitText("شناسه صیادی باید ۱۶ رقم باشد")
             compose.onNodeWithText("شناسه صیادی باید ۱۶ رقم باشد").assertExists()
             assertTrue(writes.isEmpty())
             showField("شناسه صیادی");compose.onNodeWithContentDescription("شناسه صیادی").performTextInput("۱۲۳۴۵۶۷۸۹۰۱۲۳۴۵۶")

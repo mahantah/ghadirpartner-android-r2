@@ -484,6 +484,7 @@ private fun PortalNewOrder(api:ApiClient,initialOfferCode:String="",onStageChang
     var appliedOffer by remember {mutableStateOf<JSONObject?>(null)}
     var promoMessage by remember {mutableStateOf("")}
     var cart by remember {mutableStateOf(emptyList<CartLine>())}
+    LaunchedEffect(error) {if(error.isNotBlank())listState.scrollToItem(0)}
     LaunchedEffect(step,payment) {listState.scrollToItem(0);onStageChanged(when(step){1->when(payment){"check"->"تسویه با چک";"credit"->"تسویه اعتباری";else->"تسویه نقدی"};2->"تأیید نهایی سفارش";else->"ثبت سفارش"})}
     LaunchedEffect(backRequest) {if(backRequest>0&&step>0&&!submitting)step--}
     BackHandler(step>0) {if(!submitting)step--}

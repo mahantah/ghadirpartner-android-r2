@@ -11,6 +11,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontVariation
+import androidx.compose.ui.text.ExperimentalTextApi
+import android.os.Build
 import androidx.compose.ui.unit.dp
 
 val Navy = Color(0xFF0B1F3A)
@@ -26,11 +29,12 @@ val Success get() = if(AppAppearance.dark) Color(0xFF8DE3B3) else Color(0xFF1763
 val Danger get() = if(AppAppearance.dark) Color(0xFFFFA7B2) else Color(0xFFAC2638)
 val Warning get() = if(AppAppearance.dark) Color(0xFFFFCB9A) else Color(0xFF94501C)
 
-private val GhadirFont = FontFamily(
-    Font(R.font.vazirmatn, FontWeight.Normal),
-    Font(R.font.vazirmatn, FontWeight.Medium),
-    Font(R.font.vazirmatn, FontWeight.Bold)
-)
+@OptIn(ExperimentalTextApi::class)
+private val GhadirFont = if(Build.VERSION.SDK_INT>=26) FontFamily(
+    Font(R.font.vazirmatn, FontWeight.Normal, variationSettings=FontVariation.Settings(FontVariation.weight(400))),
+    Font(R.font.vazirmatn, FontWeight.Medium, variationSettings=FontVariation.Settings(FontVariation.weight(500))),
+    Font(R.font.vazirmatn, FontWeight.Bold, variationSettings=FontVariation.Settings(FontVariation.weight(700)))
+) else FontFamily(Font(R.font.vazirmatn))
 private val BaseTypography = Typography()
 private val GhadirTypography = with(BaseTypography) {
     copy(displayLarge=displayLarge.copy(fontFamily=GhadirFont), displayMedium=displayMedium.copy(fontFamily=GhadirFont), displaySmall=displaySmall.copy(fontFamily=GhadirFont),

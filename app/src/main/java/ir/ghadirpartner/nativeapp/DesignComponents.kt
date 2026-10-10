@@ -60,7 +60,9 @@ internal fun DesignField(
                     horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     if(icon!=null) {
                         val imageModifier=Modifier.size(22.dp).then(if(onIcon!=null) Modifier.clickable(onClick=onIcon) else Modifier)
-                        Image(painterResource(icon),if(onIcon!=null) "نمایش یا پنهان کردن رمز" else null,imageModifier,
+                        if(icon==R.drawable.design_search) Box(imageModifier) {
+                            FigmaSvg("search",null,Modifier.size(19.5554.dp).align(Alignment.TopStart),ColorFilter.tint(Muted))
+                        } else Image(painterResource(icon),if(onIcon!=null) "نمایش یا پنهان کردن رمز" else null,imageModifier,
                             colorFilter=ColorFilter.tint(Muted))
                     }
                     Box(Modifier.weight(1f)) {
@@ -196,13 +198,13 @@ internal fun DesignNavigationBar(items:List<NavItem>,selected:String,onSelected:
             horizontalArrangement=Arrangement.spacedBy(2.dp)) {
             items.forEach {item ->
                 val active=item.key==selected
-                val asset=when(item.key){"home"->R.drawable.design_home;"catalog"->R.drawable.design_prices;
-                    "new"->R.drawable.design_add;"orders"->R.drawable.design_orders;else->R.drawable.design_profile}
+                val asset=when(item.key){"home"->"home";"catalog"->"prices";
+                    "new"->"add";"orders"->"orders";else->"profile"}
                 Column(Modifier.weight(1f).height(60.dp).clip(RoundedCornerShape(18.dp))
                     .background(if(active)AppSecondary else AppSurface)
                     .selectable(active,role=Role.Tab,onClick={onSelected(item.key)}),
                     horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(2.dp,Alignment.CenterVertically)) {
-                    Image(painterResource(asset),null,Modifier.size(22.dp),colorFilter=ColorFilter.tint(if(active)Orange else Muted))
+                    FigmaSvg(asset,null,Modifier.size(22.dp),tint=ColorFilter.tint(if(active)Orange else Muted))
                     Text(item.label,color=if(active)Orange else Muted,fontSize=10.sp,lineHeight=16.sp,
                         fontWeight=if(active)FontWeight.Bold else FontWeight.Normal,maxLines=1)
                 }

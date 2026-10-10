@@ -1,6 +1,7 @@
 package ir.ghadirpartner.nativeapp
 
 import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.activity.compose.setContent
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
@@ -25,7 +26,9 @@ class FigmaFlowTest {
     private fun shot(name:String){
         compose.waitForIdle()
         val instrumentation=InstrumentationRegistry.getInstrumentation()
-        val bmp=instrumentation.uiAutomation.takeScreenshot()
+        compose.mainClock.advanceTimeBy(400)
+        compose.waitForIdle()
+        val bmp=compose.onRoot().captureToImage().asAndroidBitmap()
         File(instrumentation.targetContext.filesDir,name).outputStream().use{bmp.compress(Bitmap.CompressFormat.PNG,100,it)}
         bmp.recycle()
     }
@@ -64,8 +67,10 @@ class FigmaFlowTest {
             compose.waitUntil(10000){compose.onAllNodesWithText("دانلود PDF پیش‌فاکتور").fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithText("دانلود PDF پیش‌فاکتور").assertExists()
             shot("invoice-list.png")
+            compose.onAllNodesWithText("پیشخوان").onLast().performClick()
             compose.onNodeWithContentDescription("اعلان‌ها").performClick()
             compose.waitUntil(10000){compose.onAllNodesWithText("اعلانی وجود ندارد").fetchSemanticsNodes().isNotEmpty()}
+            compose.onAllNodesWithText("پیشخوان").onLast().performClick()
             compose.onNodeWithContentDescription("طرح‌ها و آفرها").performClick()
             compose.waitUntil(10000){compose.onAllNodesWithText("آفر فعالی موجود نیست").fetchSemanticsNodes().isNotEmpty()}
         }
