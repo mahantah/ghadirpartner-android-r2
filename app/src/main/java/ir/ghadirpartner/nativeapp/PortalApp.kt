@@ -244,7 +244,13 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
     }
     LaunchedEffect(Unit) { refresh() }
     if (loading) { LoadingPane(); return }
-
+    if(error.isNotBlank()&&!loadedAccount) {
+        Column(Modifier.fillMaxSize().padding(horizontal=20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+            DesignState("اطلاعات حساب دریافت نشد","ارتباط با سرویس برقرار نشد. اتصال را بررسی کنید و دوباره تلاش کنید.",R.drawable.design_offline)
+            GhadirButton("تلاش دوباره",{refresh()})
+        }
+        return
+    }
 
     if(showReport) {
         LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
@@ -438,7 +444,7 @@ internal fun DetailLine(title: String, value: String, highlight: Boolean = false
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, color=Muted, fontSize=12.sp, lineHeight=20.sp, modifier=Modifier.width(110.dp), textAlign=TextAlign.Start)
-        Text(value, color = Ink, fontWeight=FontWeight.Bold, fontSize=14.sp,
+        Text(value, color = Ink, fontWeight=FontWeight.Bold, fontSize=14.sp, lineHeight=23.sp,
             modifier=Modifier.weight(1f), textAlign=TextAlign.Start)
     }
 }

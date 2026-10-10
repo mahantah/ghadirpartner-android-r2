@@ -141,7 +141,7 @@ class DesignFlowTest {
             compose.onAllNodesWithText("سفارش‌ها").onLast().performClick()
             waitText("جزئیات سفارش");shot("design-orders.png")
             compose.onNodeWithText("جزئیات سفارش").performScrollTo().performClick()
-            waitText("اطلاعات تحویل");shot("design-order-detail.png")
+            showText("اطلاعات تحویل");shot("design-order-detail.png")
             showText("دریافت PDF سریال‌ها");compose.onNodeWithText("دریافت PDF سریال‌ها").performClick()
             waitText("SN: 902410001");shot("design-serials.png")
             compose.onNodeWithText("IMEI: 865432109876543").assertExists()
