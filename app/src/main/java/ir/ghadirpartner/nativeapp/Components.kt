@@ -152,7 +152,7 @@ fun GhadirButton(text: String, onClick: () -> Unit, enabled: Boolean = true, sec
         shape=RoundedCornerShape(16.dp),border=if(secondary) BorderStroke(1.dp,Border) else null,
         colors=ButtonDefaults.buttonColors(containerColor=if(secondary) AppSecondary else Orange,
             contentColor=if(secondary) Ink else Navy,disabledContainerColor=Border,disabledContentColor=Muted)) {
-        Text(text,fontWeight=FontWeight.Bold,fontSize=14.sp)
+        Text(text,fontWeight=FontWeight.Bold,fontSize=14.sp,lineHeight=23.sp)
     }
 }
 

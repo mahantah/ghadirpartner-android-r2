@@ -50,7 +50,7 @@ internal fun DesignField(
         BasicTextField(value=value, onValueChange=onChange, enabled=enabled,
             singleLine=singleLine, visualTransformation=transformation,
             keyboardOptions=KeyboardOptions(keyboardType=keyboardType),
-            textStyle=MaterialTheme.typography.bodyMedium.copy(color=Ink, fontSize=14.sp, textAlign=TextAlign.Start),
+            textStyle=MaterialTheme.typography.bodyMedium.copy(color=Ink, fontSize=14.sp, lineHeight=23.sp, textAlign=TextAlign.Start),
             cursorBrush=SolidColor(Orange),
             modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).semantics { contentDescription=label },
             decorationBox={inner ->

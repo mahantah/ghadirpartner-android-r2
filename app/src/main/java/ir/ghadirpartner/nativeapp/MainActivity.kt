@@ -184,7 +184,7 @@ private fun BiometricGate(onUnlocked: () -> Unit, onUnavailable: () -> Unit, onU
 
     Surface(modifier = Modifier.fillMaxSize().portalBackdrop(), color = androidx.compose.ui.graphics.Color.Transparent) {
         Column(
-            Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal=20.dp),
+            Modifier.fillMaxSize().navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             PortalBackHeader("ورود امن",onUsePassword)

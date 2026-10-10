@@ -167,6 +167,18 @@ class DesignFlowTest {
             assertEquals("123456",writes.single {it.first=="/api/native/login-otp/confirm"}.second.s("otp"))
         }
     }
+    @Test fun unavailableAccountDoesNotDisplayZeroBalances() {
+        val offline=OkHttpClient.Builder().addInterceptor {throw java.io.IOException("offline fixture")}.build()
+        ActivityScenario.launch(MainActivity::class.java).use {scenario->
+            scenario.onActivity {activity->
+                activity.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){PortalApp(ApiClient(activity,offline),me,{})}}}
+            }
+            waitText("اطلاعات حساب دریافت نشد")
+            compose.onNodeWithText("خرید این ماه").assertDoesNotExist()
+            compose.onNodeWithText("هنوز سفارشی ندارید").assertDoesNotExist()
+            compose.onNodeWithText("تلاش دوباره").assertExists()
+        }
+    }
     @Test fun undeliveredSerialsRemainPrivate() {
         val pending=JSONObject(order.toString()).put("status","ارسال شد")
         val context=InstrumentationRegistry.getInstrumentation().targetContext

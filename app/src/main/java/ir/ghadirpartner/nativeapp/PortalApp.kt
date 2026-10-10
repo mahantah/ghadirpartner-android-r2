@@ -209,6 +209,7 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
     var orders by remember { mutableStateOf(emptyList<JSONObject>()) }
     var offers by remember { mutableStateOf(emptyList<JSONObject>()) }
     var stats by remember { mutableStateOf(JSONObject()) }
+    var loadedAccount by remember {mutableStateOf(false)}
 
     fun refresh() {
         scope.launch {
@@ -227,6 +228,7 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
                 orders = loaded.first
                 offers = loaded.second
                 stats = loaded.third
+                loadedAccount=true
                 if(stats.length()==0) stats = customerSummaryFromOrders(orders)
                 try {
                     stats.put("purchased_device_qty",(api.get("/api/purchased-devices") as JSONObject).i("qty"))
@@ -235,7 +237,8 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
                     val devices=(api.get("/api/catalog") as JSONArray).objects().filter {it.b("serial_required")}.map {it.s("name")}.toSet()
                     stats.put("purchased_device_qty",orders.filter {it.s("status")=="تحویل شد"}.sumOf {o->o.arr("items").objects().filter {it.s("product") in devices}.sumOf {it.i("qty")}})
                 }
-            } catch (e: Exception) { error = e.message ?: "خطا در دریافت اطلاعات" }
+            } catch (e: kotlinx.coroutines.CancellationException) {throw e}
+            catch (e: Exception) { error = e.message ?: "خطا در دریافت اطلاعات" }
             loading = false
         }
     }
@@ -434,7 +437,7 @@ private fun PortalOrderDetails(api:ApiClient,order:JSONObject,onBack:()->Unit,on
 internal fun DetailLine(title: String, value: String, highlight: Boolean = false) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, color=Muted, fontSize=12.sp, modifier=Modifier.width(110.dp), textAlign=TextAlign.Start)
+        Text(title, color=Muted, fontSize=12.sp, lineHeight=20.sp, modifier=Modifier.width(110.dp), textAlign=TextAlign.Start)
         Text(value, color = Ink, fontWeight=FontWeight.Bold, fontSize=14.sp,
             modifier=Modifier.weight(1f), textAlign=TextAlign.Start)
     }

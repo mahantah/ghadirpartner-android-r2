@@ -29,4 +29,4 @@ for name in design-home-day design-home-night design-catalog-serial design-catal
     rm -f "app/build/reports/design/$name.png"
   fi
 done
-grep -q 'OK (6 tests)' app/build/reports/startup/instrumentation.txt
+grep -q 'OK (7 tests)' app/build/reports/startup/instrumentation.txt
