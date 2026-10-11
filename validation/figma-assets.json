@@ -1,0 +1,220 @@
+{
+  "fileKey": "ZlDIZg1KOLT6V1PdHDUPNS",
+  "pageNode": "100:573",
+  "retrieved": "2026-10-10",
+  "policy": "Complete original SVG files are rendered at display density. Navigation glyph tint follows active state; full header controls retain original fills. Native Android system bars are not exported.",
+  "svg": [
+    {
+      "path": "app/src/main/assets/figma/add.svg",
+      "sha256": "c8c20b910fdfa3e55f3e0b92abd7993fe5d9ca72917b1e3d17e7bd35c3a9967e",
+      "width": 22,
+      "height": 22,
+      "sourceNode": "169:9068"
+    },
+    {
+      "path": "app/src/main/assets/figma/bell_day.svg",
+      "sha256": "498244e14f8a5966d731309cdf3fb8ff1b570889189664bafacf0a0e32a4541d",
+      "width": 40,
+      "height": 44,
+      "sourceNode": "169:9068"
+    },
+    {
+      "path": "app/src/main/assets/figma/bell_night.svg",
+      "sha256": "fdd7bb6628f46c85bb813c1b31a10fa05da0d6e057bd9560746cdd5865029e4e",
+      "width": 40,
+      "height": 44,
+      "sourceNode": "169:9162"
+    },
+    {
+      "path": "app/src/main/assets/figma/home.svg",
+      "sha256": "9d6a87b39e1687b1735b66b5dde3ffafd513e9c472de4ce96da130424fa97240",
+      "width": 22,
+      "height": 22,
+      "sourceNode": "169:9257"
+    },
+    {
+      "path": "app/src/main/assets/figma/offers_day.svg",
+      "sha256": "4c21082a1f508b43bc2fe857dd3d19f18e8c1e2d5c9a8622ea25318196379aca",
+      "width": 40,
+      "height": 44,
+      "sourceNode": "169:9068"
+    },
+    {
+      "path": "app/src/main/assets/figma/offers_night.svg",
+      "sha256": "6111fa2308513828f93ba8cf8643cac7c061e05881341e27abbde477612f22e0",
+      "width": 40,
+      "height": 44,
+      "sourceNode": "169:9162"
+    },
+    {
+      "path": "app/src/main/assets/figma/orders.svg",
+      "sha256": "5792a5f07f2a9f6ab50f1b24316050ffed740994e62809e07470c14e2ea8a7c7",
+      "width": 22,
+      "height": 22,
+      "sourceNode": "169:9068"
+    },
+    {
+      "path": "app/src/main/assets/figma/prices.svg",
+      "sha256": "b12f7f8eb15defec4eed2c04994cff4a194c4d302f140cd56e013fe1c983195c",
+      "width": 22,
+      "height": 22,
+      "sourceNode": "169:9068"
+    },
+    {
+      "path": "app/src/main/assets/figma/profile.svg",
+      "sha256": "0ff3a0cd00a5c40cf2824960fe3f3e6bca81f63974dca4f6c89fdbf87bd1ef3e",
+      "width": 22,
+      "height": 22,
+      "sourceNode": "169:9068"
+    },
+    {
+      "path": "app/src/main/assets/figma/search.svg",
+      "sha256": "af8f570552e45006e68718d4bbd5a2b0e186d49fb57b4ef7e41c7adfc94e953f",
+      "width": 19.5554,
+      "height": 19.5554,
+      "sourceNode": "169:9257"
+    },
+    {
+      "path": "app/src/main/assets/figma/theme_day.svg",
+      "sha256": "c246f1637aeeefbe543089512588da37572a13a9369a7f00e20c692fa5df05b9",
+      "width": 40,
+      "height": 44,
+      "sourceNode": "169:9068"
+    },
+    {
+      "path": "app/src/main/assets/figma/theme_night.svg",
+      "sha256": "766d5c803a9fda2a5bfddc58774eb8db5b1fb0c2f9bda4d056215322535a3f20",
+      "width": 40,
+      "height": 44,
+      "sourceNode": "169:9162"
+    },
+    {
+      "path": "app/src/main/assets/figma/calendar.svg",
+      "sha256": "917253309e74d6b2e72805fe334349ce47cc5ec6b3c7c5f37c36f62b7e17da30",
+      "width": 22,
+      "height": 22,
+      "sourceNode": "118:52260"
+    },
+    {
+      "path": "app/src/main/assets/figma/chevron.svg",
+      "sha256": "2d6213d97a7bb43beb84a30604cbe12288a4b7351432fa9becd3595e42fa5b99",
+      "width": 22,
+      "height": 22,
+      "sourceNode": "118:51624"
+    },
+    {
+      "path": "app/src/main/assets/figma/map_pin.svg",
+      "sha256": "a2bc2dfc7bf447b1df51c38054eca0c6291a5e1d53b1f313db85ac21640e2d5d",
+      "width": 22,
+      "height": 22,
+      "sourceNode": "118:51624"
+    },
+    {
+      "path": "app/src/main/assets/figma/success.svg",
+      "sha256": "186037614f770872a4a32e5c166e89570ae04dad3dbeb8b5f74e71dc94cece03",
+      "width": 48,
+      "height": 48,
+      "sourceNode": "118:52624"
+    },
+    {
+      "path": "app/src/main/assets/figma/empty_orders.svg",
+      "sha256": "d80d2b2340c641f36d1f8e84d4dfa3f78be21e2999754524f0f62ae464ee487c",
+      "width": 48,
+      "height": 48,
+      "sourceNode": "118:55440"
+    },
+    {
+      "path": "app/src/main/assets/figma/offline.svg",
+      "sha256": "9bc57edd34f5c717225732e1d95db70698adde8493fdac05214684a86ffb405d",
+      "width": 48,
+      "height": 48,
+      "sourceNode": "118:55280"
+    },
+    {
+      "path": "app/src/main/assets/figma/fingerprint.svg",
+      "sha256": "6cae9231477c4593c94bd1888778e31194e70549a0c44932e483722878cb0d08",
+      "width": 48,
+      "height": 48,
+      "sourceNode": "118:51346"
+    },
+    {
+      "path": "app/src/main/assets/figma/fingerprint_error.svg",
+      "sha256": "d29c88770adddc27b336c0ebbc03dc8852c3449cdff1d6dc156c414d33ba7f97",
+      "width": 48,
+      "height": 48,
+      "sourceNode": "118:51418"
+    },
+    {
+      "path": "app/src/main/assets/figma/download_error.svg",
+      "sha256": "3fe1b5a324ff013b412ed394a5414a639c67f57f72d089458a01aa1c8884c566",
+      "width": 48,
+      "height": 48,
+      "sourceNode": "118:53476"
+    },
+    {
+      "path": "app/src/main/assets/figma/otp.svg",
+      "sha256": "8c33eea1f4a6aa040c595ecd1c686d3f3c5b0572f246b8f8bb36a7601165ee40",
+      "width": 48,
+      "height": 48,
+      "sourceNode": "118:51246"
+    },
+    {
+      "path": "app/src/main/assets/figma/search_empty.svg",
+      "sha256": "94a73b7a4b3c8fd43715fc90817796124f6b46a8ff0eb07964effca08cab749a",
+      "width": 48,
+      "height": 48,
+      "sourceNode": "118:55624"
+    },
+    {
+      "path": "app/src/main/assets/figma/delivered.svg",
+      "sha256": "a30c9734cae8ca84f89283c9c148516c7830b5eb30d8e3a5fbdab3310e5a568e",
+      "width": 22,
+      "height": 22,
+      "sourceNode": "118:52782"
+    },
+    {
+      "path": "app/src/main/assets/figma/package.svg",
+      "sha256": "11cc4976a47205efc1138921232d3c15d8435bf438e0deb9240ce37dad198c0a",
+      "width": 22,
+      "height": 22,
+      "sourceNode": "118:54812"
+    },
+    {
+      "path": "app/src/main/assets/figma/truck.svg",
+      "sha256": "2421503b2ca12ec9652c8b0707ed3e9c246ef78e64a026bc4e21c7730793b323",
+      "width": 22,
+      "height": 22,
+      "sourceNode": "118:54812"
+    },
+    {
+      "path": "app/src/main/assets/figma/notification_check.svg",
+      "sha256": "cc96f238250fff7fd3aecf035b0ba26a79fe6f8dfa70864d05626cd142e52316",
+      "width": 22,
+      "height": 22,
+      "sourceNode": "118:54812"
+    },
+    {
+      "path": "app/src/main/assets/figma/gift.svg",
+      "sha256": "2f70db48931a2a35b2101ebe1bbcdd331160d73125741a13096d2cb12feba003",
+      "width": 28,
+      "height": 28,
+      "sourceNode": "118:54464"
+    },
+    {
+      "path": "app/src/main/assets/figma/wallet.svg",
+      "sha256": "55d709822b5b810640581a907adc328dfd36c8c83606ec5f37af29e8f3e1150c",
+      "width": 28,
+      "height": 28,
+      "sourceNode": "118:54464"
+    }
+  ],
+  "hero": {
+    "sourceNode": "169:9103",
+    "width": 2172,
+    "height": 724,
+    "sha256": "e77863cba9a10e46566434516a8bc201ea5585509378ae77f87224e21559cfad",
+    "storage": "app/design-assets/figma_mix_offer/part-*.bin",
+    "buildTask": "prepareFigmaAssets",
+    "display": "ContentScale.Crop, 24dp corners, 45% #0A1424 overlay"
+  }
+}

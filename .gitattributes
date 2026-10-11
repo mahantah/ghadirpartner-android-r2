@@ -1,0 +1,4 @@
+app/src/main/assets/figma/*.svg -text
+app/design-assets/figma_mix_offer/*.bin -text
+*.png -text
+*.ttf -text
