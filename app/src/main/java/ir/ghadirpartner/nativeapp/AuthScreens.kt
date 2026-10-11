@@ -88,10 +88,12 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
                                 val account=try {api.me()}catch(e:ApiException){
                                     if(e.status!=401)throw e
                                     val saved=loginStore.load()?:throw IllegalStateException("ابتدا با رمز وارد شوید و گزینهٔ مرا به خاطر بسپار را فعال کنید.")
+                                    require(identity.isBlank()||saved.identity==identity.trim()){"شماره واردشده با حساب ذخیره‌شده یکسان نیست؛ با رمز یا کد وارد شوید."}
                                     require(biometricEnabled(context,saved.identity)){"ورود بیومتریک برای این حساب فعال نشده است."}
                                     api.login(saved.identity,saved.password)
                                     api.me()
                                 }
+                                require(identity.isBlank()||account.s("username")==identity.trim()){"شماره واردشده با نشست فعلی یکسان نیست؛ با رمز یا کد وارد شوید."}
                                 require(api.modeAllowed(account)&&biometricEnabled(context,account.s("username"))){"ابتدا با رمز یا کد پیامکی وارد شوید و ورود بیومتریک را در پروفایل فعال کنید."}
                                 onLoggedIn()
                             }catch(e:kotlinx.coroutines.CancellationException){throw e}
