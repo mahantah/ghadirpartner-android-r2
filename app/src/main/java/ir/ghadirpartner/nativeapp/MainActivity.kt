@@ -133,7 +133,7 @@ private fun NativeAppRoot() {
 @Composable
 private fun BiometricGate(onUnlocked: () -> Unit, onUnavailable: () -> Unit, onUsePassword: () -> Unit) {
     val context = LocalContext.current
-    val activity = context as? FragmentActivity
+    val activity = context.fragmentActivity()
     var message by remember { mutableStateOf("برای ورود سریع، هویت خود را با اثر انگشت یا چهره تأیید کنید.") }
     var retryNonce by remember { mutableIntStateOf(0) }
     var failed by remember {mutableStateOf(false)}
@@ -143,9 +143,10 @@ private fun BiometricGate(onUnlocked: () -> Unit, onUnavailable: () -> Unit, onU
     LaunchedEffect(activity, retryNonce) {
         if (activity == null) { onUnavailable(); return@LaunchedEffect }
         val manager = BiometricManager.from(activity)
-        val authenticators = BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK
+        val authenticators = BiometricManager.Authenticators.BIOMETRIC_WEAK
         if (manager.canAuthenticate(authenticators) != BiometricManager.BIOMETRIC_SUCCESS) {
-            onUnavailable()
+            failed=true
+            message="بیومتریک روی این گوشی آماده نیست؛ اثر انگشت را در تنظیمات دستگاه ثبت کنید یا با رمز وارد شوید."
             return@LaunchedEffect
         }
         val executor = ContextCompat.getMainExecutor(activity)

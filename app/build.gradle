@@ -11,8 +11,8 @@ android {
     defaultConfig {
         minSdk 24
         targetSdk 35
-        versionCode 543055
-        versionName '5.4.3.3-r5.5'
+        versionCode 543056
+        versionName '5.4.3.3-r5.6'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
 
@@ -113,4 +113,25 @@ def prepareFigmaAssetsTask = tasks.register('prepareFigmaAssets') {
 }
 tasks.matching { it.name == 'preBuild' || (it.name.startsWith('merge') && it.name.endsWith('Resources')) }.configureEach {
     dependsOn prepareFigmaAssetsTask
+}
+
+def brandParts = layout.projectDirectory.dir('design-assets/brand_logo')
+def prepareBrandAssetsTask = tasks.register('prepareBrandAssets') {
+    inputs.files(fileTree(brandParts.asFile) { include 'part-*.bin' })
+    outputs.file(figmaGeneratedRes.map { it.file('drawable-nodpi/brand_logo.png') })
+    doLast {
+        def parts = brandParts.asFile.listFiles()?.findAll { it.name ==~ /part-\d{3}\.bin/ }?.sort { it.name }
+        if (!parts) throw new GradleException('Original brand image parts are missing')
+        def combined = new ByteArrayOutputStream()
+        parts.each { combined.write(it.bytes) }
+        def bytes = combined.toByteArray()
+        def actual = java.security.MessageDigest.getInstance('SHA-256').digest(bytes).encodeHex().toString()
+        if (actual != '198eafd87bfc5650826f98dc9d333f7c28863addaa887fe701618893383f1aa6') throw new GradleException('Original brand image checksum mismatch')
+        def target = new File(figmaGeneratedRes.get().asFile, 'drawable-nodpi/brand_logo.png')
+        target.parentFile.mkdirs()
+        target.bytes = bytes
+    }
+}
+tasks.matching { it.name == 'preBuild' || (it.name.startsWith('merge') && it.name.endsWith('Resources')) }.configureEach {
+    dependsOn prepareBrandAssetsTask
 }

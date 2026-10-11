@@ -1,0 +1,10 @@
+{
+  "source": "User attachment brand-v5311.png",
+  "received": "2026-10-11",
+  "width": 512,
+  "height": 512,
+  "bytes": 216331,
+  "sha256": "198eafd87bfc5650826f98dc9d333f7c28863addaa887fe701618893383f1aa6",
+  "storage": "app/design-assets/brand_logo/part-*.bin",
+  "build": "prepareBrandAssets verifies SHA-256 and preserves the original PNG bytes"
+}

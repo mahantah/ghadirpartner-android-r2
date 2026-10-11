@@ -20,8 +20,8 @@ internal fun FigmaSvg(name:String, description:String?, modifier:Modifier, tint:
     val density=LocalDensity.current.density
     val image=remember(name,density) {
         val svg=SVG.getFromAsset(context.assets,"figma/$name.svg")
-        val width=ceil(svg.documentWidth*density).toInt().coerceAtLeast(1)
-        val height=ceil(svg.documentHeight*density).toInt().coerceAtLeast(1)
+        val width=ceil(svg.documentWidth*density*2).toInt().coerceAtLeast(1)
+        val height=ceil(svg.documentHeight*density*2).toInt().coerceAtLeast(1)
         Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888).also {
             Canvas(it).drawPicture(svg.renderToPicture(width,height))
         }.asImageBitmap()
@@ -32,6 +32,9 @@ internal fun FigmaSvg(name:String, description:String?, modifier:Modifier, tint:
 @Composable
 internal fun DesignGlyph(resource:Int,description:String?,modifier:Modifier,tint:ColorFilter?=null) {
     val name=when(resource){
+        R.drawable.design_calendar->"calendar"
+        R.drawable.design_map_pin->"map_pin"
+        R.drawable.design_chevron->"chevron"
         R.drawable.design_success->"success"
         R.drawable.design_empty_orders->"empty_orders"
         R.drawable.design_offline->"offline"

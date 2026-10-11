@@ -26,13 +26,13 @@ private const val AUTHENTICATORS = BiometricManager.Authenticators.BIOMETRIC_WEA
 
 internal fun biometricEnabled(context: Context, account: String): Boolean =
     context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE)
-        .getBoolean("biometric:$account", true) // Preserve the existing default for upgraded users.
+        .getBoolean("biometric:$account", false)
 
 @Composable
 internal fun PortalGlassHeader(title: String, dashboard: Boolean, unread: Int, onOffers: () -> Unit, onBell: () -> Unit) {
     val context=LocalContext.current
     Row(Modifier.fillMaxWidth().heightIn(min=84.dp).padding(horizontal=20.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-        Image(painterResource(R.drawable.design_logo),"قدیر پارتنر",Modifier.size(40.dp).clip(RoundedCornerShape(16.dp)))
+        Image(painterResource(R.drawable.brand_logo),"قدیر پارتنر",Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)))
         Column(Modifier.weight(1f)) {
             Text(title,color=Ink,fontSize=20.sp,lineHeight=33.sp,fontWeight=FontWeight.Bold,maxLines=2)
             Text("قدیر پارتنر",color=Muted,fontSize=12.sp,lineHeight=20.sp)
@@ -72,7 +72,7 @@ internal fun BiometricPreference(account: String) {
                     message = ""
                 } else {
                     val availability = BiometricManager.from(context).canAuthenticate(AUTHENTICATORS)
-                    val activity = context as? FragmentActivity
+                    val activity = context.fragmentActivity()
                     if (availability != BiometricManager.BIOMETRIC_SUCCESS || activity == null) {
                         message = if (availability == BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED)
                             "ابتدا اثر انگشت یا چهره را در تنظیمات گوشی ثبت کنید."
