@@ -167,12 +167,13 @@ class SecurityAndInboxTest {
             ActivityScenario.launch(MainActivity::class.java).use {scenario->
                 fun show(){scenario.onActivity {a->a.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){LoginScreen(ApiClient(a,apiClient)){logged.incrementAndGet()}}}}}}
                 show()
-                compose.onNodeWithContentDescription("شماره همراه").performTextInput("09121234567")
+                compose.onNodeWithContentDescription("شماره همراه").performTextInput("+98 912-123-4567")
                 compose.onNodeWithContentDescription("رمز عبور").performTextInput("PasswordFixture56")
                 compose.onNode(isToggleable()).performScrollTo().performClick()
                 compose.onNodeWithText("ورود").performScrollTo().performClick()
                 compose.waitUntil(10000){logged.get()==1}
                 assertEquals("PasswordFixture56",store.load()!!.password)
+                assertEquals("09121234567",store.load()!!.identity)
                 scenario.onActivity {a->a.setContent {}}
                 compose.waitForIdle();show()
                 compose.onNodeWithContentDescription("شماره همراه").assertTextContains("09121234567")
@@ -180,6 +181,11 @@ class SecurityAndInboxTest {
                 compose.onNodeWithText("ورود").assertIsEnabled()
                 compose.onNodeWithText("خوش آمدید").performScrollTo()
                 shot("design-login-remembered.png")
+                compose.onNodeWithText("فراموشی رمز عبور").performScrollTo().performClick()
+                compose.onNodeWithText("بازگشت به ورود").performScrollTo().performClick()
+                compose.onNodeWithText("ورود").assertIsEnabled()
+                compose.onNodeWithContentDescription("شماره همراه").performTextReplacement("09120000000")
+                compose.onNodeWithText("ورود").assertIsNotEnabled()
                 compose.onNode(isToggleable()).performScrollTo().performClick()
                 assertNull(store.load())
             }

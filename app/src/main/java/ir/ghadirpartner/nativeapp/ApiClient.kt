@@ -156,7 +156,7 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
 
     fun modeError(): String = if (isPortal) "این حساب برای پرتال مشتریان مجاز نیست." else "حساب مشتری اجازه ورود به اتوماسیون را ندارد."
 
-    suspend fun login(identity: String, password: String) {
+    suspend fun login(identity: String, password: String): JSONObject {
         val body = JSONObject()
             .put("Username", identity.trim())
             .put("Password", password)
@@ -167,6 +167,7 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
             logout()
             throw ApiException(403, modeError())
         }
+        return session
     }
 
     suspend fun logout() {

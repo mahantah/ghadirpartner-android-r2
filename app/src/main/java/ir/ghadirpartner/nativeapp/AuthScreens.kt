@@ -88,12 +88,11 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
                                 val account=try {api.me()}catch(e:ApiException){
                                     if(e.status!=401)throw e
                                     val saved=loginStore.load()?:throw IllegalStateException("ابتدا با رمز وارد شوید و گزینهٔ مرا به خاطر بسپار را فعال کنید.")
-                                    require(identity.isBlank()||saved.identity==identity.trim()){"شماره واردشده با حساب ذخیره‌شده یکسان نیست؛ با رمز یا کد وارد شوید."}
+                                    require(identity.isBlank()||saved.identity==canonicalPortalIdentity(identity)){"شماره واردشده با حساب ذخیره‌شده یکسان نیست؛ با رمز یا کد وارد شوید."}
                                     require(biometricEnabled(context,saved.identity)){"ورود بیومتریک برای این حساب فعال نشده است."}
                                     api.login(saved.identity,saved.password)
-                                    api.me()
                                 }
-                                require(identity.isBlank()||account.s("username")==identity.trim()){"شماره واردشده با نشست فعلی یکسان نیست؛ با رمز یا کد وارد شوید."}
+                                require(identity.isBlank()||account.s("username")==canonicalPortalIdentity(identity)){"شماره واردشده با نشست فعلی یکسان نیست؛ با رمز یا کد وارد شوید."}
                                 require(api.modeAllowed(account)&&biometricEnabled(context,account.s("username"))){"ابتدا با رمز یا کد پیامکی وارد شوید و ورود بیومتریک را در پروفایل فعال کنید."}
                                 onLoggedIn()
                             }catch(e:kotlinx.coroutines.CancellationException){throw e}
@@ -122,7 +121,10 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
         }
     }
     if(view=="reset") {
-        PasswordResetScreen(api,identity){view="login";password="";rememberLogin=false;error=""}
+        PasswordResetScreen(api,identity){
+            val saved=loginStore.load()?.takeIf{it.identity==canonicalPortalIdentity(identity)}
+            view="login";password=saved?.password.orEmpty();rememberLogin=saved!=null;error=""
+        }
         return
     }
     Column(Modifier.fillMaxSize().background(if(AppAppearance.dark)AppBackground else Color(0xFFF4F7FB)).navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
@@ -167,7 +169,7 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
                     Spacer(Modifier.height(12.dp))
                     Text("خوش آمدید",color=Ink,fontSize=24.sp,lineHeight=36.sp,fontWeight=FontWeight.Bold,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
                     Text(if(api.isPortal)"پرتال همکاران قدیر پرداخت" else "سامانه اتوماسیون فروش عمده",color=Muted,fontSize=14.sp,lineHeight=23.sp,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
-                    DesignField(if(api.isPortal)"شماره همراه" else "نام کاربری",identity,{identity=asciiDigits(it).take(100);error=""},
+                    DesignField(if(api.isPortal)"شماره همراه" else "نام کاربری",identity,{val next=asciiDigits(it).take(100);if(next!=identity)password="";identity=next;error=""},
                         if(api.isPortal)"۰۹۱۲…" else "نام کاربری",R.drawable.r54_phone,
                         keyboardType=if(api.isPortal)androidx.compose.ui.text.input.KeyboardType.Phone else androidx.compose.ui.text.input.KeyboardType.Text)
                     DesignField("رمز عبور",password,{password=it;error=""},"رمز عبور",R.drawable.r54_eye,onIcon={visible=!visible},
@@ -178,8 +180,9 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
                     }
                     WebLoginButton(if(loading)"در حال ورود…" else "ورود",{
                         scope.launch {loading=true;error="";try{
-                            api.login(identity,password)
-                            if(rememberLogin)try{loginStore.save(identity.trim(),password)}catch(_:Exception){loginStore.clear();rememberLogin=false;android.widget.Toast.makeText(context,"ورود انجام شد؛ ذخیرهٔ رمز روی این دستگاه ممکن نبود.",android.widget.Toast.LENGTH_LONG).show()} else loginStore.clear()
+                            val authenticated=api.login(identity,password)
+                            val savedIdentity=authenticated.s("username").ifBlank{identity.trim()}
+                            if(rememberLogin)try{loginStore.save(savedIdentity,password)}catch(_:Exception){loginStore.clear();rememberLogin=false;android.widget.Toast.makeText(context,"ورود انجام شد؛ ذخیرهٔ رمز روی این دستگاه ممکن نبود.",android.widget.Toast.LENGTH_LONG).show()} else loginStore.clear()
                             onLoggedIn()
                         }
                             catch(e:kotlinx.coroutines.CancellationException){throw e}
@@ -271,4 +274,17 @@ private fun WebLoginButton(text:String,onClick:()->Unit,enabled:Boolean=true,sec
         } else Color(0xFFF58220),contentColor=if(secondary)Ink else Color.White)) {
         Text(text,fontSize=14.sp,lineHeight=23.sp,fontWeight=FontWeight.Bold)
     }
+}
+
+private fun canonicalPortalIdentity(raw:String):String {
+    val original=asciiDigits(raw).trim()
+    val compact=original.filterNot{it.isWhitespace()||it in "() -"}
+    val normalized=when {
+        compact.startsWith("+98")->"0"+compact.removePrefix("+98")
+        compact.startsWith("0098")->"0"+compact.removePrefix("0098")
+        compact.startsWith("98")&&compact.length==12->"0"+compact.drop(2)
+        compact.startsWith("9")&&compact.length==10->"0"+compact
+        else->compact
+    }
+    return if(normalized.matches(Regex("09[0-9]{9}")))normalized else original
 }
