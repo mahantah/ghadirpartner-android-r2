@@ -61,58 +61,104 @@ fun NotificationBell(unread: Int, onClick: () -> Unit, modifier: Modifier = Modi
 }
 
 @Composable
-fun PortalInbox(state: PortalInboxState, onOrder: (Int) -> Unit, onOffer: (Int) -> Unit) {
+fun PortalInbox(state:PortalInboxState,onOrder:(Int)->Unit,onOffer:(Int)->Unit) {
     val scope=rememberCoroutineScope()
-    var selected by remember { mutableStateOf<JSONObject?>(null) }
-    var filter by remember { mutableStateOf("all") }
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=16.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item { GhadirButton(if(state.loading) "در حال بروزرسانی…" else "بروزرسانی پیام‌ها",{scope.launch {state.refresh()}},enabled=!state.loading,secondary=true) }
-        if(state.error.isNotBlank()) item { Text(state.error,color=Danger) }
-        item { Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            listOf("all" to "همه", "message" to "پیام‌ها", "offer" to "آفرها", "order" to "سفارش‌ها").forEach { (key,label) ->
-                GlassFilterChip(selected=filter==key,onClick={filter=key},label={Text(label,fontSize=11.sp)})
-            }
-        } }
-        if(state.unread>0) item { GhadirButton("خواندن همه",{scope.launch {state.markRead(state.items.filterNot {it.b("read")}.map {it.s("id")})}},secondary=true) }
-        val visible=state.items.filter {filter=="all"||it.s("kind")==filter}
-        if(visible.isEmpty()&&!state.loading&&state.error.isBlank()) item { EmptyState("اعلانی وجود ندارد","پیام‌ها، آفرها و تغییر وضعیت سفارش‌ها اینجا نمایش داده می‌شوند.") }
-        items(visible,key={it.s("id")}) { n ->
-            GlassSurface(Modifier.fillMaxWidth().clickable {selected=n;scope.launch {state.markRead(listOf(n.s("id")))}}) {
-                Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                    Text((if(n.b("read")) "" else "●  ")+n.s("title"),fontWeight=FontWeight.Bold,color=Ink)
-                    Text(n.s("body"),color=Muted,fontSize=13.sp,maxLines=3)
-                    if(n.s("created_at").isNotBlank()) Text(formatDateFa(n.s("created_at")),color=Muted,fontSize=11.sp)
-                }
-            }
+    var selected by remember {mutableStateOf<JSONObject?>(null)}
+    var filter by remember {mutableStateOf("all")}
+    fun open(n:JSONObject) {
+        scope.launch {
+            state.markRead(listOf(n.s("id")))
+            when(n.s("kind")){"order"->onOrder(n.i("order_id"));"offer"->onOffer(n.i("offer_id"));else->selected=n}
         }
     }
-    selected?.let { n -> AlertDialog(onDismissRequest={selected=null},title={Text(n.s("title"))},text={
-        Column(Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) { Text(n.s("body")) }
-    },confirmButton={GlassTextButton(onClick={selected=null;when(n.s("kind")){"order"->onOrder(n.i("order_id"));"offer"->onOffer(n.i("offer_id"))}}){Text(if(n.s("kind")=="message") "بستن" else "مشاهده جزئیات")}},dismissButton={if(n.s("kind")!="message")GlassTextButton(onClick={selected=null}){Text("بستن")}}) }
+    val visible=state.items.filter {filter=="all"||it.s("kind")==filter}
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+        item {DesignChoices(listOf("all" to "همه","order" to "سفارش‌ها","offer" to "آفرها"),filter,{filter=it})}
+        item {Text("اعلان‌های سفارش و پیشنهادهای همکاران",color=Muted,fontSize=12.sp)}
+        if(state.error.isNotBlank())item {ErrorBanner(state.error){};GhadirButton("تلاش دوباره",{scope.launch{state.refresh()}},enabled=!state.loading)}
+        if(state.loading&&visible.isEmpty())item {LoadingPane()}
+        if(visible.isEmpty()&&!state.loading&&state.error.isBlank())item {EmptyState("اعلانی وجود ندارد","پیام‌ها، آفرها و تغییر وضعیت سفارش‌ها اینجا نمایش داده می‌شوند.")}
+        items(visible,key={it.s("id")}) {n->
+            GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                val body=n.s("body")
+                val asset=when {
+                    n.s("kind")=="offer"->R.drawable.design_gift
+                    body.contains("تحویل")||n.s("title").contains("تحویل")->R.drawable.design_notification_check
+                    body.contains("ارسال")||n.s("title").contains("ارسال")->R.drawable.design_truck
+                    else->R.drawable.design_package
+                }
+                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                    DesignGlyph(asset,null,Modifier.size(22.dp))
+                    Text((if(n.b("read"))"" else "● ")+n.s("title"),color=Ink,fontSize=16.sp,lineHeight=26.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
+                }
+                Text(body,color=Muted,fontSize=12.sp,lineHeight=20.sp)
+                if(n.s("created_at").isNotBlank())Text(formatDateFa(n.s("created_at")),color=Muted,fontSize=11.sp)
+                GhadirButton(when(n.s("kind")){"order"->if(n.s("title").contains("تحویل"))"دریافت سریال‌ها" else "مشاهده سفارش";"offer"->"شرایط طرح";else->"مشاهده پیام"},{open(n)},secondary=true)
+            }}
+        }
+        if(state.unread>0)item {GhadirButton("خواندن همه",{scope.launch{state.markRead(state.items.filterNot{it.b("read")}.map{it.s("id")})}},secondary=true)}
+        item {Text("قیمت و شرایط نهایی هنگام ثبت سفارش نمایش داده می‌شود.",color=Muted,fontSize=12.sp)}
+    }
+    selected?.let {n->AlertDialog(onDismissRequest={selected=null},title={Text(n.s("title"))},
+        text={Text(n.s("body"),modifier=Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState()))},
+        confirmButton={TextButton(onClick={selected=null}){Text("بستن")}})}
 }
 
 @Composable
-fun PortalOffers(api: ApiClient, selectedId: Int?, onUse: (String) -> Unit) {
-    var offers by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf("") }
-    var retry by remember { mutableIntStateOf(0) }
+fun PortalOffers(api:ApiClient,selectedId:Int?,onOpen:(Int)->Unit={},onUse:(String)->Unit) {
+    var offers by remember {mutableStateOf(emptyList<JSONObject>())}
+    var loading by remember {mutableStateOf(true)}
+    var error by remember {mutableStateOf("")}
+    var retry by remember {mutableIntStateOf(0)}
+    var detail by remember(selectedId){mutableStateOf(selectedId)}
     LaunchedEffect(retry) {
-        loading=true
-        try {offers=(api.get("/api/offers") as JSONArray).objects();error=""} catch(e: CancellationException){throw e} catch(e: Exception){error=e.message ?: "خطا در دریافت آفرها"} finally{loading=false}
+        loading=true;error=""
+        try{offers=(api.get("/api/offers") as JSONArray).objects()}
+        catch(e:CancellationException){throw e}
+        catch(e:Exception){error=e.message?:"دریافت آفرها ناموفق بود"}finally{loading=false}
     }
     if(loading){LoadingPane();return}
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=16.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        if(error.isNotBlank())item {Text(error,color=Danger);GhadirButton("تلاش دوباره",{retry++})}
-        val rows=offers.filter {selectedId==null||it.i("id")==selectedId}
+    val rows=offers.filter {detail==null||it.i("id")==detail}
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+        if(error.isNotBlank())item {ErrorBanner(error){error=""};GhadirButton("تلاش دوباره",{retry++})}
         if(rows.isEmpty()&&error.isBlank())item {EmptyState("آفر فعالی موجود نیست","ممکن است زمان طرح تمام شده باشد یا برای حساب شما فعال نباشد.")}
-        items(rows,key={it.i("id")}) {o->GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text(o.s("title"),fontWeight=FontWeight.Bold,color=Ink,fontSize=18.sp)
-            Text(offerDiscountTextNative(o),color=Orange)
-            Text(o.s("description"),color=Ink)
-            if(o.s("end_date").isNotBlank()) Text("اعتبار تا: ${formatDateFa(o.s("end_date"))}",color=Muted)
-            if(o.s("promo_code").isNotBlank())Text("کد طرح: ${o.s("promo_code")}",color=Ink)
-            GhadirButton(if(o.b("used_by_customer")) "قبلاً استفاده شده" else "ثبت سفارش با این طرح",{onUse(o.s("promo_code"))},enabled=!o.b("used_by_customer"))
-        }} }
+        if(detail==null&&rows.isNotEmpty())item {Text("پیشنهادهای ویژه همکاران",color=Ink,fontSize=18.sp,fontWeight=FontWeight.Bold)}
+        items(rows,key={it.i("id")}) {o->
+            val mix=o.s("title").contains("میکس")||o.s("description").contains("ترکیبی")
+            if(mix) {
+                DesignOfferHero(o.s("title"),o.s("description").ifBlank {"شرایط و مدل‌های مشمول این پیشنهاد را بررسی کنید."},showIcon=true)
+                Spacer(Modifier.height(16.dp))
+            }
+            if(detail==null) {
+                if(mix)GhadirButton("شرایط "+o.s("title"),{detail=o.i("id");onOpen(o.i("id"))})
+                else GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){DesignGlyph(if(o.s("title").contains("اعتبار"))R.drawable.design_wallet else R.drawable.design_gift,null,Modifier.size(28.dp))}
+                    Text(o.s("title"),color=Ink,fontSize=20.sp,lineHeight=33.sp,fontWeight=FontWeight.Bold)
+                    Text(o.s("description"),color=Ink,fontSize=13.sp,lineHeight=22.sp)
+                    GhadirButton(if(o.b("used_by_customer"))"طرح استفاده‌شده؛ مشاهده جزئیات" else "جزئیات طرح",{detail=o.i("id");onOpen(o.i("id"))},secondary=true)
+                }}
+            } else {
+                if(!mix)Text(o.s("title"),color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold)
+                GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+                    Text(if(mix)"بسته ترکیبی برای خرید همکاران" else "شرایط طرح",color=Ink,fontSize=18.sp,fontWeight=FontWeight.Bold)
+                    if(!mix)Text(o.s("description"),color=Ink,fontSize=14.sp)
+                    val products=if(o.s("product").isNotBlank())listOf(o.s("product")) else o.arr("products").strings()
+                    if(products.isNotEmpty()) {
+                        Text("مدل‌های مشمول",color=Muted,fontSize=12.sp)
+                        products.forEach {Text(shortProductName(it),color=Ink,fontWeight=FontWeight.Bold)}
+                    }
+                    if(o.i("min_qty")>0)DetailLine("حداقل خرید",faNumber(o.i("min_qty"))+" دستگاه")
+                    if(o.s("end_date").isNotBlank())DetailLine("مهلت",formatDateFa(o.s("end_date")))
+                    if(o.l("discount_value")>0)Text(offerDiscountTextNative(o),color=Orange,fontWeight=FontWeight.Bold)
+                    if(o.s("promo_code").isNotBlank())DetailLine("کد طرح",o.s("promo_code"))
+                }}
+                Spacer(Modifier.height(16.dp))
+                DesignNotice("قیمت و شرایط نهایی هنگام ثبت سفارش نمایش داده می‌شود.")
+                Spacer(Modifier.height(16.dp))
+                GhadirButton(if(o.b("used_by_customer"))"قبلاً استفاده شده" else if(o.s("promo_code").isBlank())"ثبت سفارش جدید" else "ثبت سفارش این طرح",
+                    {onUse(o.s("promo_code"))},enabled=!o.b("used_by_customer"))
+            }
+        }
+        if(detail==null)item {DesignNotice("اعتبار و مبلغ نهایی در زمان ثبت سفارش بررسی می‌شود.")}
     }
 }

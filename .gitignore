@@ -3,3 +3,6 @@
 local.properties
 *.jks
 *.keystore
+validation/figma-originals/
+
+validation/ci-run-*/

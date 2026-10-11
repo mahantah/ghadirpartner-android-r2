@@ -52,181 +52,189 @@ fun SplashScreen() {
 }
 
 @Composable
-fun LoginScreen(api: ApiClient, onLoggedIn: () -> Unit) {
+fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
     val scope=rememberCoroutineScope()
+    val pageScroll=rememberScrollState()
     val context=androidx.compose.ui.platform.LocalContext.current
+    var view by remember {mutableStateOf("login")}
+    LaunchedEffect(view){pageScroll.scrollTo(0)}
+    var identity by remember {mutableStateOf("")}
+    var password by remember {mutableStateOf("")}
+    var visible by remember {mutableStateOf(false)}
+    var loading by remember {mutableStateOf(false)}
+    var error by remember {mutableStateOf("")}
+    var otp by remember {mutableStateOf("")}
+    var countdown by remember {mutableIntStateOf(0)}
+    var biometricRetry by remember {mutableIntStateOf(0)}
+    var biometricFailed by remember {mutableStateOf(false)}
     var loginPrompt by remember {mutableStateOf<androidx.biometric.BiometricPrompt?>(null)}
     DisposableEffect(Unit){onDispose{loginPrompt?.cancelAuthentication()}}
-    var identity by remember {mutableStateOf("")};var password by remember {mutableStateOf("")}
-    var visible by remember {mutableStateOf(false)};var loading by remember {mutableStateOf(false)}
-    var error by remember {mutableStateOf("")};var resetOpen by remember {mutableStateOf(false)}
-    var otpOpen by remember {mutableStateOf(false)};var otp by remember {mutableStateOf("")}
-    var countdown by remember {mutableIntStateOf(0)}
+    androidx.activity.compose.BackHandler(view!="login"){loginPrompt?.cancelAuthentication();view="login";error=""}
     LaunchedEffect(countdown){if(countdown>0){kotlinx.coroutines.delay(1000);countdown--}}
-    fun requestOtp(){scope.launch {loading=true;error="";try {
-        val response=api.post("/api/native/login-otp/request",JSONObject().put("mobile",identity)) as JSONObject
-        countdown=response.i("retry_after").coerceAtLeast(60);otpOpen=true
-    }catch(e:Exception){error=e.message?:"ارسال کد ناموفق بود"}finally{loading=false}}}
-    Column(Modifier.fillMaxSize().portalBackdrop().navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        Row(Modifier.fillMaxWidth().heightIn(min=84.dp),verticalAlignment=Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)){Text(if(otpOpen) "کد تأیید" else "ورود به قدیر پارتنر",color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold);Text("قدیر پارتنر",color=Muted,fontSize=12.sp)}
-            IconButton(onClick={if(otpOpen)otpOpen=false else resetOpen=false}){Icon(painterResource(R.drawable.r54_back),"بازگشت",Modifier.size(22.dp),tint=Ink)}
+    LaunchedEffect(view,biometricRetry) {
+        if(view=="biometric") {
+            val activity=context as? androidx.fragment.app.FragmentActivity
+            val allowed=androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
+            if(activity==null||androidx.biometric.BiometricManager.from(context).canAuthenticate(allowed)!=androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) {
+                biometricFailed=true;error="اثر انگشت یا تشخیص چهره روی این دستگاه فعال نیست."
+            } else {
+                val prompt=androidx.biometric.BiometricPrompt(activity,androidx.core.content.ContextCompat.getMainExecutor(context),object:androidx.biometric.BiometricPrompt.AuthenticationCallback(){
+                    override fun onAuthenticationSucceeded(result:androidx.biometric.BiometricPrompt.AuthenticationResult) {
+                        scope.launch {
+                            try {
+                                val account=api.me()
+                                require(api.modeAllowed(account)&&biometricEnabled(context,account.s("username"))){"ابتدا با رمز یا کد پیامکی وارد شوید و ورود بیومتریک را در پروفایل فعال کنید."}
+                                onLoggedIn()
+                            }catch(e:kotlinx.coroutines.CancellationException){throw e}
+                            catch(e:Exception){biometricFailed=true;error=e.message?:"نشست شما منقضی شده است؛ با رمز یا کد پیامکی وارد شوید."}
+                        }
+                    }
+                    override fun onAuthenticationError(code:Int,message:CharSequence) {
+                        if(code==androidx.biometric.BiometricPrompt.ERROR_NEGATIVE_BUTTON){view="login";error=""}
+                        else {biometricFailed=true;error="دوباره تلاش کنید یا با رمز عبور وارد شوید."}
+                    }
+                })
+                loginPrompt=prompt
+                prompt.authenticate(androidx.biometric.BiometricPrompt.PromptInfo.Builder().setTitle("ورود امن قدیر پارتنر").setAllowedAuthenticators(allowed).setNegativeButtonText("استفاده از رمز عبور").build())
+            }
         }
-        Image(painterResource(R.drawable.r54_profile_logo),"قدیر پارتنر",Modifier.size(72.dp).clip(RoundedCornerShape(16.dp)))
-        Text(if(otpOpen) "کد تأیید را وارد کنید" else "خوش آمدید",color=Ink,fontSize=26.sp,fontWeight=FontWeight.Bold)
-        Text(if(otpOpen) "کد ارسال‌شده به شماره "+faDigits(identity) else "برای پیگیری سفارش‌ها وارد حساب شوید.",color=Muted,fontSize=14.sp)
-        if(!otpOpen) {
-            OutlinedTextField(identity,{identity=asciiDigits(it);error=""},label={Text(if(api.isPortal)"شماره همراه" else "نام کاربری")},trailingIcon={Icon(painterResource(R.drawable.r54_phone),null,Modifier.size(22.dp),tint=Ink)},singleLine=true,modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(16.dp))
-            OutlinedTextField(password,{password=it;error=""},label={Text("رمز عبور")},singleLine=true,modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(16.dp),visualTransformation=if(visible) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),trailingIcon={IconButton(onClick={visible=!visible}){Icon(painterResource(R.drawable.r54_eye),if(visible)"پنهان کردن رمز" else "نمایش رمز",Modifier.size(22.dp),tint=Ink)}})
-            GhadirButton(if(loading)"در حال ورود…" else "ورود",{scope.launch{loading=true;error="";try{api.login(identity,password);onLoggedIn()}catch(e:Exception){error=e.message?:"ورود ناموفق بود"}finally{loading=false}}},enabled=!loading&&identity.isNotBlank()&&password.isNotBlank())
-            if(api.isPortal)GhadirButton("ورود با کد یک‌بارمصرف",{requestOtp()},enabled=!loading&&identity.matches(Regex("09[0-9]{9}")),secondary=true)
-            if(api.isPortal)GhadirButton("ورود با اثر انگشت",{
-                val activity=context as? androidx.fragment.app.FragmentActivity
-                val allowed=androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
-                if(activity==null||androidx.biometric.BiometricManager.from(context).canAuthenticate(allowed)!=androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) {
-                    error="اثر انگشت یا تشخیص چهره روی این دستگاه فعال نیست."
-                } else {
-                    val prompt=androidx.biometric.BiometricPrompt(activity,androidx.core.content.ContextCompat.getMainExecutor(context),object:androidx.biometric.BiometricPrompt.AuthenticationCallback(){
-                        override fun onAuthenticationSucceeded(result:androidx.biometric.BiometricPrompt.AuthenticationResult){scope.launch{try{api.me();onLoggedIn()}catch(_:Exception){error="نشست شما منقضی شده است؛ با رمز یا کد پیامکی وارد شوید."}}}
-                        override fun onAuthenticationError(code:Int,message:CharSequence){error="تأیید هویت انجام نشد؛ دوباره تلاش کنید یا با رمز وارد شوید."}
-                    })
-                    loginPrompt=prompt
-                    prompt.authenticate(androidx.biometric.BiometricPrompt.PromptInfo.Builder().setTitle("ورود امن قدیر پارتنر").setAllowedAuthenticators(allowed).setNegativeButtonText("استفاده از رمز عبور").build())
-                }
-            },secondary=true)
-            GhadirButton("فراموشی رمز عبور",{resetOpen=true},secondary=true)
-            GlassSurface {Text("فعال‌سازی ورود بیومتریک پس از یک ورود موفق انجام می‌شود.",color=Muted,fontSize=12.sp,modifier=Modifier.padding(16.dp))}
-        } else {
-            OutlinedTextField(otp,{otp=asciiDigits(it).filter(Char::isDigit).take(6)},label={Text("کد یک‌بارمصرف")},modifier=Modifier.fillMaxWidth(),singleLine=true,shape=RoundedCornerShape(16.dp))
-            GhadirButton(if(loading)"در حال بررسی…" else "تأیید و ورود",{scope.launch{loading=true;error="";try{api.post("/api/native/login-otp/confirm",JSONObject().put("mobile",identity).put("otp",otp));onLoggedIn()}catch(e:Exception){error=e.message?:"کد تأیید نشد"}finally{loading=false}}},enabled=otp.length==6&&!loading)
-            GhadirButton(if(countdown>0)"ارسال مجدد پس از ${faNumber(countdown)} ثانیه" else "ارسال مجدد کد",{requestOtp()},enabled=countdown==0&&!loading,secondary=true)
-            GhadirButton("ویرایش شماره همراه",{otpOpen=false;otp=""},enabled=!loading,secondary=true)
-        }
-        ErrorBanner(error){error=""}
     }
-    if(resetOpen)PasswordResetDialog(api){resetOpen=false}
+    fun requestOtp() {
+        if(loading||countdown>0)return
+        scope.launch {
+            loading=true;error=""
+            try {
+                val response=api.post("/api/native/login-otp/request",JSONObject().put("mobile",identity)) as JSONObject
+                countdown=response.i("retry_after").coerceAtLeast(60);otp="";view="otp"
+            }catch(e:kotlinx.coroutines.CancellationException){throw e}
+            catch(e:Exception){error=e.message?:"ارسال کد ناموفق بود"}finally{loading=false}
+        }
+    }
+    if(view=="reset") {
+        PasswordResetScreen(api,identity){view="login";error=""}
+        return
+    }
+    Column(Modifier.fillMaxSize().portalBackdrop().navigationBarsPadding().imePadding().verticalScroll(pageScroll),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+        PortalBackHeader(when(view){"otp"->"کد تأیید";"biometric"->"ورود امن";else->"ورود به قدیر پارتنر"}) {
+            loginPrompt?.cancelAuthentication();view="login";error=""
+        }
+        Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).padding(bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+            when(view) {
+                "otp"->{
+                    DesignState("کد تأیید را وارد کنید","کد ارسال‌شده به شماره "+faDigits(identity),R.drawable.design_otp)
+                    DesignOtp(otp,{otp=it})
+                    Text("کد شش‌رقمی پیامک را وارد کنید.",color=Muted,fontSize=12.sp)
+                    GhadirButton(if(loading)"در حال بررسی…" else "تأیید و ورود",{
+                        scope.launch {
+                            loading=true;error=""
+                            try {
+                                api.post("/api/native/login-otp/confirm",JSONObject().put("mobile",identity).put("otp",otp))
+                                val account=api.me()
+                                if(!api.modeAllowed(account)){api.logout();throw ApiException(403,api.modeError())}
+                                onLoggedIn()
+                            }catch(e:kotlinx.coroutines.CancellationException){throw e}
+                            catch(e:Exception){error=e.message?:"کد تأیید نشد"}finally{loading=false}
+                        }
+                    },enabled=otp.length==6&&!loading)
+                    GhadirButton(if(countdown>0)"ارسال مجدد پس از "+faNumber(countdown)+" ثانیه" else "ارسال مجدد کد",{requestOtp()},enabled=countdown==0&&!loading,secondary=true)
+                    GhadirButton("ویرایش شماره همراه",{view="login";otp=""},enabled=!loading,secondary=true)
+                }
+                "biometric"->{
+                    DesignState(if(biometricFailed)"هویت تأیید نشد" else "تأیید هویت دستگاه",
+                        if(biometricFailed)error.ifBlank {"دوباره تلاش کنید یا با رمز عبور وارد شوید."} else "اثر انگشت یا قفل امن دستگاه",
+                        if(biometricFailed)R.drawable.design_fingerprint_error else R.drawable.design_fingerprint)
+                    if(!biometricFailed)DesignNotice("ورود سریع و امن\n\nبرای تأیید هویت، انگشت خود را روی حسگر دستگاه قرار دهید.")
+                    GhadirButton(if(biometricFailed)"تلاش مجدد با اثر انگشت" else "ادامه با بیومتریک",{biometricFailed=false;error="";biometricRetry++})
+                    GhadirButton("ورود با رمز عبور",{loginPrompt?.cancelAuthentication();view="login";error=""},secondary=true)
+                }
+                else->{
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
+                        Image(painterResource(R.drawable.design_logo),"قدیر پارتنر",Modifier.size(72.dp).clip(RoundedCornerShape(16.dp)))
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text("خوش آمدید",color=Ink,fontSize=26.sp,lineHeight=43.sp,fontWeight=FontWeight.Bold)
+                    Text("برای پیگیری سفارش‌ها وارد حساب شوید.",color=Muted,fontSize=14.sp,lineHeight=23.sp)
+                    DesignField(if(api.isPortal)"شماره همراه" else "نام کاربری",identity,{identity=asciiDigits(it).take(100);error=""},
+                        if(api.isPortal)"۰۹۱۲…" else "نام کاربری",R.drawable.r54_phone,
+                        keyboardType=if(api.isPortal)androidx.compose.ui.text.input.KeyboardType.Phone else androidx.compose.ui.text.input.KeyboardType.Text)
+                    DesignField("رمز عبور",password,{password=it;error=""},"رمز عبور",R.drawable.r54_eye,onIcon={visible=!visible},
+                        transformation=if(visible)androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation())
+                    GhadirButton(if(loading)"در حال ورود…" else "ورود",{
+                        scope.launch {loading=true;error="";try{api.login(identity,password);onLoggedIn()}
+                            catch(e:kotlinx.coroutines.CancellationException){throw e}
+                            catch(e:Exception){error=e.message?:"ورود ناموفق بود"}finally{loading=false}}
+                    },enabled=!loading&&identity.isNotBlank()&&password.isNotBlank())
+                    if(api.isPortal) {
+                        GhadirButton("ورود با کد یک‌بارمصرف",{requestOtp()},enabled=!loading&&countdown==0&&identity.matches(Regex("09[0-9]{9}")),secondary=true)
+                        GhadirButton("ورود با اثر انگشت",{view="biometric";biometricFailed=false;error=""},enabled=!loading,secondary=true)
+                    }
+                    GhadirButton("فراموشی رمز عبور",{view="reset"},enabled=!loading,secondary=true)
+                    DesignNotice("فعال‌سازی ورود بیومتریک پس از یک ورود موفق انجام می‌شود.")
+                }
+            }
+            if(error.isNotBlank()&&view!="biometric")ErrorBanner(error){error=""}
+        }
+    }
 }
 
 @Composable
-private fun PasswordResetDialog(api: ApiClient, onDismiss: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    var step by remember { mutableIntStateOf(1) }
-    var identity by remember { mutableStateOf("") }
-    var otp by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+private fun PasswordResetScreen(api:ApiClient,initialIdentity:String,onBack:()->Unit) {
+    val scope=rememberCoroutineScope()
+    var identity by remember {mutableStateOf(initialIdentity)}
+    var otp by remember {mutableStateOf("")}
+    var password by remember {mutableStateOf("")}
     var repeated by remember {mutableStateOf("")}
-    var error by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf("") }
-    var loading by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {},
-        title = {
-            Text("بازیابی رمز عبور", color = NavyDeep, fontWeight = FontWeight.Black, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Start)
-        },
-        text = {
-            Column(Modifier.heightIn(max=440.dp).verticalScroll(rememberScrollState()),horizontalAlignment = Alignment.Start) {
-                Box(Modifier.fillMaxWidth().height(92.dp), contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(74.dp).clip(CircleShape).background(Color(0xFFFFE4CF)), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Lock, null, tint = Orange, modifier = Modifier.size(34.dp))
+    var codeSent by remember {mutableStateOf(false)}
+    var loading by remember {mutableStateOf(false)}
+    var error by remember {mutableStateOf("")}
+    var message by remember {mutableStateOf("")}
+    var countdown by remember {mutableIntStateOf(0)}
+    LaunchedEffect(countdown){if(countdown>0){kotlinx.coroutines.delay(1000);countdown--}}
+    fun request() {
+        if(loading||countdown>0)return
+        scope.launch {
+            loading=true;error="";message=""
+            try {
+                val path=if(api.isPortal)"/api/password-reset/request" else "/api/staff-password-reset/request"
+                val body=JSONObject().put(if(api.isPortal)"mobile" else "identity",identity)
+                val result=api.post(path,body) as JSONObject
+                message=result.s("message").ifBlank {"درخواست بازیابی بررسی شد."}
+                if(result.optBoolean("otp_required",true)&&(result.b("sms_sent")||result.b("rate_limited"))){codeSent=true;countdown=result.i("retry_after").coerceAtLeast(60)}
+            }catch(e:kotlinx.coroutines.CancellationException){throw e}
+            catch(e:Exception){error=e.message?:"ارسال کد ناموفق بود"}finally{loading=false}
+        }
+    }
+    Column(Modifier.fillMaxSize().portalBackdrop().navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+        PortalBackHeader("بازیابی رمز عبور",onBack)
+        Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).padding(bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+            DesignNotice("شماره همراه حساب را تأیید کنید، سپس رمز جدید بسازید.")
+            Text("۱. تأیید شماره همراه",color=Ink,fontSize=18.sp,fontWeight=FontWeight.Bold)
+            DesignField(if(api.isPortal)"شماره همراه" else "نام کاربری یا شماره همراه",identity,{identity=asciiDigits(it);codeSent=false;otp="";error=""},
+                if(api.isPortal)"۰۹۱۲…" else "شناسه حساب",R.drawable.r54_phone,enabled=!loading)
+            GhadirButton(if(loading)"لطفاً صبر کنید…" else if(countdown>0)"ارسال مجدد پس از "+faNumber(countdown)+" ثانیه" else if(codeSent)"ارسال مجدد کد" else "دریافت کد تأیید",{request()},
+                enabled=!loading&&countdown==0&&identity.isNotBlank(),secondary=codeSent)
+            if(message.isNotBlank())Text(message,color=Success,fontSize=12.sp)
+            if(codeSent) {
+                DesignOtp(otp,{otp=it},"کد یک‌بارمصرف • شماره "+faDigits(identity))
+                Text("۲. تعیین رمز جدید",color=Ink,fontSize=18.sp,fontWeight=FontWeight.Bold)
+                DesignField("رمز عبور جدید",password,{password=it},"حداقل ۸ کاراکتر",R.drawable.r54_eye,transformation=PasswordVisualTransformation())
+                DesignField("تکرار رمز عبور",repeated,{repeated=it},"رمز جدید را دوباره وارد کنید",R.drawable.r54_eye,transformation=PasswordVisualTransformation())
+                DesignNotice("هر دو رمز باید یکسان باشند. رمز جدید پس از تأیید کد پیامکی ثبت می‌شود.")
+                GhadirButton(if(loading)"در حال ثبت…" else "ثبت رمز جدید",{
+                    scope.launch {
+                        loading=true;error="";message=""
+                        try {
+                            require(password==repeated){"رمز جدید و تکرار آن یکسان نیست"}
+                            val path=if(api.isPortal)"/api/password-reset/confirm" else "/api/staff-password-reset/confirm"
+                            api.post(path,JSONObject().put(if(api.isPortal)"mobile" else "identity",identity).put("otp",otp).put("password",password))
+                            message="رمز عبور تغییر کرد.";kotlinx.coroutines.delay(700);onBack()
+                        }catch(e:kotlinx.coroutines.CancellationException){throw e}
+                        catch(e:Exception){error=e.message?:"تغییر رمز ناموفق بود"}finally{loading=false}
                     }
-                }
-                if (step == 1) {
-                    OutlinedTextField(
-                        value = identity,
-                        onValueChange = { identity = it; error = "" },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text(if (api.isPortal) "شماره موبایل" else "نام کاربری / موبایل") },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Orange, unfocusedBorderColor = Border)
-                    )
-                } else {
-                    Text("کد ۶ رقمی پیامک‌شده را وارد کنید.", color = Muted, fontSize = 12.sp)
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = otp,
-                        onValueChange = { if (it.length <= 6) otp = it.filter(Char::isDigit); error = "" },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("کد یکبارمصرف") },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Orange, unfocusedBorderColor = Border)
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it; error = "" },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        label = { Text("رمز جدید – حداقل ۸ کاراکتر") },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Orange, unfocusedBorderColor = Border)
-                    )
-                }
-                if(step!=1)OutlinedTextField(repeated,{repeated=it},label={Text("تکرار رمز عبور جدید")},modifier=Modifier.fillMaxWidth(),visualTransformation=PasswordVisualTransformation())
-                if (message.isNotBlank()) {
-                    Spacer(Modifier.height(8.dp)); Text(message, color = Success, fontSize = 12.sp)
-                }
-                if (error.isNotBlank()) {
-                    Spacer(Modifier.height(8.dp)); Text(error, color = Danger, fontSize = 12.sp)
-                }
-                Spacer(Modifier.height(14.dp))
-                GhadirButton(
-                    text = if (loading) "لطفاً صبر کنید..." else if (step == 1) "ارسال کد" else "تغییر رمز",
-                    enabled = !loading,
-                    onClick = {
-                        scope.launch {
-                            loading = true; error = ""; message = ""
-                            try {
-                                if (step == 1) {
-                                    val path = if (api.isPortal) "/api/password-reset/request" else "/api/staff-password-reset/request"
-                                    val body = if (api.isPortal) JSONObject().put("mobile", identity) else JSONObject().put("identity", identity)
-                                    val result = api.post(path, body) as JSONObject
-                                    message = result.optString("message", "درخواست بازیابی بررسی شد.")
-                                    val otpRequired = result.optBoolean("otp_required", true)
-                                    val smsSent = result.optBoolean("sms_sent", false)
-                                    val rateLimited = result.optBoolean("rate_limited", false)
-                                    if (otpRequired && (smsSent || rateLimited)) step = 2
-                                } else {
-                                    require(password==repeated){"رمز جدید و تکرار آن یکسان نیست"}
-                                    val path = if (api.isPortal) "/api/password-reset/confirm" else "/api/staff-password-reset/confirm"
-                                    val body = JSONObject().put(if (api.isPortal) "mobile" else "identity", identity)
-                                        .put("otp", otp).put("password", password)
-                                    api.post(path, body)
-                                    message = "رمز عبور تغییر کرد."
-                                    kotlinx.coroutines.delay(700)
-                                    onDismiss()
-                                }
-                            } catch (e: Exception) { error = e.message ?: "عملیات ناموفق بود" }
-                            finally { loading = false }
-                        }
-                    }
-                )
-                if (step == 2) {
-                    GlassTextButton(
-                        onClick = {
-                            scope.launch {
-                                loading = true; error = ""; message = ""
-                                try {
-                                    val path = if (api.isPortal) "/api/password-reset/request" else "/api/staff-password-reset/request"
-                                    val body = if (api.isPortal) JSONObject().put("mobile", identity) else JSONObject().put("identity", identity)
-                                    val result = api.post(path, body) as JSONObject
-                                    message = result.optString("message", "درخواست ارسال مجدد ثبت شد.")
-                                } catch (e: Exception) { error = e.message ?: "ارسال مجدد ناموفق بود" }
-                                finally { loading = false }
-                            }
-                        },
-                        enabled = !loading,
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    ) { Text("ارسال مجدد کد", color = Ink) }
-                }
-                GlassTextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("انصراف", color = Muted) }
+                },enabled=!loading&&otp.length==6&&password.length>=8&&password==repeated)
             }
-        },
-        shape = RoundedCornerShape(28.dp),
-        containerColor = AppSurface
-    )
+            if(error.isNotBlank())ErrorBanner(error){error=""}
+            GhadirButton("بازگشت به ورود",onBack,secondary=true)
+        }
+    }
 }

@@ -136,6 +136,9 @@ private fun BiometricGate(onUnlocked: () -> Unit, onUnavailable: () -> Unit, onU
     val activity = context as? FragmentActivity
     var message by remember { mutableStateOf("برای ورود سریع، هویت خود را با اثر انگشت یا چهره تأیید کنید.") }
     var retryNonce by remember { mutableIntStateOf(0) }
+    var failed by remember {mutableStateOf(false)}
+    var activePrompt by remember {mutableStateOf<BiometricPrompt?>(null)}
+    DisposableEffect(Unit){onDispose{activePrompt?.cancelAuthentication()}}
 
     LaunchedEffect(activity, retryNonce) {
         if (activity == null) { onUnavailable(); return@LaunchedEffect }
@@ -153,6 +156,7 @@ private fun BiometricGate(onUnlocked: () -> Unit, onUnavailable: () -> Unit, onU
             }
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 super.onAuthenticationError(errorCode, errString)
+                failed=true
                 when (errorCode) {
                     BiometricPrompt.ERROR_NEGATIVE_BUTTON -> onUsePassword()
                     BiometricPrompt.ERROR_LOCKOUT, BiometricPrompt.ERROR_LOCKOUT_PERMANENT ->
@@ -164,6 +168,7 @@ private fun BiometricGate(onUnlocked: () -> Unit, onUnavailable: () -> Unit, onU
             }
             override fun onAuthenticationFailed() {
                 super.onAuthenticationFailed()
+                failed=true
                 message = "اثر انگشت یا چهره شناسایی نشد؛ دوباره تلاش کنید."
             }
         })
@@ -173,25 +178,24 @@ private fun BiometricGate(onUnlocked: () -> Unit, onUnavailable: () -> Unit, onU
             .setNegativeButtonText("ورود با رمز")
             .setAllowedAuthenticators(authenticators)
             .build()
+        activePrompt=prompt
         prompt.authenticate(info)
     }
 
     Surface(modifier = Modifier.fillMaxSize().portalBackdrop(), color = androidx.compose.ui.graphics.Color.Transparent) {
         Column(
-            Modifier.fillMaxSize().padding(28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            Modifier.fillMaxSize().navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("ورود بیومتریک", style = MaterialTheme.typography.headlineSmall, color = NavyDeep)
-            Spacer(Modifier.height(12.dp))
-            Text(message, textAlign = TextAlign.Center, color = Muted)
-            Spacer(Modifier.height(18.dp))
-            GhadirButton("تلاش دوباره", onClick = {
+            PortalBackHeader("ورود امن",onUsePassword)
+            DesignState(if(failed)"هویت تأیید نشد" else "تأیید هویت دستگاه",message,
+                if(failed)R.drawable.design_fingerprint_error else R.drawable.design_fingerprint)
+            GhadirButton(if(failed)"تلاش مجدد با اثر انگشت" else "ادامه با بیومتریک", onClick = {
                 message = "برای ورود سریع، هویت خود را با اثر انگشت یا چهره تأیید کنید."
+                failed=false
                 retryNonce++
             })
-            Spacer(Modifier.height(8.dp))
-            GlassTextButton(onClick = onUsePassword) { Text("ورود با شماره و رمز") }
+            GhadirButton("ورود با رمز عبور",onUsePassword,secondary=true)
         }
     }
 }

@@ -32,16 +32,16 @@ internal fun biometricEnabled(context: Context, account: String): Boolean =
 internal fun PortalGlassHeader(title: String, dashboard: Boolean, unread: Int, onOffers: () -> Unit, onBell: () -> Unit) {
     val context=LocalContext.current
     Row(Modifier.fillMaxWidth().heightIn(min=84.dp).padding(horizontal=20.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-        Image(painterResource(R.drawable.r54_logo),"قدیر پارتنر",Modifier.size(40.dp))
+        Image(painterResource(R.drawable.design_logo),"قدیر پارتنر",Modifier.size(40.dp).clip(RoundedCornerShape(16.dp)))
         Column(Modifier.weight(1f)) {
-            Text(title,color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold,maxLines=2)
-            Text("قدیر پارتنر",color=Muted,fontSize=12.sp)
+            Text(title,color=Ink,fontSize=20.sp,lineHeight=33.sp,fontWeight=FontWeight.Bold,maxLines=2)
+            Text("قدیر پارتنر",color=Muted,fontSize=12.sp,lineHeight=20.sp)
         }
         Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            Image(painterResource(if(AppAppearance.dark) R.drawable.r54_offers_dark else R.drawable.r54_offers),"طرح‌ها و آفرها",Modifier.size(40.dp,44.dp).clickable(onClick=onOffers))
-            Image(painterResource(if(AppAppearance.dark) R.drawable.r54_theme_dark else R.drawable.r54_theme),if(AppAppearance.dark) "حالت روز" else "حالت شب",Modifier.size(40.dp,44.dp).clickable {AppAppearance.toggle(context)})
+            FigmaSvg(if(AppAppearance.dark) "offers_night" else "offers_day","طرح‌ها و آفرها",Modifier.size(40.dp,44.dp).clickable(onClick=onOffers))
+            FigmaSvg(if(AppAppearance.dark) "theme_night" else "theme_day",if(AppAppearance.dark) "حالت روز" else "حالت شب",Modifier.size(40.dp,44.dp).clickable {AppAppearance.toggle(context)})
             Box {
-                Image(painterResource(if(AppAppearance.dark) R.drawable.r54_bell_dark else R.drawable.r54_bell),"اعلان‌ها",Modifier.size(40.dp,44.dp).clickable(onClick=onBell))
+                FigmaSvg(if(AppAppearance.dark) "bell_night" else "bell_day","اعلان‌ها",Modifier.size(40.dp,44.dp).clickable(onClick=onBell))
                 if(unread>0) Badge(Modifier.align(Alignment.TopEnd),containerColor=Orange,contentColor=Navy){Text(faNumber(unread),fontSize=9.sp)}
             }
         }
