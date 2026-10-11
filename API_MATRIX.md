@@ -1,4 +1,4 @@
-# API Matrix Android R5.5
+# API Matrix Android R5.6
 
 Portal base: `https://ghadirpartner.ir/partners`.
 Automation base: `https://ghadirpartner.ir`.
@@ -58,3 +58,5 @@ These historical successful runs do not prove that a live account's SMS, credit 
 order submission or finance review works today. Verify those with an authorized test account.
 The PHP tests in `validation/` require the separate matching web source and PHP-WASM dependencies;
 they are not standalone Android tests.
+
+R5.6 inbox compatibility: accepts modern items objects and legacy arrays. If the legacy notification endpoint is missing or empty, authenticated order statuses and eligible offers populate the message center. Legacy read state stays local and account-scoped; modern read requests are limited to IDs present in the account inbox. No server deployment or system push was added.
