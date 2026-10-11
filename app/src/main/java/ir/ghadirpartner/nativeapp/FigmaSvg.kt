@@ -23,7 +23,10 @@ internal fun FigmaSvg(name:String, description:String?, modifier:Modifier, tint:
         val width=ceil(svg.documentWidth*density*2).toInt().coerceAtLeast(1)
         val height=ceil(svg.documentHeight*density*2).toInt().coerceAtLeast(1)
         Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888).also {
-            Canvas(it).drawPicture(svg.renderToPicture(width,height))
+            Canvas(it).apply {
+                scale(density*2,density*2)
+                drawPicture(svg.renderToPicture())
+            }
         }.asImageBitmap()
     }
     Image(image,description,modifier,colorFilter=tint)

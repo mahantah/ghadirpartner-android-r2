@@ -8,6 +8,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -131,7 +132,7 @@ private fun NativeAppRoot() {
 
 
 @Composable
-private fun BiometricGate(onUnlocked: () -> Unit, onUnavailable: () -> Unit, onUsePassword: () -> Unit) {
+internal fun BiometricGate(onUnlocked: () -> Unit, onUnavailable: () -> Unit, onUsePassword: () -> Unit) {
     val context = LocalContext.current
     val activity = context.fragmentActivity()
     var message by remember { mutableStateOf("برای ورود سریع، هویت خود را با اثر انگشت یا چهره تأیید کنید.") }
@@ -185,7 +186,7 @@ private fun BiometricGate(onUnlocked: () -> Unit, onUnavailable: () -> Unit, onU
 
     Surface(modifier = Modifier.fillMaxSize().portalBackdrop(), color = androidx.compose.ui.graphics.Color.Transparent) {
         Column(
-            Modifier.fillMaxSize().navigationBarsPadding(),
+            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(androidx.compose.foundation.rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             PortalBackHeader("ورود امن",onUsePassword)

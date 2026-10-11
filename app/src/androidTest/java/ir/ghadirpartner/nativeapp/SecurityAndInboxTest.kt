@@ -1,5 +1,17 @@
 package ir.ghadirpartner.nativeapp
 
+import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
+import java.io.File
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.PackageManager
@@ -29,6 +41,36 @@ class SecurityAndInboxTest {
         Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("OK")
             .body(handler(request).toResponseBody("application/json".toMediaType())).build()
     }.build()
+
+    private fun shot(name:String) {
+        compose.waitForIdle();compose.mainClock.advanceTimeBy(400);compose.waitForIdle()
+        val bitmap=compose.onAllNodes(isRoot()).onLast().captureToImage().asAndroidBitmap()
+        File(context.filesDir,name).outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
+        bitmap.recycle()
+    }
+
+    @Test fun svgGlyphKeepsItsSizeAtHighDensity() {
+        ActivityScenario.launch(MainActivity::class.java).use {scenario->
+            scenario.onActivity {a->a.setContent {
+                Box(Modifier.fillMaxSize().background(Color.White)) {
+                    CompositionLocalProvider(LocalDensity provides Density(3f)) {
+                        FigmaSvg("home",null,Modifier.size(30.dp).testTag("density-glyph"),ColorFilter.tint(Color.Black))
+                    }
+                }
+            }}
+            val bitmap=compose.onNodeWithTag("density-glyph").captureToImage().asAndroidBitmap()
+            assertTrue(bitmap.width>=85)
+            var minX=bitmap.width;var maxX=-1;var minY=bitmap.height;var maxY=-1
+            for(y in 0 until bitmap.height)for(x in 0 until bitmap.width) {
+                val color=bitmap.getPixel(x,y)
+                if(android.graphics.Color.red(color)<100&&android.graphics.Color.alpha(color)>100) {
+                    minX=minOf(minX,x);maxX=maxOf(maxX,x);minY=minOf(minY,y);maxY=maxOf(maxY,y)
+                }
+            }
+            assertTrue("Glyph shrank inside its display slot",maxX-minX>bitmap.width/2&&maxY-minY>bitmap.height/2)
+            bitmap.recycle()
+        }
+    }
 
     @Test fun rememberedLoginEncryptedAndModeIsolated() {
         val store=SecureLoginStore(context,"security-fixture")
@@ -82,6 +124,11 @@ class SecurityAndInboxTest {
         try {
             val first=PortalInboxState(api,context,a);first.refresh()
             assertEquals(2,first.items.size);assertEquals(2,first.unread)
+            ActivityScenario.launch(MainActivity::class.java).use {scenario->
+                scenario.onActivity {activity->activity.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){Column(Modifier.fillMaxSize().portalBackdrop()){PortalBackHeader("مرکز پیام",{});Box(Modifier.weight(1f)){PortalInbox(first,{},{})}}}}}}
+                compose.onNodeWithText("وضعیت سفارش شما: آماده‌سازی").assertExists()
+                shot("design-message-center.png")
+            }
             first.markRead(first.items.map{it.s("id")});assertEquals(0,first.unread)
             val restored=PortalInboxState(api,context,a);restored.refresh();assertEquals(0,restored.unread)
             val separate=PortalInboxState(api,context,b);separate.refresh();assertEquals(2,separate.unread)
@@ -130,6 +177,9 @@ class SecurityAndInboxTest {
                 compose.waitForIdle();show()
                 compose.onNodeWithContentDescription("شماره همراه").assertTextContains("09121234567")
                 compose.onNode(isToggleable()).assertIsOn()
+                compose.onNodeWithText("ورود").assertIsEnabled()
+                compose.onNodeWithText("خوش آمدید").performScrollTo()
+                shot("design-login-remembered.png")
                 compose.onNode(isToggleable()).performScrollTo().performClick()
                 assertNull(store.load())
             }

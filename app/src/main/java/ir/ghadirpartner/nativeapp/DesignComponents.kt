@@ -61,10 +61,10 @@ internal fun DesignField(
                     horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     if(icon!=null) {
                         val imageModifier=Modifier.size(28.dp).then(if(onIcon!=null) Modifier.clickable(onClick=onIcon) else Modifier)
-                        val svg=when(icon){R.drawable.design_search->"search";R.drawable.design_calendar->"calendar";R.drawable.design_map_pin->"map_pin";R.drawable.design_chevron->"chevron";else->null}
+                        val svg=when(icon){R.drawable.r54_phone->"phone";R.drawable.r54_eye->"eye";R.drawable.design_search->"search";R.drawable.design_calendar->"calendar";R.drawable.design_map_pin->"map_pin";R.drawable.design_chevron->"chevron";else->null}
                         if(svg!=null) Box(imageModifier) {
                             val glyphSize=if(svg=="search")25.dp else 28.dp
-                            FigmaSvg(svg,null,Modifier.size(glyphSize).align(AbsoluteAlignment.TopLeft),ColorFilter.tint(Muted))
+                            FigmaSvg(svg,if(onIcon!=null)"نمایش یا پنهان کردن رمز" else null,Modifier.size(glyphSize).align(AbsoluteAlignment.TopLeft),ColorFilter.tint(Muted))
                         } else Image(painterResource(icon),if(onIcon!=null) "نمایش یا پنهان کردن رمز" else null,imageModifier,
                             colorFilter=ColorFilter.tint(Muted))
                     }
@@ -147,7 +147,7 @@ internal fun PortalBackHeader(title:String,onBack:()->Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min=84.dp).padding(horizontal=20.dp,vertical=12.dp),
         verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
         IconButton(onClick=onBack,modifier=Modifier.size(42.dp)) {
-            Image(painterResource(R.drawable.r54_back),"بازگشت",Modifier.size(28.dp),colorFilter=ColorFilter.tint(Ink))
+            FigmaSvg("back","بازگشت",Modifier.size(28.dp),tint=ColorFilter.tint(Ink))
         }
         Column(Modifier.weight(1f)) {
             Text(title,color=Ink,fontSize=22.sp,lineHeight=36.sp,fontWeight=FontWeight.Bold)
