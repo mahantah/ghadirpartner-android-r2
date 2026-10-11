@@ -206,6 +206,27 @@
       "width": 28,
       "height": 28,
       "sourceNode": "118:54464"
+    },
+    {
+      "path": "app/src/main/assets/figma/phone.svg",
+      "sha256": "2fd936d5e50a0f8b1ac92ede84ca7026af3726452b569ce636203a965ecee2e8",
+      "width": 22,
+      "height": 22,
+      "sourceNode": "118:51150"
+    },
+    {
+      "path": "app/src/main/assets/figma/eye.svg",
+      "sha256": "f1f8f4826857fc238af0a528e152a377db252f486010f55deb78e8740aade39e",
+      "width": 22,
+      "height": 22,
+      "sourceNode": "118:51150"
+    },
+    {
+      "path": "app/src/main/assets/figma/back.svg",
+      "sha256": "41169dc155a2035324a31cb6f9c88efe020cc683232d599510186fb743906abe",
+      "width": 22,
+      "height": 22,
+      "sourceNode": "118:51150"
     }
   ],
   "hero": {
@@ -216,5 +237,6 @@
     "storage": "app/design-assets/figma_mix_offer/part-*.bin",
     "buildTask": "prepareFigmaAssets",
     "display": "ContentScale.Crop, 24dp corners, 45% #0A1424 overlay"
-  }
+  },
+  "r56_note": "User requested larger glyphs and replacement brand. SVG coordinates are scaled on Canvas for display density; wrappers use 28dp fields and 30dp navigation/messages. Original SVG root dimensions and bytes remain unchanged."
 }

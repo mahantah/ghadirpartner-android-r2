@@ -50,7 +50,7 @@ fun BrandHeader(title: String, subtitle: String = "", avatarUri: String = "") {
                 Image(avatarBitmap.asImageBitmap(), "عکس پروفایل", contentScale=ContentScale.Crop,
                     modifier=Modifier.size(32.dp).clip(CircleShape))
             } else {
-                Image(painterResource(R.drawable.figma_bell), null, modifier=Modifier.size(24.dp))
+                Image(painterResource(R.drawable.brand_logo), null, modifier=Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)))
             }
         }
     }
@@ -136,7 +136,7 @@ fun SearchBox(value: String, onValueChange: (String) -> Unit, placeholder: Strin
         singleLine = true,
         shape = RoundedCornerShape(16.dp),
         placeholder = { Text(placeholder) },
-        leadingIcon = { Image(painterResource(R.drawable.design_search), null, Modifier.size(22.dp)) },
+        leadingIcon = { FigmaSvg("search",null,Modifier.size(28.dp),tint=androidx.compose.ui.graphics.ColorFilter.tint(Muted)) },
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = Orange,
             unfocusedBorderColor = Border,

@@ -1,7 +1,7 @@
-name: Build Ghadir Partner Android R5.5
+name: Build Ghadir Partner Android R5.6
 on:
   push:
-    branches: [main, codex/compact-r5, codex/integrate-r54, codex/figma-100-573]
+    branches: [main, codex/compact-r5, codex/integrate-r54, codex/figma-100-573, codex/r56-login-security]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -43,7 +43,7 @@ jobs:
           script: bash validation/run-emulator-tests.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: GhadirPartner-5.4.3.3-R5.5-Debug-APK
+          name: GhadirPartner-5.4.3.3-R5.6-Debug-APK
           path: app/build/outputs/apk/portal/debug/*.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4

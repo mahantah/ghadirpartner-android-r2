@@ -67,7 +67,7 @@ private val portalNav = listOf(
 @Composable
 fun PortalApp(api: ApiClient, me: JSONObject, onLogout: () -> Unit) {
     val context = LocalContext.current
-    val inbox = remember(api, me.s("username")) { PortalInboxState(api) }
+    val inbox = remember(api, me.s("username")) { PortalInboxState(api,context,me.s("username")) }
     val appScope = rememberCoroutineScope()
     var selectedOffer by remember { mutableStateOf<Int?>(null) }
     var offerCode by remember { mutableStateOf("") }
@@ -102,7 +102,7 @@ fun PortalApp(api: ApiClient, me: JSONObject, onLogout: () -> Unit) {
     var profileBackRequest by remember {mutableIntStateOf(0)}
     var cancelView by remember {mutableStateOf(false)}
     var orderBackRequest by remember {mutableIntStateOf(0)}
-    val titles = mapOf("documents" to "پیش‌فاکتورهای من", "proforma" to "پیش‌فاکتور", "success" to "سفارش ثبت شد", "serials" to "سریال‌های من", "addresses" to "آدرس‌های من", "home" to "پیشخوان", "catalog" to "قیمت و موجودی", "new" to "ثبت سفارش", "orders" to "سفارش‌های من", "profile" to "پروفایل", "order-detail" to "جزئیات سفارش", "inbox" to "اعلان‌ها", "offers" to "طرح‌ها و آفرها")
+    val titles = mapOf("documents" to "پیش‌فاکتورهای من", "proforma" to "پیش‌فاکتور", "success" to "سفارش ثبت شد", "serials" to "سریال‌های من", "addresses" to "آدرس‌های من", "home" to "پیشخوان", "catalog" to "قیمت و موجودی", "new" to "ثبت سفارش", "orders" to "سفارش‌های من", "profile" to "پروفایل", "order-detail" to "جزئیات سفارش", "inbox" to "مرکز پیام", "offers" to "طرح‌ها و آفرها")
     Box(Modifier.fillMaxSize().portalBackdrop()) { Scaffold(
         containerColor = Color.Transparent,
         topBar = {
@@ -877,7 +877,7 @@ private fun ProfilePhoto(uri: String, size: androidx.compose.ui.unit.Dp = 80.dp)
             Image(bitmap = bitmap.asImageBitmap(), contentDescription = "عکس پروفایل", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         } else {
             Image(
-                painter = painterResource(R.drawable.design_logo),
+                painter = painterResource(R.drawable.brand_logo),
                 contentDescription = "لوگوی قدیر پرداخت",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp))
@@ -905,8 +905,8 @@ internal fun <T> DropdownField(title:String,value:String,options:List<T>,display
                 .border(1.dp,Border,RoundedCornerShape(16.dp)).clickable {open=true}
                 .semantics {contentDescription=title}.padding(14.dp),
                 verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                Image(painterResource(if(title=="نشانی تحویل"||title=="آدرس تحویل")R.drawable.design_map_pin else R.drawable.design_chevron),
-                    null,Modifier.size(22.dp),colorFilter=androidx.compose.ui.graphics.ColorFilter.tint(Muted))
+                DesignGlyph(if(title=="نشانی تحویل"||title=="آدرس تحویل")R.drawable.design_map_pin else R.drawable.design_chevron,
+                    null,Modifier.size(28.dp),tint=androidx.compose.ui.graphics.ColorFilter.tint(Muted))
                 Text(value,color=Ink,fontSize=14.sp,lineHeight=23.sp,modifier=Modifier.weight(1f),maxLines=1,overflow=TextOverflow.Ellipsis)
             }
             DropdownMenu(expanded=open,onDismissRequest={open=false},modifier=Modifier.fillMaxWidth(.86f)) {
