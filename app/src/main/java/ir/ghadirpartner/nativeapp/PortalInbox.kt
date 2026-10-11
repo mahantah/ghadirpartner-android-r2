@@ -23,31 +23,85 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 @Stable
-class PortalInboxState(private val api: ApiClient) {
+class PortalInboxState(private val api:ApiClient,context:android.content.Context?=null,account:String="") {
     var items by mutableStateOf<List<JSONObject>>(emptyList())
         private set
     var loading by mutableStateOf(false)
         private set
     var error by mutableStateOf("")
         private set
-    private val lock = Mutex()
-    val unread: Int get() = items.count { !it.b("read") }
-    suspend fun refresh(): Unit = lock.withLock {
+    private val prefs=context?.getSharedPreferences("ghadir_inbox",android.content.Context.MODE_PRIVATE)
+    private val readKey="read:"+BuildConfig.APP_MODE+":"+account
+    private var locallyRead=prefs?.getStringSet(readKey,emptySet())?.toSet()?:emptySet()
+    private var localMode=false
+    private val lock=Mutex()
+    val unread:Int get()=items.count {!it.b("read")}
+
+    suspend fun refresh():Unit=lock.withLock {
         loading=true
         try {
-            val response=api.get("/api/notifications") as? JSONObject
-                ?: throw IllegalStateException("مرکز پیام هنوز روی سرور فعال نشده است.")
-            if (!response.has("items")) throw IllegalStateException("پاسخ مرکز پیام معتبر نیست.")
-            items=response.arr("items").objects(); error=""
-        } catch(e: CancellationException) { throw e } catch(e: Exception) { error=e.message ?: "دریافت اعلان‌ها ناموفق بود" } finally { loading=false }
-    }
-    suspend fun markRead(ids: List<String>): Unit = lock.withLock {
-        if(ids.isNotEmpty()) try {
-            api.post("/api/notifications/read",JSONObject().put("ids",JSONArray(ids)))
-            items=items.map { JSONObject(it.toString()).apply { if(s("id") in ids) put("read",true) } }
+            val response=try{api.get("/api/notifications")}catch(e:ApiException){
+                if(e.status !in setOf(404,405,501))throw e
+                JSONArray()
+            }
+            val next=when(response) {
+                is JSONObject->{
+                    require(response.has("items")){"پاسخ مرکز پیام معتبر نیست."}
+                    localMode=false
+                    response.arr("items").objects()
+                }
+                is JSONArray->{
+                    localMode=true
+                    if(response.length()>0)response.objects() else accountActivity()
+                }
+                else->throw IllegalStateException("پاسخ مرکز پیام معتبر نیست.")
+            }
+            items=next.filter{it.s("id").isNotBlank()}.distinctBy{it.s("id")}.map {
+                JSONObject(it.toString()).apply {if(s("id") in locallyRead)put("read",true)}
+            }.sortedByDescending{it.s("created_at")}
             error=""
-        } catch(e: CancellationException) { throw e } catch(e: Exception) { error=e.message ?: "ثبت خوانده‌شدن ناموفق بود" }
+        }catch(e:CancellationException){throw e}
+        catch(e:Exception){error=e.message?:"دریافت پیام‌ها ناموفق بود"}
+        finally{loading=false}
     }
+
+    private suspend fun accountActivity():List<JSONObject> {
+        // These endpoints return only the authenticated customer's authorized data.
+        val orders=(api.get("/api/orders") as JSONArray).objects()
+        val offers=(api.get("/api/offers") as JSONArray).objects().filterNot{it.b("used_by_customer")}
+        val orderMessages=orders.map {o->
+            val latest=o.arr("history").objects().lastOrNull()
+            val at=o.s("updated_at").ifBlank {latest?.s("at").orEmpty()}.ifBlank{o.s("created_at")}
+            JSONObject().put("id","order:"+o.i("id")+":"+o.s("status")+":"+at)
+                .put("kind","order").put("order_id",o.i("id"))
+                .put("title","سفارش "+faDigits(o.s("number"))+" • "+o.s("status"))
+                .put("body","وضعیت سفارش شما: "+o.s("status"))
+                .put("created_at",at).put("read",false)
+        }
+        val offerMessages=offers.map {o->
+            JSONObject().put("id","offer:"+o.i("id")+":"+o.s("updated_at").ifBlank{o.s("start_date")})
+                .put("kind","offer").put("offer_id",o.i("id")).put("title",o.s("title"))
+                .put("body",o.s("description")).put("created_at",o.s("created_at").ifBlank{o.s("start_date")})
+                .put("read",false)
+        }
+        return orderMessages+offerMessages
+    }
+
+    suspend fun markRead(ids:List<String>):Unit=lock.withLock {
+        val owned=ids.filter{id->items.any{it.s("id")==id}}.distinct()
+        if(owned.isEmpty())return@withLock
+        try {
+            if(!localMode)try {
+                api.post("/api/notifications/read",JSONObject().put("ids",JSONArray(owned)))
+            }catch(e:ApiException){if(e.status !in setOf(404,405,501))throw e}
+            locallyRead=(locallyRead+owned).takeLastSet(1000)
+            prefs?.edit()?.putStringSet(readKey,locallyRead)?.apply()
+            items=items.map {JSONObject(it.toString()).apply {if(s("id") in owned)put("read",true)}}
+            error=""
+        }catch(e:CancellationException){throw e}
+        catch(e:Exception){error=e.message?:"ثبت خوانده‌شدن ناموفق بود"}
+    }
+    private fun Set<String>.takeLastSet(limit:Int):Set<String> = toList().takeLast(limit).toSet()
 }
 
 @Composable
@@ -88,7 +142,7 @@ fun PortalInbox(state:PortalInboxState,onOrder:(Int)->Unit,onOffer:(Int)->Unit) 
                     else->R.drawable.design_package
                 }
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                    DesignGlyph(asset,null,Modifier.size(22.dp))
+                    DesignGlyph(asset,null,Modifier.size(30.dp))
                     Text((if(n.b("read"))"" else "● ")+n.s("title"),color=Ink,fontSize=16.sp,lineHeight=26.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
                 }
                 Text(body,color=Muted,fontSize=12.sp,lineHeight=20.sp)

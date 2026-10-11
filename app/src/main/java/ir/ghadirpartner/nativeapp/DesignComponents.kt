@@ -60,10 +60,10 @@ internal fun DesignField(
                     .padding(horizontal=14.dp,vertical=12.dp), verticalAlignment=Alignment.CenterVertically,
                     horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     if(icon!=null) {
-                        val imageModifier=Modifier.size(22.dp).then(if(onIcon!=null) Modifier.clickable(onClick=onIcon) else Modifier)
+                        val imageModifier=Modifier.size(28.dp).then(if(onIcon!=null) Modifier.clickable(onClick=onIcon) else Modifier)
                         val svg=when(icon){R.drawable.design_search->"search";R.drawable.design_calendar->"calendar";R.drawable.design_map_pin->"map_pin";R.drawable.design_chevron->"chevron";else->null}
                         if(svg!=null) Box(imageModifier) {
-                            val glyphSize=if(svg=="search")19.5554.dp else 22.dp
+                            val glyphSize=if(svg=="search")25.dp else 28.dp
                             FigmaSvg(svg,null,Modifier.size(glyphSize).align(AbsoluteAlignment.TopLeft),ColorFilter.tint(Muted))
                         } else Image(painterResource(icon),if(onIcon!=null) "نمایش یا پنهان کردن رمز" else null,imageModifier,
                             colorFilter=ColorFilter.tint(Muted))
@@ -147,7 +147,7 @@ internal fun PortalBackHeader(title:String,onBack:()->Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min=84.dp).padding(horizontal=20.dp,vertical=12.dp),
         verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
         IconButton(onClick=onBack,modifier=Modifier.size(42.dp)) {
-            Image(painterResource(R.drawable.r54_back),"بازگشت",Modifier.size(22.dp),colorFilter=ColorFilter.tint(Ink))
+            Image(painterResource(R.drawable.r54_back),"بازگشت",Modifier.size(28.dp),colorFilter=ColorFilter.tint(Ink))
         }
         Column(Modifier.weight(1f)) {
             Text(title,color=Ink,fontSize=22.sp,lineHeight=36.sp,fontWeight=FontWeight.Bold)
@@ -205,12 +205,12 @@ internal fun DesignNavigationBar(items:List<NavItem>,selected:String,onSelected:
                 val active=item.key==selected
                 val asset=when(item.key){"home"->"home";"catalog"->"prices";
                     "new"->"add";"orders"->"orders";else->"profile"}
-                Column(Modifier.weight(1f).height(60.dp).clip(RoundedCornerShape(18.dp))
+                Column(Modifier.weight(1f).height(68.dp).clip(RoundedCornerShape(18.dp))
                     .background(if(active)AppSecondary else AppSurface)
                     .selectable(active,role=Role.Tab,onClick={onSelected(item.key)}),
                     horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(2.dp,Alignment.CenterVertically)) {
-                    FigmaSvg(asset,null,Modifier.size(22.dp),tint=ColorFilter.tint(if(active)Orange else Muted))
-                    Text(item.label,color=if(active)Orange else Muted,fontSize=10.sp,lineHeight=16.sp,
+                    FigmaSvg(asset,null,Modifier.size(30.dp),tint=ColorFilter.tint(if(active)Orange else Muted))
+                    Text(item.label,color=if(active)Orange else Muted,fontSize=11.sp,lineHeight=18.sp,
                         fontWeight=if(active)FontWeight.Bold else FontWeight.Normal,maxLines=1)
                 }
             }
