@@ -56,7 +56,11 @@ class SecurityAndInboxTest {
         assertEquals(PackageManager.PERMISSION_GRANTED,context.checkSelfPermission("android.permission.USE_BIOMETRIC"))
         assertFalse(biometricEnabled(context,"new-fixture-account"))
         ActivityScenario.launch(MainActivity::class.java).use {scenario->
-            scenario.onActivity {activity->assertSame(activity,ContextWrapper(ContextWrapper(activity)).fragmentActivity())}
+            scenario.onActivity {activity->
+                assertSame(activity,ContextWrapper(ContextWrapper(activity)).fragmentActivity())
+                val dialog=androidx.appcompat.app.AlertDialog.Builder(activity).setTitle("Biometric fallback fixture").create()
+                dialog.show();dialog.dismiss()
+            }
         }
     }
 

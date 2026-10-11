@@ -120,7 +120,7 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
         }
     }
     if(view=="reset") {
-        PasswordResetScreen(api,identity){view="login";error=""}
+        PasswordResetScreen(api,identity){view="login";password="";rememberLogin=false;error=""}
         return
     }
     Column(Modifier.fillMaxSize().background(if(AppAppearance.dark)AppBackground else Color(0xFFF4F7FB)).navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
@@ -177,7 +177,7 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
                     WebLoginButton(if(loading)"در حال ورود…" else "ورود",{
                         scope.launch {loading=true;error="";try{
                             api.login(identity,password)
-                            if(rememberLogin)try{loginStore.save(identity,password)}catch(_:Exception){loginStore.clear();rememberLogin=false;android.widget.Toast.makeText(context,"ورود انجام شد؛ ذخیرهٔ رمز روی این دستگاه ممکن نبود.",android.widget.Toast.LENGTH_LONG).show()} else loginStore.clear()
+                            if(rememberLogin)try{loginStore.save(identity.trim(),password)}catch(_:Exception){loginStore.clear();rememberLogin=false;android.widget.Toast.makeText(context,"ورود انجام شد؛ ذخیرهٔ رمز روی این دستگاه ممکن نبود.",android.widget.Toast.LENGTH_LONG).show()} else loginStore.clear()
                             onLoggedIn()
                         }
                             catch(e:kotlinx.coroutines.CancellationException){throw e}
