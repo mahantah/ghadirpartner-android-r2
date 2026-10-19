@@ -3,7 +3,6 @@ package ir.ghadirpartner.nativeapp
 import android.os.Build
 import android.graphics.RenderEffect
 import android.graphics.Shader
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -28,11 +27,14 @@ import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+internal val LocalPortalBottomPadding=staticCompositionLocalOf {0.dp}
 
 /** Figma 24:35: the recorded content is blurred separately, leaving labels sharp. */
 @Composable
@@ -42,11 +44,12 @@ fun FigmaBottomBar(
     contentPosition: Offset = Offset.Zero
 ) {
     var position by remember { mutableStateOf(Offset.Zero) }
-    val shape = RoundedCornerShape(24.dp)
+    val shape = RoundedCornerShape(28.dp)
     Box(modifier.fillMaxWidth().padding(horizontal=12.dp, vertical=12.dp)
-        .shadow(0.dp, shape).clip(shape)
+        .shadow(10.dp, shape).clip(shape)
         .onGloballyPositioned { position = it.positionInRoot() }
-        .border(1.dp, Border, shape)) {
+        .border(1.dp, if(AppAppearance.dark)Color.White.copy(alpha=.18f) else Color.White.copy(alpha=.8f), shape)
+        .semantics {contentDescription="ناوبری شناور"}) {
         if (backdrop != null) {
             Box(Modifier.matchParentSize().graphicsLayer {
                 if (Build.VERSION.SDK_INT >= 31) {
@@ -59,25 +62,19 @@ fun FigmaBottomBar(
         }
         // Older Android retains an opaque-enough translucent glass fallback.
         Row(Modifier.fillMaxWidth()
-            .background(AppSurface.copy(alpha=.92f))
+            .background(AppSurface.copy(alpha=if(Build.VERSION.SDK_INT>=31) .70f else .94f))
+            .background(Brush.verticalGradient(listOf(Color.White.copy(alpha=if(AppAppearance.dark) .04f else .20f),Color.Transparent)))
             .padding(8.dp).selectableGroup(), horizontalArrangement=Arrangement.spacedBy(2.dp)) {
             items.forEach { item ->
                 val active = item.key == selected
-                val asset = when(item.key) {
-                    "home" -> R.drawable.figma_home
-                    "catalog" -> R.drawable.figma_prices
-                    "new" -> R.drawable.figma_add
-                    "orders" -> R.drawable.figma_orders
-                    else -> R.drawable.figma_profile
-                }
+                val asset=when(item.key){"home"->"home";"catalog"->"prices";"new"->"add";"orders"->"orders";else->"profile"}
                 Column(Modifier.weight(1f).heightIn(min=60.dp)
                     .clip(RoundedCornerShape(20.dp))
-                    .then(if(active) Modifier.background(AppSecondary,RoundedCornerShape(18.dp)) else Modifier)
+                    .then(if(active) Modifier.background(Orange.copy(alpha=.13f),RoundedCornerShape(18.dp)) else Modifier)
                     .selectable(active, role=Role.Tab, onClick={onSelected(item.key)})
                     .padding(vertical=8.dp), horizontalAlignment=Alignment.CenterHorizontally,
                     verticalArrangement=Arrangement.spacedBy(2.dp, Alignment.CenterVertically)) {
-                    Image(painterResource(asset), null, Modifier.size(22.dp),
-                        colorFilter=ColorFilter.tint(if(active) Orange else Muted))
+                    FigmaSvg(asset,null,Modifier.size(26.dp),tint=ColorFilter.tint(if(active)Orange else Muted))
                     Text(item.label, color=if(active) Orange else Muted, fontSize=10.sp,
                         fontWeight=if(active) FontWeight.Bold else FontWeight.Normal, maxLines=1)
                 }

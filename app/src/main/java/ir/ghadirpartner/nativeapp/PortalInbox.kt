@@ -126,7 +126,7 @@ fun PortalInbox(state:PortalInboxState,onOrder:(Int)->Unit,onOffer:(Int)->Unit) 
         }
     }
     val visible=state.items.filter {filter=="all"||it.s("kind")==filter}
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         item {DesignChoices(listOf("all" to "همه","order" to "سفارش‌ها","offer" to "آفرها"),filter,{filter=it})}
         item {Text("اعلان‌های سفارش و پیشنهادهای همکاران",color=Muted,fontSize=12.sp)}
         if(state.error.isNotBlank())item {ErrorBanner(state.error){};GhadirButton("تلاش دوباره",{scope.launch{state.refresh()}},enabled=!state.loading)}
@@ -173,7 +173,7 @@ fun PortalOffers(api:ApiClient,selectedId:Int?,onOpen:(Int)->Unit={},onUse:(Stri
     }
     if(loading){LoadingPane();return}
     val rows=offers.filter {detail==null||it.i("id")==detail}
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(error.isNotBlank())item {ErrorBanner(error){error=""};GhadirButton("تلاش دوباره",{retry++})}
         if(rows.isEmpty()&&error.isBlank())item {EmptyState("آفر فعالی موجود نیست","ممکن است زمان طرح تمام شده باشد یا برای حساب شما فعال نباشد.")}
         if(detail==null&&rows.isNotEmpty())item {Text("پیشنهادهای ویژه همکاران",color=Ink,fontSize=18.sp,fontWeight=FontWeight.Bold)}

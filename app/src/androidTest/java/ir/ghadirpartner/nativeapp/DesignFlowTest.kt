@@ -68,15 +68,15 @@ class DesignFlowTest {
         Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("OK")
             .body(payload.toResponseBody("application/json".toMediaType())).build()
     }.build()
-    private fun shot(name:String) {
+    private fun shot(name:String,scrollToTop:Boolean=true) {
         compose.waitForIdle()
         val lists=compose.onAllNodes(hasScrollToIndexAction())
-        if(lists.fetchSemanticsNodes().size==1)lists.onFirst().performScrollToIndex(0)
+        if(scrollToTop&&lists.fetchSemanticsNodes().size==1)lists.onFirst().performScrollToIndex(0)
         compose.waitForIdle()
         val instrumentation=InstrumentationRegistry.getInstrumentation()
         compose.mainClock.advanceTimeBy(400)
         compose.waitForIdle()
-        val bitmap=compose.onRoot().captureToImage().asAndroidBitmap()
+        val bitmap=compose.onAllNodes(isRoot()).onLast().captureToImage().asAndroidBitmap()
         File(instrumentation.targetContext.filesDir,name).outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
         bitmap.recycle()
     }
@@ -91,11 +91,19 @@ class DesignFlowTest {
         val lists=compose.onAllNodes(hasScrollToIndexAction())
         if(lists.fetchSemanticsNodes().size==1)lists.onFirst().performScrollToNode(hasText(text))
         compose.onAllNodesWithText(text).onLast().performScrollTo()
+        clearFloatingBarOverlap(compose.onAllNodesWithText(text).onLast())
     }
     private fun showField(description:String) {
         val lists=compose.onAllNodes(hasScrollToIndexAction())
         if(lists.fetchSemanticsNodes().size==1)lists.onFirst().performScrollToNode(hasContentDescription(description))
         compose.onNodeWithContentDescription(description).performScrollTo()
+        clearFloatingBarOverlap(compose.onNodeWithContentDescription(description))
+    }
+    private fun clearFloatingBarOverlap(node:SemanticsNodeInteraction) {
+        val bars=compose.onAllNodesWithContentDescription("ناوبری شناور").fetchSemanticsNodes()
+        if(bars.isEmpty())return
+        val overlap=node.fetchSemanticsNode().boundsInRoot.bottom-bars.single().boundsInRoot.top
+        if(overlap>0)compose.onAllNodes(hasScrollToIndexAction()).onFirst().performScrollBy(0f,overlap+12f)
     }
     @Test fun catalogCheckoutAndSerials() {
         ActivityScenario.launch(MainActivity::class.java).use {scenario->
@@ -333,6 +341,56 @@ class DesignFlowTest {
         }finally{
             prefs.edit().putBoolean("biometric:$account",previousEnabled).commit()
             if(previous==null)store.clear() else store.save(previous.identity,previous.password)
+        }
+    }
+    @Test fun checkoutOptionsStayAccessibleAndReachTheOrderRequest() {
+        ActivityScenario.launch(MainActivity::class.java).use {scenario->
+            scenario.onActivity {a->a.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){PortalApp(ApiClient(a,client()),me,{})}}}}
+            waitText("سلام، علی رضایی")
+            compose.onAllNodesWithText("قیمت‌ها").onLast().performClick()
+            waitText("افزودن به سفارش")
+            showText("افزودن به سفارش");compose.onNodeWithText("افزودن به سفارش").performClick()
+            waitText("افزودن کالا")
+            showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").performClick()
+            showField("تنظیم کد تخفیف");compose.onNodeWithContentDescription("تنظیم کد تخفیف").performClick()
+            compose.onNodeWithContentDescription("کد تخفیف").performTextInput("MOCK5")
+            hideKeyboard(scenario)
+            compose.onNodeWithText("اعمال کد تخفیف").performScrollTo().performClick()
+            compose.onNodeWithText("تأیید و بستن").performScrollTo().performClick()
+            showField("تنظیم نوع فاکتور");compose.onNodeWithContentDescription("تنظیم نوع فاکتور").performClick()
+            compose.onNodeWithText("رسمی",substring=false).performClick()
+            compose.onNodeWithText("تأیید و بستن").performClick()
+            showField("تنظیم توضیحات");compose.onNodeWithContentDescription("تنظیم توضیحات").performClick()
+            compose.onNodeWithContentDescription("توضیحات سفارش — اختیاری").performTextInput("تماس قبل از ارسال")
+            hideKeyboard(scenario)
+            compose.onNodeWithText("تأیید و بستن").performScrollTo().performClick()
+            showField("تنظیم کد تخفیف")
+            compose.onNodeWithText("کد طرح").assertDoesNotExist()
+            shot("design-checkout-options.png",scrollToTop=false)
+            showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
+            showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
+            showText("تأیید و ثبت نهایی");compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
+            waitText("سفارش با موفقیت ثبت شد")
+            val body=writes.single {it.first=="/api/orders/add"}.second
+            assertEquals("MOCK5",body.s("promo_code"));assertEquals("رسمی",body.s("invoice_type"));assertEquals("تماس قبل از ارسال",body.s("notes"))
+        }
+    }
+    @Test fun floatingBarLeavesTheLastServiceReachable() {
+        ActivityScenario.launch(MainActivity::class.java).use {scenario->
+            scenario.onActivity {a->a.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){PortalApp(ApiClient(a,client()),me,{})}}}}
+            waitText("سلام، علی رضایی")
+            val root=compose.onRoot().fetchSemanticsNode().boundsInRoot
+            val bar=compose.onNodeWithContentDescription("ناوبری شناور").fetchSemanticsNode().boundsInRoot
+            assertTrue(bar.left>root.left);assertTrue(bar.right<root.right);assertTrue(bar.bottom<root.bottom)
+            compose.onAllNodesWithText("پروفایل").onLast().performClick()
+            showText("پروفایل من");compose.onNodeWithText("پروفایل من").performClick()
+            showText("گزارش خرید")
+            val button=compose.onNodeWithText("گزارش خرید").fetchSemanticsNode().boundsInRoot
+            val nav=compose.onNodeWithContentDescription("ناوبری شناور").fetchSemanticsNode().boundsInRoot
+            assertTrue("Last service must scroll above the floating bar",button.bottom<=nav.top)
+            shot("design-profile-floating.png",scrollToTop=false)
+            compose.onNodeWithText("گزارش خرید").performClick()
+            waitText("کل دستگاه‌های خریداری‌شده")
         }
     }
     @Test fun otpRequestWithPersianDigits() {

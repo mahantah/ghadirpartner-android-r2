@@ -194,31 +194,6 @@ internal fun DesignOfferHero(title:String,body:String,button:String?=null,showIc
     }
 }
 
-/** Figma 169:9118. Android draws the gesture indicator in its native safe area. */
-@Composable
-internal fun DesignNavigationBar(items:List<NavItem>,selected:String,onSelected:(String)->Unit) {
-    Column(Modifier.fillMaxWidth().background(AppSurface).navigationBarsPadding().drawBehind {
-        drawLine(Border,androidx.compose.ui.geometry.Offset.Zero,androidx.compose.ui.geometry.Offset(size.width,0f),strokeWidth=1.dp.toPx())
-    }) {
-        Row(Modifier.fillMaxWidth().padding(start=20.dp,end=20.dp,top=16.dp,bottom=8.dp).selectableGroup(),
-            horizontalArrangement=Arrangement.spacedBy(2.dp)) {
-            items.forEach {item ->
-                val active=item.key==selected
-                val asset=when(item.key){"home"->"home";"catalog"->"prices";
-                    "new"->"add";"orders"->"orders";else->"profile"}
-                Column(Modifier.weight(1f).height(68.dp).clip(RoundedCornerShape(18.dp))
-                    .background(if(active)AppSecondary else AppSurface)
-                    .selectable(active,role=Role.Tab,onClick={onSelected(item.key)}),
-                    horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(2.dp,Alignment.CenterVertically)) {
-                    FigmaSvg(asset,null,Modifier.size(30.dp),tint=ColorFilter.tint(if(active)Orange else Muted))
-                    Text(item.label,color=if(active)Orange else Muted,fontSize=11.sp,lineHeight=18.sp,
-                        fontWeight=if(active)FontWeight.Bold else FontWeight.Normal,maxLines=1)
-                }
-            }
-        }
-    }
-}
-
 /** A rail keeps top-level destinations within reach on tablets and wide windows. */
 @Composable
 internal fun AppNavigationRail(items:List<NavItem>,selected:String,onSelected:(String)->Unit) {
@@ -227,6 +202,38 @@ internal fun AppNavigationRail(items:List<NavItem>,selected:String,onSelected:(S
             NavigationRailItem(selected=item.key==selected,onClick={onSelected(item.key)},
                 icon={Icon(item.icon,null)},label={Text(item.label)},
                 colors=NavigationRailItemDefaults.colors(selectedIconColor=Ink,selectedTextColor=Ink,indicatorColor=Orange))
+        }
+    }
+}
+
+@Composable
+internal fun CheckoutOptionCard(title:String,summary:String,icon:androidx.compose.ui.graphics.vector.ImageVector,modifier:Modifier=Modifier,selected:Boolean=false,onClick:()->Unit) {
+    Surface(modifier=modifier.heightIn(min=100.dp).clip(RoundedCornerShape(18.dp))
+        .clickable(role=Role.Button,onClick=onClick).semantics {contentDescription="تنظیم "+title},
+        shape=RoundedCornerShape(18.dp),color=if(selected)AppSecondary else AppSurface,
+        border=androidx.compose.foundation.BorderStroke(1.dp,if(selected)Orange.copy(alpha=.55f) else Border)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal=6.dp,vertical=12.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(6.dp)) {
+            Icon(icon,null,tint=Orange,modifier=Modifier.size(24.dp))
+            Text(title,color=Ink,fontSize=12.sp,fontWeight=FontWeight.Bold,textAlign=TextAlign.Center)
+            Text(summary,color=Muted,fontSize=10.sp,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+internal fun ProfileServiceTile(title:String,subtitle:String,icon:androidx.compose.ui.graphics.vector.ImageVector,modifier:Modifier=Modifier,wide:Boolean=false,onClick:()->Unit) {
+    Surface(modifier=modifier.clip(RoundedCornerShape(22.dp)).clickable(role=Role.Button,onClick=onClick),
+        shape=RoundedCornerShape(22.dp),color=AppSurface,border=androidx.compose.foundation.BorderStroke(1.dp,Border)) {
+        if(wide) Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(Navy),contentAlignment=Alignment.Center){Icon(icon,null,tint=Orange,modifier=Modifier.size(26.dp))}
+            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                Text(title,color=Ink,fontWeight=FontWeight.Bold,fontSize=14.sp)
+                Text(subtitle,color=Muted,fontSize=11.sp)
+            }
+        } else Column(Modifier.fillMaxWidth().heightIn(min=126.dp).padding(14.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(AppSecondary),contentAlignment=Alignment.Center){Icon(icon,null,tint=Orange,modifier=Modifier.size(25.dp))}
+            Text(title,color=Ink,fontWeight=FontWeight.Bold,fontSize=14.sp,lineHeight=22.sp)
+            Text(subtitle,color=Muted,fontSize=11.sp,lineHeight=18.sp)
         }
     }
 }

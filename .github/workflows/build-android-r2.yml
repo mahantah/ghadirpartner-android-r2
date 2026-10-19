@@ -1,7 +1,7 @@
 name: Build Ghadir Partner Android UI Update
 on:
   push:
-    branches: [main, codex/compact-r5, codex/integrate-r54, codex/figma-100-573, codex/r56-login-security, codex/r57-order-usability]
+    branches: [main, codex/compact-r5, codex/integrate-r54, codex/figma-100-573, codex/r56-login-security]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -9,6 +9,11 @@ permissions:
   contents: read
 jobs:
   portal:
+    name: Android API ${{ matrix.api }}
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [29, 35]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -37,22 +42,22 @@ jobs:
       - name: Verify cold start and resume on Android
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 29
+          api-level: ${{ matrix.api }}
           arch: x86_64
           disable-animations: true
           script: bash validation/run-emulator-tests.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: GhadirPartner-UI-Update-Debug-APK
+          name: GhadirPartner-UI-Update-Debug-APK-API${{ matrix.api }}
           path: app/build/outputs/apk/portal/debug/*.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: GhadirAutomation-UI-Update-Debug-APK
+          name: GhadirAutomation-UI-Update-Debug-APK-API${{ matrix.api }}
           path: app/build/outputs/apk/automation/debug/*.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: R5-Build-Reports
+          name: UI-Build-Reports-API${{ matrix.api }}
           path: app/build/reports/
