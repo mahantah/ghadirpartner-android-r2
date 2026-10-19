@@ -94,7 +94,7 @@ private fun AutomationDashboard(api: ApiClient, me: JSONObject, navigate: (Strin
         item { ErrorBanner(error) { error = "" } }
         item {
             Card(shape = RoundedCornerShape(28.dp), colors = CardDefaults.cardColors(containerColor = Color.Transparent), modifier = Modifier.fillMaxWidth()) {
-                Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(NavyDeep, Navy, Color(0xFF174472)))).padding(19.dp)) {
+                Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF142B4B), Navy, Color(0xFF174472)))).padding(19.dp)) {
                     Box(Modifier.size(125.dp).align(Alignment.BottomStart).offset(x = (-35).dp, y = 52.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color(0x33FF7A1A)))
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
                         Text("مرکز عملیات قدیر پارتنر", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Black)
