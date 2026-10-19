@@ -6,11 +6,11 @@ plugins {
 
 android {
     namespace 'ir.ghadirpartner.nativeapp'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         minSdk 24
-        targetSdk 35
+        targetSdk 36
         versionCode 543057
         versionName '5.4.3.3-r5.7'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'

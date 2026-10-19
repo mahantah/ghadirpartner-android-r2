@@ -136,8 +136,10 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
         return
     }
     Column(Modifier.fillMaxSize().paint(painterResource(R.drawable.ghadir_login_atelier),contentScale=ContentScale.Crop).background(Color(0xFF0B1F3A).copy(alpha=.16f)).statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        if(view=="login")Spacer(Modifier.height(48.dp)) else PortalBackHeader(when(view){"otp"->"کد تأیید";"biometric"->"ورود امن";else->"ورود به قدیر پارتنر"}) {
-            loginPrompt?.cancelAuthentication();view="login";error=""
+        if(view=="login")Spacer(Modifier.height(48.dp)) else Surface(color=AppSurface.copy(alpha=.94f)) {
+            PortalBackHeader(when(view){"otp"->"کد تأیید";"biometric"->"ورود امن";else->"ورود به قدیر پارتنر"}) {
+                loginPrompt?.cancelAuthentication();view="login";error=""
+            }
         }
         Surface(modifier=Modifier.padding(horizontal=20.dp).widthIn(max=420.dp).fillMaxWidth(),shape=RoundedCornerShape(24.dp),
             color=AppSurface.copy(alpha=.95f),shadowElevation=6.dp) {
