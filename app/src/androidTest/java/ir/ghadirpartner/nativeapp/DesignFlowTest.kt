@@ -101,10 +101,21 @@ class DesignFlowTest {
         clearFloatingBarOverlap(compose.onNodeWithContentDescription(description))
     }
     private fun clearFloatingBarOverlap(node:SemanticsNodeInteraction) {
-        val bars=compose.onAllNodesWithContentDescription("ناوبری شناور").fetchSemanticsNodes()
-        if(bars.isEmpty())return
-        val overlap=node.fetchSemanticsNode().boundsInRoot.bottom-bars.single().boundsInRoot.top
-        if(overlap>0)compose.onAllNodes(hasScrollToIndexAction()).onFirst().performSemanticsAction(SemanticsActions.ScrollBy){it(0f,overlap+12f)}
+        // A clipped node's bounds can initially hide part of the button. Re-read
+        // after each scroll, and finish the pending frame before the tap.
+        repeat(4) {
+            compose.waitForIdle()
+            val bars=compose.onAllNodesWithContentDescription("ناوبری شناور").fetchSemanticsNodes()
+            if(bars.isEmpty())return
+            val overlap=node.fetchSemanticsNode().boundsInRoot.bottom-bars.single().boundsInRoot.top+12f
+            if(overlap<=0)return
+            compose.onAllNodes(hasScrollToIndexAction()).onFirst()
+                .performSemanticsAction(SemanticsActions.ScrollBy){it(0f,overlap)}
+            compose.mainClock.advanceTimeByFrame()
+        }
+        compose.waitForIdle()
+        val top=compose.onNodeWithContentDescription("ناوبری شناور").fetchSemanticsNode().boundsInRoot.top
+        assertTrue("Control must be above the floating navigation before tapping",node.fetchSemanticsNode().boundsInRoot.bottom<=top)
     }
     @Test fun catalogCheckoutAndSerials() {
         ActivityScenario.launch(MainActivity::class.java).use {scenario->
@@ -125,7 +136,7 @@ class DesignFlowTest {
             compose.waitUntil(15000){compose.onAllNodesWithContentDescription("مدل دستگاه").fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithContentDescription("مدل دستگاه").performClick()
             compose.onNodeWithText("i90 • SZZT").performClick()
-            compose.onNodeWithText("افزودن کالا").performScrollTo().performClick()
+            showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").performClick()
             shot("design-checkout-cart.png")
             showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
             showField("نشانی تحویل");compose.onNodeWithContentDescription("نشانی تحویل").performClick()
@@ -146,7 +157,7 @@ class DesignFlowTest {
             showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
             showText("اعتباری");compose.onNodeWithText("اعتباری").performClick()
             showText("اعتبار حساب شما")
-            compose.onNode(isToggleable()).performScrollTo().performClick()
+            compose.onNode(isToggleable()).performScrollTo();clearFloatingBarOverlap(compose.onNode(isToggleable()));compose.onNode(isToggleable()).performClick()
             shot("design-checkout-credit.png")
             showText("پذیرش و ادامه")
             compose.waitUntil(15000){compose.onAllNodes(hasText("پذیرش و ادامه") and isEnabled()).fetchSemanticsNodes().isNotEmpty()}
@@ -162,7 +173,7 @@ class DesignFlowTest {
             assertEquals(1,body.arr("items").getJSONObject(0).i("qty"))
             compose.onAllNodesWithText("سفارش‌ها").onLast().performClick()
             waitText("جزئیات سفارش");shot("design-orders.png")
-            compose.onNodeWithText("جزئیات سفارش").performScrollTo().performClick()
+            showText("جزئیات سفارش");compose.onNodeWithText("جزئیات سفارش").performClick()
             showText("اطلاعات تحویل");shot("design-order-detail.png")
             showText("دریافت PDF سریال‌ها");compose.onNodeWithText("دریافت PDF سریال‌ها").performClick()
             waitText("SN: 902410001");shot("design-serials.png")
@@ -197,11 +208,12 @@ class DesignFlowTest {
             waitText("نشانی تحویل")
             showText("ادامه به بررسی نهایی")
             compose.onNodeWithText("ادامه به بررسی نهایی").assertIsEnabled().performClick()
-            try {waitText("بررسی سفارش")} catch(e:AssertionError) {
+            compose.waitForIdle()
+            try {showText("تأیید و ثبت نهایی")} catch(e:Throwable) {
                 shot("design-draft-restore-failure.png",scrollToTop=false)
                 throw AssertionError(compose.onRoot().printToString(),e)
             }
-            showText("تأیید و ثبت نهایی");compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
+            compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
             waitText("سفارش با موفقیت ثبت شد")
             val body=writes.single {it.first=="/api/orders/add"}.second
             assertEquals("saved-A",body.s("address_id"))
@@ -218,7 +230,7 @@ class DesignFlowTest {
             waitText("سلام، علی رضایی")
             compose.onNodeWithContentDescription("اعلان‌ها").performClick()
             waitText("مشاهده سفارش")
-            compose.onNodeWithText("مشاهده سفارش").performScrollTo().performClick()
+            showText("مشاهده سفارش");compose.onNodeWithText("مشاهده سفارش").performClick()
             waitText("جزئیات سفارش")
             compose.onNodeWithContentDescription("بازگشت").performClick()
             waitText("مرکز پیام")
