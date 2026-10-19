@@ -109,6 +109,13 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
             }
         }
     }
+    // Try once on entry. Cancellation stays on the password screen until the user retries.
+    LaunchedEffect(Unit) {
+        if(api.isPortal&&savedLogin!=null&&biometricEnabled(context,savedLogin.identity)) {
+            identity=savedLogin.identity
+            view="biometric"
+        }
+    }
     fun requestOtp() {
         if(loading||countdown>0)return
         scope.launch {
@@ -127,7 +134,7 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
         }
         return
     }
-    Column(Modifier.fillMaxSize().background(if(AppAppearance.dark)AppBackground else Color(0xFFF4F7FB)).navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().background(if(AppAppearance.dark)AppBackground else Color(0xFFF4F7FB)).statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(view=="login")Spacer(Modifier.height(48.dp)) else PortalBackHeader(when(view){"otp"->"کد تأیید";"biometric"->"ورود امن";else->"ورود به قدیر پارتنر"}) {
             loginPrompt?.cancelAuthentication();view="login";error=""
         }
@@ -189,10 +196,10 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
                             catch(e:Exception){error=e.message?:"ورود ناموفق بود"}finally{loading=false}}
                     },enabled=!loading&&identity.isNotBlank()&&password.isNotBlank())
                     if(api.isPortal) {
-                        WebLoginButton("ورود با کد یک‌بارمصرف",{requestOtp()},enabled=!loading&&countdown==0&&identity.matches(Regex("09[0-9]{9}")),secondary=true)
-                        WebLoginButton("ورود با اثر انگشت",{view="biometric";biometricFailed=false;error=""},enabled=!loading,secondary=true)
+                        TextButton(onClick={requestOtp()},enabled=!loading&&countdown==0&&identity.matches(Regex("09[0-9]{9}"))) {Text("ورود با کد یک‌بارمصرف",color=Ink)}
+                        if(biometricEnabled(context,canonicalPortalIdentity(identity))) TextButton(onClick={view="biometric";biometricFailed=false;error=""},enabled=!loading) {Text("ورود با اثر انگشت",color=Ink)}
                     }
-                    WebLoginButton("فراموشی رمز عبور",{view="reset"},enabled=!loading,secondary=true)
+                    TextButton(onClick={view="reset"},enabled=!loading) {Text("فراموشی رمز عبور",color=Muted)}
                     Text("فعال‌سازی بیومتریک پس از ورود، از بخش پروفایل.",color=Muted,fontSize=12.sp)
                 }
             }
@@ -230,7 +237,7 @@ private fun PasswordResetScreen(api:ApiClient,initialIdentity:String,onBack:()->
             catch(e:Exception){error=e.message?:"ارسال کد ناموفق بود"}finally{loading=false}
         }
     }
-    Column(Modifier.fillMaxSize().portalBackdrop().navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().portalBackdrop().statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         PortalBackHeader("بازیابی رمز عبور",onBack)
         Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).padding(bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
             DesignNotice("شماره همراه حساب را تأیید کنید، سپس رمز جدید بسازید.")
@@ -271,7 +278,7 @@ private fun WebLoginButton(text:String,onClick:()->Unit,enabled:Boolean=true,sec
         shape=RoundedCornerShape(10.dp),
         colors=ButtonDefaults.buttonColors(containerColor=if(secondary) {
             if(AppAppearance.dark)AppSecondary else Color(0xFFEDF2F7)
-        } else Color(0xFFF58220),contentColor=if(secondary)Ink else Color.White)) {
+        } else Color(0xFFF58220),contentColor=if(secondary)Ink else Navy)) {
         Text(text,fontSize=14.sp,lineHeight=23.sp,fontWeight=FontWeight.Bold)
     }
 }

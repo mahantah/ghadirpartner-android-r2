@@ -29,9 +29,24 @@ internal fun biometricEnabled(context: Context, account: String): Boolean =
         .getBoolean("biometric:$account", false)
 
 @Composable
+internal fun rememberBiometricEnabled(context:Context,account:String):Boolean {
+    val prefs=remember(context){context.getSharedPreferences(SECURITY_PREFS,Context.MODE_PRIVATE)}
+    var enabled by remember(account){mutableStateOf(biometricEnabled(context,account))}
+    DisposableEffect(prefs,account) {
+        val listener=android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if(key=="biometric:$account")enabled=biometricEnabled(context,account)
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        enabled=biometricEnabled(context,account)
+        onDispose {prefs.unregisterOnSharedPreferenceChangeListener(listener)}
+    }
+    return enabled
+}
+
+@Composable
 internal fun PortalGlassHeader(title: String, dashboard: Boolean, unread: Int, onOffers: () -> Unit, onBell: () -> Unit) {
     val context=LocalContext.current
-    Row(Modifier.fillMaxWidth().heightIn(min=84.dp).padding(horizontal=20.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+    Row(Modifier.fillMaxWidth().statusBarsPadding().heightIn(min=84.dp).padding(horizontal=20.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
         Image(painterResource(R.drawable.brand_logo),"قدیر پارتنر",Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)))
         Column(Modifier.weight(1f)) {
             Text(title,color=Ink,fontSize=20.sp,lineHeight=33.sp,fontWeight=FontWeight.Bold,maxLines=2)
@@ -52,12 +67,12 @@ internal fun PortalGlassHeader(title: String, dashboard: Boolean, unread: Int, o
 internal fun BiometricPreference(account: String) {
     val context = LocalContext.current
     val prefs = remember(context) { context.getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE) }
-    var enabled by remember(account) { mutableStateOf(biometricEnabled(context, account)) }
+    val enabled=rememberBiometricEnabled(context,account)
     var pending by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     val prompt = remember { mutableStateOf<BiometricPrompt?>(null) }
     DisposableEffect(Unit) { onDispose { prompt.value?.cancelAuthentication() } }
-    GlassSurface(shape = RoundedCornerShape(18.dp), color = Color.White, shadowElevation = 6.dp) {
+    GlassSurface(shape = RoundedCornerShape(18.dp), color = AppSurface, shadowElevation = 6.dp) {
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f)) {
@@ -68,7 +83,6 @@ internal fun BiometricPreference(account: String) {
             Switch(checked = enabled, enabled = !pending, onCheckedChange = { requested ->
                 if (!requested) {
                     prefs.edit().putBoolean("biometric:$account", false).apply()
-                    enabled = false
                     message = ""
                 } else {
                     val availability = BiometricManager.from(context).canAuthenticate(AUTHENTICATORS)
@@ -83,7 +97,7 @@ internal fun BiometricPreference(account: String) {
                             object : BiometricPrompt.AuthenticationCallback() {
                                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                                     prefs.edit().putBoolean("biometric:$account", true).apply()
-                                    enabled = true; pending = false; message = ""
+                                    pending = false; message = ""
                                 }
                                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                                     pending = false; message = "فعال‌سازی انجام نشد؛ دوباره تلاش کنید."

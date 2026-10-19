@@ -60,13 +60,14 @@ internal fun DesignField(
                     .padding(horizontal=14.dp,vertical=12.dp), verticalAlignment=Alignment.CenterVertically,
                     horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     if(icon!=null) {
-                        val imageModifier=Modifier.size(28.dp).then(if(onIcon!=null) Modifier.clickable(onClick=onIcon) else Modifier)
                         val svg=when(icon){R.drawable.r54_phone->"phone";R.drawable.r54_eye->"eye";R.drawable.design_search->"search";R.drawable.design_calendar->"calendar";R.drawable.design_map_pin->"map_pin";R.drawable.design_chevron->"chevron";else->null}
-                        if(svg!=null) Box(imageModifier) {
-                            val glyphSize=if(svg=="search")25.dp else 28.dp
-                            FigmaSvg(svg,if(onIcon!=null)"نمایش یا پنهان کردن رمز" else null,Modifier.size(glyphSize).align(AbsoluteAlignment.TopLeft),ColorFilter.tint(Muted))
-                        } else Image(painterResource(icon),if(onIcon!=null) "نمایش یا پنهان کردن رمز" else null,imageModifier,
-                            colorFilter=ColorFilter.tint(Muted))
+                        val glyph:@Composable ()->Unit = {
+                            if(svg!=null) FigmaSvg(svg,null,Modifier.size(28.dp),ColorFilter.tint(Muted))
+                            else Image(painterResource(icon),null,Modifier.size(28.dp),colorFilter=ColorFilter.tint(Muted))
+                        }
+                        if(onIcon!=null) IconButton(onClick=onIcon,modifier=Modifier.size(48.dp).semantics {contentDescription="نمایش یا پنهان کردن رمز"}) {glyph()}
+                        else Box(Modifier.size(28.dp),contentAlignment=Alignment.Center) {glyph()}
+
                     }
                     Box(Modifier.weight(1f)) {
                         if(value.isBlank()) Text(placeholder,color=Muted,fontSize=14.sp)
@@ -83,7 +84,7 @@ internal fun DesignChoices(choices: List<Pair<String,String>>, selected: String,
     Row(Modifier.fillMaxWidth().selectableGroup(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
         choices.forEach { (key,label) ->
             val active=key==selected
-            Box(Modifier.weight(1f).heightIn(min=40.dp).clip(RoundedCornerShape(12.dp))
+            Box(Modifier.weight(1f).heightIn(min=48.dp).clip(RoundedCornerShape(12.dp))
                 .background(if(active)Orange else AppSurface)
                 .border(1.dp,if(active)Orange else Border,RoundedCornerShape(12.dp))
                 .selectable(active,role=Role.Tab,onClick={onSelect(key)}).padding(6.dp),contentAlignment=Alignment.Center) {
@@ -144,9 +145,9 @@ internal fun DesignOtp(value:String,onChange:(String)->Unit,label:String="کد �
 
 @Composable
 internal fun PortalBackHeader(title:String,onBack:()->Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min=84.dp).padding(horizontal=20.dp,vertical=12.dp),
+    Row(Modifier.fillMaxWidth().statusBarsPadding().heightIn(min=84.dp).padding(horizontal=20.dp,vertical=12.dp),
         verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-        IconButton(onClick=onBack,modifier=Modifier.size(42.dp)) {
+        IconButton(onClick=onBack,modifier=Modifier.size(48.dp)) {
             FigmaSvg("back","بازگشت",Modifier.size(28.dp),tint=ColorFilter.tint(Ink))
         }
         Column(Modifier.weight(1f)) {
@@ -214,6 +215,18 @@ internal fun DesignNavigationBar(items:List<NavItem>,selected:String,onSelected:
                         fontWeight=if(active)FontWeight.Bold else FontWeight.Normal,maxLines=1)
                 }
             }
+        }
+    }
+}
+
+/** A rail keeps top-level destinations within reach on tablets and wide windows. */
+@Composable
+internal fun AppNavigationRail(items:List<NavItem>,selected:String,onSelected:(String)->Unit) {
+    NavigationRail(modifier=Modifier.fillMaxHeight(),containerColor=AppSurface) {
+        items.forEach { item ->
+            NavigationRailItem(selected=item.key==selected,onClick={onSelected(item.key)},
+                icon={Icon(item.icon,null)},label={Text(item.label)},
+                colors=NavigationRailItemDefaults.colors(selectedIconColor=Ink,selectedTextColor=Ink,indicatorColor=Orange))
         }
     }
 }

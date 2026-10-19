@@ -9,6 +9,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.SaveableStateRegistry
+import androidx.compose.runtime.saveable.LocalSaveableStateRegistry
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
@@ -30,6 +33,8 @@ class DesignFlowTest {
     @get:Rule val compose=createEmptyComposeRule()
     private val me=JSONObject("""{"username":"09121234567","roles":["customer"],"id":1024,"customer":{"name":"علی رضایی","company":"فروشگاه رضایی","code":"1024","province":"تهران","city":"تهران","address":"نشانی نمونه"}}""")
     private val order=JSONObject("""{"id":1024,"number":"GHP-MOCK-1024","customer_id":1024,"customer_name":"علی رضایی","status":"تحویل شد","payment_status":"تسویه کامل","requested_payment_method_label":"نقد","estimated_total":22800000,"approved_total":22800000,"created_at":"2026-10-04","shipping_address":"تهران، نشانی ثبت‌شده","items":[{"product":"i90","qty":2,"unit_price":11400000,"line_total":22800000,"serials":[{"serial":"902410001","imei":"865432109876543"},{"serial":"902410002"}]}]}""")
+    private var includeOrderMessage=false
+    private var fixtureStock=4
     private val writes=CopyOnWriteArrayList<Pair<String,JSONObject>>()
     private fun client():OkHttpClient=OkHttpClient.Builder().addInterceptor {chain->
         val request=chain.request()
@@ -44,9 +49,15 @@ class DesignFlowTest {
             "/api/orders"->"[$order]"
             "/api/orders/add"->JSONObject(order.toString()).put("id",1001).put("number","GHP-MOCK-1001").put("status","ثبت شد").toString()
             "/api/offers"->"""[{"id":3,"title":"قدیر میکس؛ خرید ترکیبی","description":"پیشنهاد ویژه برای همکاران؛ شرایط و مدل‌های مشمول را ببینید.","discount_type":"percent","discount_value":5,"promo_code":"MOCK5"}]"""
-            "/api/catalog"->"""[{"name":"i90","manufacturer":"SZZT","available":true,"stock":4,"serial_required":true,"price_updated_at":"2026-10-04","prices":{"serial_1_50":11400000,"serial_51_200":11600000,"panel_cash":11000000,"panel_7d":11300000,"panel_1m":11900000,"sales_agent":11200000}}]"""
+            "/api/catalog"->"""[{"name":"i90","manufacturer":"SZZT","available":true,"stock":$fixtureStock,"serial_required":true,"price_updated_at":"2026-10-04","prices":{"serial_1_50":11400000,"serial_51_200":11600000,"panel_cash":11000000,"panel_7d":11300000,"panel_1m":11900000,"sales_agent":11200000}}]"""
             "/api/addresses"->"""[{"id":"saved-A","title":"دفتر","province":"تهران","city":"تهران","address":"خیابان دفتر"}]"""
-            "/api/notifications"->"{\"items\":[],\"unread\":0}"
+            "/api/notifications"->if(includeOrderMessage) """{"items":[{"id":"order:1024","kind":"order","order_id":1024,"title":"به‌روزرسانی سفارش","body":"سفارش آماده است","read":false}],"unread":1}""" else "{\"items\":[],\"unread\":0}"
+            "/api/notifications/read"->"{\"ok\":true}"
+            "/api/password"->"{\"ok\":true}"
+            "/api/profile/update"->{
+                val body=writes.last().second
+                JSONObject().put("customer",me.obj("customer")).put("alternate_mobile",body.s("alternate_mobile")).toString()
+            }
             "/api/purchased-devices"->"{\"qty\":2}"
             "/api/reports/customer-summary"->"{\"month\":{\"amount\":34200000,\"orders\":3}}"
             "/api/native/credit"->"{\"configured\":true,\"available\":30000000,\"due_date\":\"1405/07/26\"}"
@@ -106,12 +117,12 @@ class DesignFlowTest {
             compose.onNodeWithContentDescription("مدل دستگاه").performClick()
             compose.onNodeWithText("i90 • SZZT").performClick()
             compose.onNodeWithText("افزودن کالا").performScrollTo().performClick()
-            showField("نشانی تحویل");compose.onNodeWithContentDescription("نشانی تحویل").performClick()
-            compose.onNodeWithText("دفتر • خیابان دفتر").performClick()
             shot("design-checkout-cart.png")
             showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
+            showField("نشانی تحویل");compose.onNodeWithContentDescription("نشانی تحویل").performClick()
+            compose.onNodeWithText("دفتر • خیابان دفتر").performClick()
             shot("design-checkout-cash.png")
-            compose.onNodeWithText("چک").performClick()
+            showText("چک");compose.onNodeWithText("چک").performClick()
             showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
             waitText("شناسه صیادی باید ۱۶ رقم باشد")
             compose.onNodeWithText("شناسه صیادی باید ۱۶ رقم باشد").assertExists()
@@ -123,8 +134,8 @@ class DesignFlowTest {
             showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
             waitText("تأیید نهایی سفارش")
             showText("بازگشت و ویرایش");compose.onNodeWithText("بازگشت و ویرایش").performClick()
-            showText("اعتباری");compose.onNodeWithText("اعتباری").performClick()
             showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
+            showText("اعتباری");compose.onNodeWithText("اعتباری").performClick()
             waitText("اعتبار حساب شما")
             compose.onNode(isToggleable()).performScrollTo().performClick()
             shot("design-checkout-credit.png")
@@ -145,6 +156,180 @@ class DesignFlowTest {
             showText("دریافت PDF سریال‌ها");compose.onNodeWithText("دریافت PDF سریال‌ها").performClick()
             waitText("SN: 902410001");shot("design-serials.png")
             compose.onNodeWithText("IMEI: 865432109876543").assertExists()
+        }
+    }
+    @Test fun checkoutDraftSurvivesTabsAndSavedState() {
+        var registry=SaveableStateRegistry(null){true}
+        val visible=mutableStateOf(true)
+        ActivityScenario.launch(MainActivity::class.java).use {scenario->
+            scenario.onActivity {a->a.setContent {
+                if(visible.value) GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl,LocalSaveableStateRegistry provides registry){PortalApp(ApiClient(a,client()),me,{})}}
+            }}
+            waitText("سلام، علی رضایی")
+            compose.onAllNodesWithText("قیمت‌ها").onLast().performClick()
+            waitText("افزودن به سفارش")
+            showText("افزودن به سفارش");compose.onNodeWithText("افزودن به سفارش").performClick()
+            waitText("افزودن کالا")
+            showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").performClick()
+            showField("افزایش تعداد i90");compose.onNodeWithContentDescription("افزایش تعداد i90").performClick()
+            showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
+            showField("نشانی تحویل");compose.onNodeWithContentDescription("نشانی تحویل").performClick()
+            compose.onNodeWithText("دفتر • خیابان دفتر").performClick()
+            compose.onAllNodesWithText("پروفایل").onLast().performClick()
+            compose.onAllNodesWithText("ثبت سفارش").onLast().performClick()
+            waitText("نشانی تحویل")
+            // Final request assertions below verify the restored address and edited quantity.
+            var saved:Map<String,List<Any?>> = emptyMap()
+            compose.runOnIdle {saved=registry.performSave();visible.value=false}
+            compose.waitForIdle()
+            compose.runOnIdle {registry=SaveableStateRegistry(saved){true};visible.value=true}
+            waitText("نشانی تحویل")
+            showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
+            showText("تأیید و ثبت نهایی");compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
+            waitText("سفارش با موفقیت ثبت شد")
+            val body=writes.single {it.first=="/api/orders/add"}.second
+            assertEquals("saved-A",body.s("address_id"))
+            assertEquals(2,body.arr("items").getJSONObject(0).i("qty"))
+            compose.onAllNodesWithText("ثبت سفارش").onLast().performClick()
+            waitText("هنوز کالایی به سبد اضافه نشده است.")
+        }
+    }
+    @Test fun inboxOrderReturnsToInbox() {
+        includeOrderMessage=true
+        ActivityScenario.launch(MainActivity::class.java).use {scenario->
+            scenario.onActivity {a->a.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){PortalApp(ApiClient(a,client()),me,{})}}}}
+            waitText("سلام، علی رضایی")
+            compose.onNodeWithContentDescription("اعلان‌ها").performClick()
+            waitText("مشاهده سفارش")
+            compose.onNodeWithText("مشاهده سفارش").performScrollTo().performClick()
+            waitText("جزئیات سفارش")
+            compose.onNodeWithContentDescription("بازگشت").performClick()
+            waitText("مرکز پیام")
+            compose.onNodeWithText("اعلان‌های سفارش و پیشنهادهای همکاران").assertExists()
+        }
+    }
+    @Test fun largeReceiptUsesSmallSavedStateReference() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val receipt="A".repeat(1200000)
+        val value=JSONObject().put("image_base64",receipt).put("bank_name","بانک نمونه")
+        val saver=cachedJsonSaver(context)
+        val scope=object:androidx.compose.runtime.saveable.SaverScope {override fun canBeSaved(value:Any)=true}
+        val reference=with(saver){scope.save(value)}!!
+        assertTrue(reference.length<100)
+        val restored=saver.restore(reference)!!
+        assertEquals(receipt,restored.s("image_base64"))
+        assertEquals("بانک نمونه",restored.s("bank_name"))
+    }
+    @Test fun offlineAutomationNeverDisplaysZeroStats() {
+        val offline=OkHttpClient.Builder().addInterceptor {throw java.io.IOException("offline fixture")}.build()
+        ActivityScenario.launch(MainActivity::class.java).use {scenario->
+            scenario.onActivity {a->a.setContent {GhadirTheme {AutomationApp(ApiClient(a,offline),me,{})}}}
+            waitText("اطلاعات داشبورد دریافت نشد")
+            compose.onNodeWithText("سفارش فعال در جریان عملیات").assertDoesNotExist()
+            compose.onNodeWithText("تلاش دوباره").assertExists()
+        }
+    }
+    @Test fun quantitiesAbove999RespectActualStock() {
+        fixtureStock=1505
+        ActivityScenario.launch(MainActivity::class.java).use {scenario->
+            scenario.onActivity {a->a.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){PortalApp(ApiClient(a,client()),me,{})}}}}
+            waitText("سلام، علی رضایی")
+            compose.onAllNodesWithText("قیمت‌ها").onLast().performClick()
+            waitText("افزودن به سفارش")
+            showText("افزودن به سفارش");compose.onNodeWithText("افزودن به سفارش").performClick()
+            waitText("تعداد")
+            showField("تعداد کالا");compose.onNodeWithContentDescription("تعداد کالا").performTextReplacement("۱۵۰۶")
+            hideKeyboard(scenario)
+            showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").assertIsNotEnabled()
+            showField("تعداد کالا");compose.onNodeWithContentDescription("تعداد کالا").performTextReplacement("۱۰۰۰")
+            hideKeyboard(scenario)
+            showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").performClick()
+            showField("افزایش تعداد i90");compose.onNodeWithContentDescription("افزایش تعداد i90").performClick()
+            showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
+            showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
+            showText("تأیید و ثبت نهایی");compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
+            waitText("سفارش با موفقیت ثبت شد")
+            val item=writes.single {it.first=="/api/orders/add"}.second.arr("items").getJSONObject(0)
+            assertEquals(1001,item.i("qty"))
+            assertEquals("serial_51_200",item.s("price_key"))
+        }
+    }
+    @Test fun profileServicesAndSettingsHaveNoDuplicateActions() {
+        ActivityScenario.launch(MainActivity::class.java).use {scenario->
+            scenario.onActivity {a->a.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){PortalApp(ApiClient(a,client()),me,{})}}}}
+            waitText("سلام، علی رضایی")
+            compose.onAllNodesWithText("پروفایل").onLast().performClick()
+            compose.onNodeWithText("پروفایل من").performClick()
+            waitText("ویرایش اطلاعات مشتری")
+            compose.onAllNodesWithText("ویرایش اطلاعات مشتری").assertCountEquals(1)
+            compose.onNodeWithText("آدرس‌های منتخب").assertExists()
+            compose.onNodeWithText("فاکتورهای من").assertExists()
+            compose.onAllNodesWithText("قفل بیومتریک",substring=true).assertCountEquals(0)
+            compose.onNodeWithContentDescription("بازگشت").performClick()
+            compose.onNodeWithText("تنظیمات").performClick()
+            waitText("تغییر رمز ورود")
+            compose.onAllNodesWithText("قفل بیومتریک",substring=true).assertCountEquals(1)
+            compose.onNodeWithText("فاکتورهای من").assertDoesNotExist()
+            compose.onNodeWithText("تغییر رمز ورود").performClick()
+            showField("رمز فعلی");compose.onNodeWithContentDescription("رمز فعلی").performTextInput("OldPassword57")
+            showField("رمز جدید");compose.onNodeWithContentDescription("رمز جدید").performTextInput("NewPassword57")
+            showField("تکرار رمز جدید");compose.onNodeWithContentDescription("تکرار رمز جدید").performTextInput("NewPassword57")
+            hideKeyboard(scenario)
+            showText("ثبت رمز جدید");compose.onNodeWithText("ثبت رمز جدید").performClick()
+            waitText("رمز ورود با موفقیت تغییر کرد.")
+            val password=writes.single {it.first=="/api/password"}.second
+            assertEquals("OldPassword57",password.s("current"));assertEquals("NewPassword57",password.s("new"))
+            showText("تغییر شماره تماس");compose.onNodeWithText("تغییر شماره تماس").performClick()
+            showField("شماره تماس جایگزین");compose.onNodeWithContentDescription("شماره تماس جایگزین").performTextInput("۰۹۱۲۱۱۱۱۱۱۱")
+            hideKeyboard(scenario)
+            showText("ذخیره شماره تماس");compose.onNodeWithText("ذخیره شماره تماس").performClick()
+            waitText("شماره تماس جایگزین ذخیره شد.")
+            val contact=writes.single {it.first=="/api/profile/update"}.second
+            assertEquals("09121111111",contact.s("alternate_mobile"))
+            assertEquals(me.obj("customer").s("address"),contact.s("address"))
+            assertFalse(contact.has("username"));assertFalse(contact.has("mobile"))
+        }
+    }
+    @Test fun biometricPreferenceChangesAreObserved() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val prefs=context.getSharedPreferences("ghadir_security",Context.MODE_PRIVATE)
+        val account="observable-fixture-57"
+        prefs.edit().remove("biometric:$account").commit()
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use {scenario->
+                scenario.onActivity {a->a.setContent {
+                    androidx.compose.material3.Text(if(rememberBiometricEnabled(a,account))"enabled-fixture" else "disabled-fixture")
+                }}
+                waitText("disabled-fixture")
+                prefs.edit().putBoolean("biometric:$account",true).commit()
+                waitText("enabled-fixture")
+                prefs.edit().putBoolean("biometric:$account",false).commit()
+                waitText("disabled-fixture")
+            }
+        }finally{prefs.edit().remove("biometric:$account").commit()}
+    }
+    @Test fun rememberedBiometricStartsWithoutPressingButtonAndDoesNotLoop() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val store=SecureLoginStore(context)
+        val previous=store.load()
+        val prefs=context.getSharedPreferences("ghadir_security",Context.MODE_PRIVATE)
+        val account=me.s("username")
+        val previousEnabled=biometricEnabled(context,account)
+        store.save(account,"AutomaticFixture57")
+        prefs.edit().putBoolean("biometric:$account",true).commit()
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use {scenario->
+                scenario.onActivity {a->a.setContent {GhadirTheme {LoginScreen(ApiClient(a,client())){}}}}
+                waitText("ورود امن")
+                // CI emulator has no enrolled biometric. Password fallback must remain reachable.
+                compose.onNodeWithText("ورود با رمز عبور").performScrollTo().performClick()
+                waitText("خوش آمدید")
+                compose.waitForIdle()
+                compose.onNodeWithText("ورود امن").assertDoesNotExist()
+            }
+        }finally{
+            prefs.edit().putBoolean("biometric:$account",previousEnabled).commit()
+            if(previous==null)store.clear() else store.save(previous.identity,previous.password)
         }
     }
     @Test fun otpRequestWithPersianDigits() {

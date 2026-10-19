@@ -57,13 +57,15 @@ class FigmaFlowTest {
             }
             compose.waitUntil(10000){compose.onAllNodesWithText("پروفایل").fetchSemanticsNodes().isNotEmpty()}
             compose.onAllNodesWithText("پروفایل").onLast().performClick()
-            compose.onNodeWithText("انتخاب یا حذف عکس").assertExists()
+            compose.onNodeWithText("پروفایل من").assertExists()
+            compose.onNodeWithText("تنظیمات").assertExists()
             shot("profile-day.png")
             compose.onNodeWithContentDescription("حالت شب").performClick()
             compose.onNodeWithContentDescription("حالت روز").assertExists()
             shot("profile-night.png")
             compose.onNodeWithContentDescription("حالت روز").performClick()
-            compose.onNodeWithText("پیش‌فاکتورهای من").performScrollTo().performClick()
+            compose.onNodeWithText("پروفایل من").performClick()
+            compose.onNodeWithText("فاکتورهای من").performScrollTo().performClick()
             compose.waitUntil(10000){compose.onAllNodesWithText("دانلود PDF پیش‌فاکتور").fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithText("دانلود PDF پیش‌فاکتور").assertExists()
             shot("invoice-list.png")

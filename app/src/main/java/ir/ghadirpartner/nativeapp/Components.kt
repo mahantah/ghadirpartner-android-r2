@@ -41,7 +41,7 @@ fun BrandHeader(title: String, subtitle: String = "", avatarUri: String = "") {
         } catch (_: Exception) { null }
     }
     GlassSurface(color = Ink, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
                 Text(title, color=Color.White, fontSize=20.sp, fontWeight=FontWeight.Bold)
                 Text(subtitle.ifBlank { "قدیر پارتنر" }, color=Color.White, fontSize=12.sp)

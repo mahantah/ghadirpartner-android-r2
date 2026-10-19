@@ -14,6 +14,7 @@ Portal:
 - POST /api/customer-order/cancel-request
 - GET /api/catalog
 - GET /api/reports/customer-summary
+- POST /api/password (`current`, `new`; authenticated password change)
 - POST /api/profile/update
 - GET /api/offers
 - GET /api/notifications
@@ -60,3 +61,5 @@ The PHP tests in `validation/` require the separate matching web source and PHP-
 they are not standalone Android tests.
 
 R5.6 inbox compatibility: accepts modern items objects and legacy arrays. If the legacy notification endpoint is missing or empty, authenticated order statuses and eligible offers populate the message center. Legacy read state stays local and account-scoped; modern read requests are limited to IDs present in the account inbox. No server deployment or system push was added.
+
+Profile settings contract (source-reviewed 2026-10-19): `POST /api/profile/update` can update `alternate_mobile` while preserving customer fields. It does **not** change the primary login phone. The web source reserves primary login phone changes for admin `POST /api/customer-accounts/update`; the Android app must never call that admin endpoint as a customer or report a primary-number change after saving only an alternate number. Self-service primary-phone change requires a separately reviewed backend verification flow. No server changes or deployments are included here.
