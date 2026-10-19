@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.SaveableStateRegistry
@@ -103,7 +104,7 @@ class DesignFlowTest {
         val bars=compose.onAllNodesWithContentDescription("ناوبری شناور").fetchSemanticsNodes()
         if(bars.isEmpty())return
         val overlap=node.fetchSemanticsNode().boundsInRoot.bottom-bars.single().boundsInRoot.top
-        if(overlap>0)compose.onAllNodes(hasScrollToIndexAction()).onFirst().performScrollBy(0f,overlap+12f)
+        if(overlap>0)compose.onAllNodes(hasScrollToIndexAction()).onFirst().performSemanticsAction(SemanticsActions.ScrollBy){it(0f,overlap+12f)}
     }
     @Test fun catalogCheckoutAndSerials() {
         ActivityScenario.launch(MainActivity::class.java).use {scenario->
