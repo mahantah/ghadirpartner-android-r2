@@ -140,6 +140,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
     val navScreen=when(screen){"serials","serial-detail","order-detail","success"->"orders";"documents","proforma","addresses","summary"->"profile";"inbox","offers"->"home";else->screen}
     val wideNavigation=androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp>=600
     val backdrop=rememberGraphicsLayer()
+    val blurBackdrop=android.os.Build.VERSION.SDK_INT>=31&&!wideNavigation
     var backdropPosition by remember {mutableStateOf(Offset.Zero)}
     val keyboardVisible=WindowInsets.ime.getBottom(LocalDensity.current)>0
     val direction=LocalLayoutDirection.current
@@ -157,14 +158,14 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
             }
         },
         bottomBar = {
-            if(!wideNavigation&&!keyboardVisible)FigmaBottomBar(portalNav,navScreen,::selectTab,modifier=Modifier.navigationBarsPadding(),backdrop=backdrop,contentPosition=backdropPosition)
+            if(!wideNavigation&&!keyboardVisible)FigmaBottomBar(portalNav,navScreen,::selectTab,modifier=Modifier.navigationBarsPadding(),backdrop=if(blurBackdrop)backdrop else null,contentPosition=backdropPosition)
         }
     ) { pad ->
         val bodyPadding=PaddingValues(start=pad.calculateStartPadding(direction),top=pad.calculateTopPadding(),end=pad.calculateEndPadding(direction),bottom=if(wideNavigation)pad.calculateBottomPadding() else 0.dp)
         CompositionLocalProvider(LocalPortalBottomPadding provides if(!wideNavigation&&!keyboardVisible)pad.calculateBottomPadding() else 0.dp) {
         Row(Modifier.fillMaxSize().padding(bodyPadding).consumeWindowInsets(bodyPadding).imePadding()
             .onGloballyPositioned {backdropPosition=it.positionInRoot()}
-            .drawWithContent {backdrop.record {this@drawWithContent.drawContent()};drawLayer(backdrop)}) {
+            .drawWithContent {if(blurBackdrop){backdrop.record {this@drawWithContent.drawContent()};drawLayer(backdrop)}else drawContent()}) {
             if(wideNavigation) AppNavigationRail(portalNav,navScreen,::selectTab)
             Box(Modifier.weight(1f).fillMaxHeight(),contentAlignment=Alignment.TopCenter) {
             Box(Modifier.widthIn(max=840.dp).fillMaxSize()) {

@@ -195,7 +195,12 @@ class DesignFlowTest {
             compose.waitForIdle()
             compose.runOnIdle {registry=SaveableStateRegistry(saved){true};visible.value=true}
             waitText("نشانی تحویل")
-            showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
+            showText("ادامه به بررسی نهایی")
+            compose.onNodeWithText("ادامه به بررسی نهایی").assertIsEnabled().performClick()
+            try {waitText("بررسی سفارش")} catch(e:AssertionError) {
+                shot("design-draft-restore-failure.png",scrollToTop=false)
+                throw AssertionError(compose.onRoot().printToString(),e)
+            }
             showText("تأیید و ثبت نهایی");compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
             waitText("سفارش با موفقیت ثبت شد")
             val body=writes.single {it.first=="/api/orders/add"}.second
