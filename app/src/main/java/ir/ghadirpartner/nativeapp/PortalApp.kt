@@ -108,7 +108,17 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
     var showDraftNotice by rememberSaveable {mutableStateOf(false)}
     var draftHasItems by rememberSaveable {mutableStateOf(false)}
     val draftSnackbar=remember {SnackbarHostState()}
-    LaunchedEffect(showDraftNotice){if(showDraftNotice){draftSnackbar.showSnackbar("پیش‌نویس محفوظ است؛ از بخش ثبت سفارش ادامه دهید.");showDraftNotice=false}}
+    LaunchedEffect(showDraftNotice,screen) {
+        if(screen=="new") {
+            // The reminder is useful after leaving a draft. Once back in checkout,
+            // remove it immediately so it cannot cover the continuation controls.
+            draftSnackbar.currentSnackbarData?.dismiss()
+            showDraftNotice=false
+        } else if(showDraftNotice) {
+            draftSnackbar.showSnackbar("پیش‌نویس محفوظ است؛ از بخش ثبت سفارش ادامه دهید.")
+            showDraftNotice=false
+        }
+    }
     var checkoutTitle by remember {mutableStateOf("ثبت سفارش")}
     var checkoutBackRequest by rememberSaveable {mutableIntStateOf(0)}
     var profileTitle by remember {mutableStateOf("پروفایل")}

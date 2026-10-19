@@ -200,6 +200,7 @@ class DesignFlowTest {
             compose.onAllNodesWithText("پروفایل").onLast().performClick()
             compose.onAllNodesWithText("ثبت سفارش").onLast().performClick()
             waitText("نشانی تحویل")
+            compose.onNodeWithText("پیش‌نویس محفوظ است؛ از بخش ثبت سفارش ادامه دهید.").assertDoesNotExist()
             // Final request assertions below verify the restored address and edited quantity.
             var saved:Map<String,List<Any?>> = emptyMap()
             compose.runOnIdle {saved=registry.performSave();visible.value=false}
