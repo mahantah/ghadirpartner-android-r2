@@ -49,6 +49,32 @@ class SecurityAndInboxTest {
         bitmap.recycle()
     }
 
+    @Test fun persistentSessionIsEncryptedAndTamperingFailsClosed() {
+        val store=SecureSessionStore(context,"security-test")
+        val prefs=context.getSharedPreferences("ghadir_sessions_security-test",Context.MODE_PRIVATE)
+        store.clear()
+        try {
+            val token="session=private-fixture-57; path=/; secure"
+            assertTrue(store.save(setOf(token)))
+            assertFalse(prefs.all.toString().contains("private-fixture-57"))
+            assertEquals(setOf(token),SecureSessionStore(context,"security-test").load())
+            val encoded=prefs.getString("ciphertext","")!!
+            val bytes=android.util.Base64.decode(encoded,android.util.Base64.NO_WRAP)
+            bytes[bytes.lastIndex]=(bytes.last().toInt() xor 1).toByte()
+            prefs.edit().putString("ciphertext",android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP)).commit()
+            assertTrue(store.load().isEmpty())
+            assertTrue(prefs.all.isEmpty())
+        }finally{store.clear()}
+    }
+    @Test fun apiRejectsUntrustedOriginsBeforeSending() = runBlocking {
+        val requests=AtomicInteger()
+        val api=ApiClient(context,transport {requests.incrementAndGet();"{}"})
+        for(url in listOf("http://ghadirpartner.ir/partners/api/me","https://example.com/api/me","https://ghadirpartner.ir:444/api/me")) {
+            try{api.get(url);fail("Untrusted origin accepted")}catch(_:IllegalArgumentException){}
+        }
+        assertEquals(0,requests.get())
+        api.get("/api/me");assertEquals(1,requests.get())
+    }
     @Test fun svgGlyphKeepsItsSizeAtHighDensity() {
         ActivityScenario.launch(MainActivity::class.java).use {scenario->
             scenario.onActivity {a->a.setContent {

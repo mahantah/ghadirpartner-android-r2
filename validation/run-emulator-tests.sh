@@ -22,11 +22,11 @@ adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/profile-day.png >
 adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/profile-night.png > app/build/reports/profile-night.png
 adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/invoice-list.png > app/build/reports/invoice-list.png
 mkdir -p app/build/reports/design
-for name in design-home-day design-home-night design-catalog-serial design-catalog-panel design-catalog-agent design-checkout-cart design-checkout-cash design-checkout-check design-checkout-credit design-checkout-review design-checkout-success design-orders design-order-detail design-serials design-login design-otp design-account-offline design-message-center design-login-remembered design-profile-services design-profile-settings design-checkout-options design-profile-floating design-draft-restore-failure; do
+for name in design-home-day design-home-night design-catalog-serial design-catalog-panel design-catalog-agent design-checkout-cart design-checkout-cash design-checkout-check design-checkout-credit design-checkout-review design-checkout-success design-orders design-order-detail design-serials design-login design-otp design-account-offline design-message-center design-login-remembered design-profile-services design-profile-settings design-checkout-options design-profile-floating design-draft-restore-failure design-profile-main-day design-profile-main-night design-purchase-trend; do
   if adb exec-out run-as ir.ghadirpartner.portalapp.debug cat "files/$name.png" > "app/build/reports/design/$name.png" 2>/dev/null; then
     test -s "app/build/reports/design/$name.png"
   else
     rm -f "app/build/reports/design/$name.png"
   fi
 done
-grep -q 'OK (24 tests)' app/build/reports/startup/instrumentation.txt
+grep -q 'OK (28 tests)' app/build/reports/startup/instrumentation.txt

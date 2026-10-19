@@ -158,7 +158,7 @@ internal fun PortalBackHeader(title:String,onBack:()->Unit) {
 }
 
 internal fun orderItemsDescription(order:JSONObject):String = order.arr("items").objects()
-    .joinToString(" • ") { "${faNumber(it.i("qty"))} × ${shortProductName(it.s("product"))}" }
+    .joinToString(" • ") { "${shortProductName(it.s("product"))}؛ تعداد: ${faNumber(it.i("qty"))} دستگاه" }
 
 @Composable
 internal fun DesignOrderCard(order:JSONObject,latest:Boolean=false,onClick:()->Unit) {

@@ -38,7 +38,8 @@ private val automationNav = listOf(
 fun AutomationApp(api: ApiClient, me: JSONObject, onLogout: () -> Unit) {
     var screen by rememberSaveable { mutableStateOf("home") }
     Scaffold(
-        containerColor = Canvas,
+        modifier=Modifier.portalBackdrop(),
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = { BrandHeader("قدیر پارتنر", "اتوماسیون • ${me.s("username")}") },
         bottomBar = { BottomBar(automationNav, screen) { screen = it } }
     ) { pad ->

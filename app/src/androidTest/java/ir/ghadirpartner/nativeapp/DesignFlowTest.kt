@@ -412,6 +412,39 @@ class DesignFlowTest {
             waitText("کل دستگاه‌های خریداری‌شده")
         }
     }
+    @Test fun purchaseSeriesUsesDeliveredOrdersInTheirActualMonths() {
+        val now=java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Tehran")).apply {set(2026,9,20)}
+        val cancelled=JSONObject(order.toString()).put("status","لغو شد").put("approved_total",900000000)
+        val september=JSONObject(order.toString()).put("created_at","2026-09-30").put("approved_total",2000000)
+        val tooOld=JSONObject(order.toString()).put("created_at","2025-10-04")
+        val points=purchaseHistory(listOf(order,cancelled,september,tooOld),now)
+        assertEquals(6,points.size)
+        assertEquals(2000000L,points[4].amount)
+        assertEquals(22800000L,points[5].amount)
+        assertTrue(points.take(4).all {it.amount==0L})
+        assertTrue(purchaseHistory(emptyList(),now).all {it.amount==0L})
+        assertFalse(orderItemsDescription(order).contains("×"))
+        assertTrue(orderItemsDescription(order).contains("۲ دستگاه"))
+    }
+    @Test fun profileOverviewOpensTheRealPurchaseChart() {
+        ActivityScenario.launch(MainActivity::class.java).use {scenario->
+            scenario.onActivity {a->
+                if(AppAppearance.dark)AppAppearance.toggle(a)
+                a.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){PortalApp(ApiClient(a,client()),me,{})}}}
+            }
+            waitText("سلام، علی رضایی")
+            compose.onAllNodesWithText("پروفایل").onLast().performClick()
+            showText("پروفایل من");shot("design-profile-main-day.png")
+            compose.onNodeWithContentDescription("حالت شب").performClick();shot("design-profile-main-night.png")
+            compose.onNodeWithContentDescription("حالت روز").performClick()
+            compose.onNodeWithText("پروفایل من").performClick()
+            showText("گزارش خرید");compose.onNodeWithText("گزارش خرید").performClick()
+            waitText("روند خرید");shot("design-purchase-trend.png")
+            compose.onNodeWithContentDescription("نمودار روند خرید؛",substring=true).assertExists()
+            showText("جزئیات نمودار");compose.onNodeWithText("جزئیات نمودار").performClick()
+            showText("این ماه");compose.onAllNodesWithText("این ماه").onLast().assertExists()
+        }
+    }
     @Test fun otpRequestWithPersianDigits() {
         val logged=AtomicInteger()
         ActivityScenario.launch(MainActivity::class.java).use {scenario->

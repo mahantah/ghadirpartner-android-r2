@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.paint
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -134,13 +135,13 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
         }
         return
     }
-    Column(Modifier.fillMaxSize().background(if(AppAppearance.dark)AppBackground else Color(0xFFF4F7FB)).statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().paint(painterResource(R.drawable.ghadir_login_atelier),contentScale=ContentScale.Crop).background(Color(0xFF0B1F3A).copy(alpha=.16f)).statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(view=="login")Spacer(Modifier.height(48.dp)) else PortalBackHeader(when(view){"otp"->"کد تأیید";"biometric"->"ورود امن";else->"ورود به قدیر پارتنر"}) {
             loginPrompt?.cancelAuthentication();view="login";error=""
         }
-        Surface(modifier=Modifier.padding(horizontal=20.dp).widthIn(max=420.dp).fillMaxWidth(),shape=RoundedCornerShape(16.dp),
-            color=if(view=="login")AppSurface else Color.Transparent,shadowElevation=if(view=="login")6.dp else 0.dp) {
-        Column(Modifier.fillMaxWidth().padding(if(view=="login")20.dp else 0.dp).padding(bottom=20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+        Surface(modifier=Modifier.padding(horizontal=20.dp).widthIn(max=420.dp).fillMaxWidth(),shape=RoundedCornerShape(24.dp),
+            color=AppSurface.copy(alpha=.95f),shadowElevation=6.dp) {
+        Column(Modifier.fillMaxWidth().padding(20.dp).padding(bottom=20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
             when(view) {
                 "otp"->{
                     DesignState("کد تأیید را وارد کنید","کد ارسال‌شده به شماره "+faDigits(identity),R.drawable.design_otp)

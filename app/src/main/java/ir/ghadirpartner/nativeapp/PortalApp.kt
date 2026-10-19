@@ -323,6 +323,7 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
     if(showReport) {
         LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
             if(error.isNotBlank())item {ErrorBanner(error){error=""};GhadirButton("تلاش دوباره",{refresh()})}
+            item {PurchaseTrendCard(orders)}
             item {StatTile("کل دستگاه‌های خریداری‌شده",faNumber(stats.i("purchased_device_qty")),"سفارش‌های تحویل‌شده",Modifier.fillMaxWidth())}
             item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(9.dp)) {
                 StatTile("۷ روز",faNumber(stats.obj("week").i("orders")),"سفارش",Modifier.weight(1f))
@@ -716,7 +717,8 @@ private fun PortalNewOrder(api:ApiClient,initialOfferCode:String="",initialProdu
                 Text("سبد سفارش",color=Ink,fontWeight=FontWeight.Bold)
                 if(cart.isEmpty())Text("هنوز کالایی به سبد اضافه نشده است.",color=Muted,fontSize=12.sp)
                 cart.forEach {line->
-                    DetailLine("کالا",faNumber(line.qty)+" × "+shortProductName(line.product))
+                    DetailLine("کالا",shortProductName(line.product))
+                    DetailLine("تعداد",faNumber(line.qty)+" دستگاه")
                     DetailLine("نوع قیمت",line.priceLabel)
                     DetailLine("قیمت واحد",formatMoney(line.unit)+" تومان")
                     DetailLine("مبلغ ردیف",formatMoney(line.unit*line.qty)+" تومان")
@@ -762,7 +764,8 @@ private fun PortalNewOrder(api:ApiClient,initialOfferCode:String="",initialProdu
             item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                 Text("بررسی سفارش",color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold)
                 cart.forEach {line->
-                    DetailLine("کالا",faNumber(line.qty)+" × "+shortProductName(line.product))
+                    DetailLine("کالا",shortProductName(line.product))
+                    DetailLine("تعداد",faNumber(line.qty)+" دستگاه")
                     DetailLine("نوع قیمت",line.priceLabel)
                     DetailLine("قیمت واحد",formatMoney(line.unit)+" تومان")
                 }
@@ -1042,13 +1045,15 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
                     HorizontalDivider(color=Border)
                     DetailLine("شماره همراه",faDigits(me.s("username")))
                 }}}
-                item {GhadirButton("پروفایل من",{view="services"},secondary=true)}
-                item {GhadirButton("تنظیمات",{view="settings"},secondary=true)}
-                item {GhadirButton("تماس با پشتیبانی · ۰۲۱۷۷۲۴۷۰۷۰",{
+                item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                    ProfileServiceTile("پروفایل من","اطلاعات و خدمات مشتری",Icons.Default.PersonOutline,Modifier.weight(1f)){view="services"}
+                    ProfileServiceTile("تنظیمات","امنیت و اطلاعات تماس",Icons.Default.Settings,Modifier.weight(1f)){view="settings"}
+                }}
+                item {ProfileServiceTile("تماس با پشتیبانی · ۰۲۱۷۷۲۴۷۰۷۰","همراه شما در خرید و خدمات",Icons.Default.HeadsetMic,Modifier.fillMaxWidth(),wide=true) {
                     try{context.startActivity(android.content.Intent(android.content.Intent.ACTION_DIAL,Uri.parse("tel:02177247070")))}
                     catch(_:Exception){error="برنامه تماس روی این دستگاه در دسترس نیست"}
-                },secondary=true)}
-                item {GhadirButton("خروج از حساب",onLogout,secondary=true)}
+                }}
+                item {ProfileServiceTile("خروج از حساب","پایان نشست فعلی",Icons.Default.Logout,Modifier.fillMaxWidth(),wide=true,onClick=onLogout)}
             }
         }
     }
