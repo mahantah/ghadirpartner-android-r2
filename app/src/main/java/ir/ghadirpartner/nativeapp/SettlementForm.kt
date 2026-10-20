@@ -9,6 +9,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -34,19 +35,24 @@ internal fun SettlementForm(api:ApiClient,method:String,amount:Long,value:JSONOb
     val scope=rememberCoroutineScope()
     val currentMethod by rememberUpdatedState(method)
     fun set(key:String,v:Any){onChange(JSONObject(value.toString()).put(key,v))}
-    var credit by remember {mutableStateOf(JSONObject())}
-    var creditLoaded by remember {mutableStateOf(false)}
+    var credit by rememberSaveable(stateSaver=JsonSaver) {mutableStateOf(JSONObject())}
+    var creditLoaded by rememberSaveable {mutableStateOf(false)}
+    var creditLoadedAt by rememberSaveable {mutableLongStateOf(0L)}
+    var loadedRetry by rememberSaveable {mutableIntStateOf(-1)}
     var creditLoading by remember {mutableStateOf(false)}
     var error by remember {mutableStateOf("")}
     var busy by remember {mutableStateOf(false)}
-    var retry by remember {mutableIntStateOf(0)}
+    var retry by rememberSaveable {mutableIntStateOf(0)}
     LaunchedEffect(busy,creditLoading){onBusyChanged(busy||creditLoading)}
     DisposableEffect(Unit){onDispose{onBusyChanged(false)}}
     LaunchedEffect(method,retry) {
         error=""
         if(method=="credit") {
+            // Lazy items leave composition when scrolled offscreen. Keep a short-lived
+            // snapshot so scrolling does not restart the request and disable Continue.
+            if(creditLoaded&&loadedRetry==retry&&System.currentTimeMillis()-creditLoadedAt in 0L..60000L)return@LaunchedEffect
             creditLoading=true;creditLoaded=false
-            try{credit=api.get("/api/native/credit") as JSONObject;creditLoaded=true}
+            try{credit=api.get("/api/native/credit") as JSONObject;creditLoaded=true;creditLoadedAt=System.currentTimeMillis();loadedRetry=retry}
             catch(e:kotlinx.coroutines.CancellationException){throw e}
             catch(e:Exception){error=e.message?:"دریافت اعتبار ناموفق بود"}finally{creditLoading=false}
         }

@@ -1,6 +1,7 @@
 package ir.ghadirpartner.nativeapp
 
 import android.os.Bundle
+import androidx.activity.enableEdgeToEdge
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
@@ -23,6 +24,9 @@ import org.json.JSONObject
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if(!BuildConfig.DEBUG)window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        enableEdgeToEdge()
+        if(android.os.Build.VERSION.SDK_INT>=29)window.isNavigationBarContrastEnforced=false
         AppAppearance.restore(this)
         window.statusBarColor = android.graphics.Color.rgb(238,244,252)
         window.navigationBarColor = android.graphics.Color.rgb(255,245,233)
@@ -59,6 +63,7 @@ private fun NativeAppRoot() {
     var biometricChecked by remember { mutableStateOf(false) }
     var passwordVerified by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val biometricRequired=rememberBiometricEnabled(context,me?.s("username").orEmpty())
     DisposableEffect(context) {
         val activity = context as FragmentActivity
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -100,7 +105,7 @@ private fun NativeAppRoot() {
                 }
             }
         )
-            if(!biometricChecked && biometricEnabled(context,me!!.s("username"))) {
+            if(!biometricChecked && biometricRequired) {
                 androidx.compose.ui.window.Dialog(onDismissRequest={},properties=androidx.compose.ui.window.DialogProperties(dismissOnBackPress=false,dismissOnClickOutside=false,usePlatformDefaultWidth=false)) {
                     BiometricGate(
             onUnlocked = { biometricChecked = true },

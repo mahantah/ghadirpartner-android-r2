@@ -54,7 +54,7 @@ fun PortalDocuments(api:ApiClient,me:JSONObject,selected:JSONObject?=null,onOpen
                     val dir=File(context.cacheDir,"documents").apply{mkdirs()}
                     val file=File(dir,"proforma-"+order.i("id")+".pdf")
                     val doc=PdfDocument()
-                    try{OfficialInvoice.render(doc,order,me.obj("customer"));file.outputStream().use{doc.writeTo(it)}}finally{doc.close()}
+                    try{OfficialInvoice.render(doc,order,me.obj("customer"),context);file.outputStream().use{doc.writeTo(it)}}finally{doc.close()}
                     FileProvider.getUriForFile(context,context.packageName+".files",file)
                 }
                 context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply{type="application/pdf";putExtra(Intent.EXTRA_STREAM,uri);addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)},"اشتراک‌گذاری پیش‌فاکتور"))
@@ -64,7 +64,7 @@ fun PortalDocuments(api:ApiClient,me:JSONObject,selected:JSONObject?=null,onOpen
     }
     val term=asciiDigits(query).trim()
     val visible=orders.filter {term.isBlank()||asciiDigits(it.s("number")).contains(term,true)}
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(selected==null) {
             item {DesignField("جستجوی پیش‌فاکتور",query,{query=it},"شماره پیش‌فاکتور",R.drawable.design_search)}
             if(!busy)item {Text(faNumber(visible.size)+" پیش‌فاکتور",color=Muted,fontSize=12.sp)}

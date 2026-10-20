@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -35,13 +36,14 @@ private val automationNav = listOf(
 
 @Composable
 fun AutomationApp(api: ApiClient, me: JSONObject, onLogout: () -> Unit) {
-    var screen by remember { mutableStateOf("home") }
+    var screen by rememberSaveable { mutableStateOf("home") }
     Scaffold(
-        containerColor = Canvas,
+        modifier=Modifier.portalBackdrop(),
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = { BrandHeader("قدیر پارتنر", "اتوماسیون • ${me.s("username")}") },
         bottomBar = { BottomBar(automationNav, screen) { screen = it } }
     ) { pad ->
-        Box(Modifier.fillMaxSize().padding(pad)) {
+        Box(Modifier.fillMaxSize().padding(pad).consumeWindowInsets(pad).imePadding()) {
             Crossfade(screen, label = "automation-nav") { target ->
                 when (target) {
                     "home" -> AutomationDashboard(api, me, navigate = { screen = it }, onLogout = onLogout)
@@ -61,14 +63,25 @@ private fun AutomationDashboard(api: ApiClient, me: JSONObject, navigate: (Strin
     var error by remember { mutableStateOf("") }
     var orders by remember { mutableStateOf(emptyList<JSONObject>()) }
     var customers by remember { mutableStateOf(emptyList<JSONObject>()) }
-    LaunchedEffect(Unit) {
+    var retry by remember {mutableIntStateOf(0)}
+    LaunchedEffect(retry) {
+        loading=true;error=""
         try {
             orders = (api.get("/api/orders") as JSONArray).objects()
             customers = (api.get("/api/customers") as JSONArray).objects()
-        } catch (e: Exception) { error = e.message ?: "خطا در دریافت داشبورد" }
+        } catch(e:kotlinx.coroutines.CancellationException){throw e}
+        catch (e: Exception) { error = e.message ?: "خطا در دریافت داشبورد" }
         loading = false
     }
     if (loading) { LoadingPane(); return }
+    if(error.isNotBlank()) {
+        Column(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+            DesignState("اطلاعات داشبورد دریافت نشد","آمار قابل نمایش نیست. اتصال را بررسی و دوباره تلاش کنید.",R.drawable.design_offline)
+            GhadirButton("تلاش دوباره",{retry++})
+            GhadirButton("خروج از حساب",onLogout,secondary=true)
+        }
+        return
+    }
     val waiting = orders.count { it.s("status") in listOf("ثبت شده", "در انتظار تأیید سفارش") }
     val prep = orders.count { it.s("status") in listOf("در حال آماده سازی", "آماده ارسال") }
     val shipped = orders.count { it.s("status") == "ارسال شد" }
@@ -82,7 +95,7 @@ private fun AutomationDashboard(api: ApiClient, me: JSONObject, navigate: (Strin
         item { ErrorBanner(error) { error = "" } }
         item {
             Card(shape = RoundedCornerShape(28.dp), colors = CardDefaults.cardColors(containerColor = Color.Transparent), modifier = Modifier.fillMaxWidth()) {
-                Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(NavyDeep, Navy, Color(0xFF174472)))).padding(19.dp)) {
+                Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF142B4B), Navy, Color(0xFF174472)))).padding(19.dp)) {
                     Box(Modifier.size(125.dp).align(Alignment.BottomStart).offset(x = (-35).dp, y = 52.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color(0x33FF7A1A)))
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
                         Text("مرکز عملیات قدیر پارتنر", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Black)
@@ -115,12 +128,12 @@ private fun AutomationDashboard(api: ApiClient, me: JSONObject, navigate: (Strin
             }
         }
         item {
-            Surface(shape = RoundedCornerShape(20.dp), color = Color.White) {
+            Surface(shape = RoundedCornerShape(20.dp), color = AppSurface) {
                 Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = onLogout) { Text("خروج", color = Danger, fontWeight = FontWeight.Bold) }
                     Spacer(Modifier.weight(1f))
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("کاربر فعال: ${me.s("username")}", color = NavyDeep, fontWeight = FontWeight.Black)
+                        Text("کاربر فعال: ${me.s("username")}", color = Ink, fontWeight = FontWeight.Black)
                         Text("دسترسی: ${me.arr("roles").strings().map(::roleLabel).joinToString("، ")}", color = Muted, fontSize = 10.sp)
                         Text("مشتریان فعال: ${faNumber(customers.size)}", color = Muted, fontSize = 10.sp)
                     }
@@ -141,11 +154,11 @@ private fun roleLabel(role: String): String = when (role) {
 
 @Composable
 private fun KpiCard(title: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier, onClick: () -> Unit) {
-    Card(modifier = modifier.clickable(onClick = onClick), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+    Card(modifier = modifier.clickable(onClick = onClick), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = AppSurface)) {
         Column(Modifier.fillMaxWidth().padding(15.dp), horizontalAlignment = Alignment.End) {
             Icon(icon, null, tint = Orange)
             Spacer(Modifier.height(9.dp))
-            Text(value, color = NavyDeep, fontSize = 25.sp, fontWeight = FontWeight.Black)
+            Text(value, color = Ink, fontSize = 25.sp, fontWeight = FontWeight.Black)
             Text(title, color = Muted, fontSize = 11.sp)
         }
     }
@@ -153,10 +166,10 @@ private fun KpiCard(title: String, value: String, icon: androidx.compose.ui.grap
 
 @Composable
 private fun MiniAdminAction(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier, onClick: () -> Unit) {
-    Surface(modifier = modifier.clickable(onClick = onClick), shape = RoundedCornerShape(18.dp), color = Color.White) {
+    Surface(modifier = modifier.clickable(onClick = onClick), shape = RoundedCornerShape(18.dp), color = AppSurface) {
         Column(Modifier.padding(vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, null, tint = Navy, modifier = Modifier.size(28.dp))
-            Spacer(Modifier.height(6.dp)); Text(title, color = NavyDeep, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Icon(icon, null, tint = Ink, modifier = Modifier.size(28.dp))
+            Spacer(Modifier.height(6.dp)); Text(title, color = Ink, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -245,7 +258,7 @@ private fun AutomationOrderDialog(api: ApiClient, order: JSONObject, onDismiss: 
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {},
-        title = { Text("${faDigits(order.s("number"))} • ${order.s("customer_name")}", color = NavyDeep, fontWeight = FontWeight.Black, fontSize = 17.sp) },
+        title = { Text("${faDigits(order.s("number"))} • ${order.s("customer_name")}", color = Ink, fontWeight = FontWeight.Black, fontSize = 17.sp) },
         text = {
             LazyColumn(modifier = Modifier.heightIn(max = 560.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { ErrorBanner(error) { error = "" } }
@@ -264,7 +277,7 @@ private fun AutomationOrderDialog(api: ApiClient, order: JSONObject, onDismiss: 
                 items(order.arr("items").objects()) { item ->
                     Surface(shape = RoundedCornerShape(15.dp), color = Canvas) {
                         Column(Modifier.fillMaxWidth().padding(11.dp), horizontalAlignment = Alignment.End) {
-                            Text(shortProductName(item.s("product")), color = NavyDeep, fontWeight = FontWeight.Bold)
+                            Text(shortProductName(item.s("product")), color = Ink, fontWeight = FontWeight.Bold)
                             Text("${faNumber(item.i("qty"))} عدد • سریال ثبت‌شده: ${faNumber(item.arr("serials").length())}", color = Muted, fontSize = 10.sp)
                         }
                     }
@@ -291,7 +304,7 @@ private fun AutomationOrderDialog(api: ApiClient, order: JSONObject, onDismiss: 
                 item { TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("بستن", color = Muted) } }
             }
         },
-        shape = RoundedCornerShape(28.dp), containerColor = Color.White
+        shape = RoundedCornerShape(28.dp), containerColor = AppSurface
     )
 }
 
@@ -326,14 +339,14 @@ private fun AutomationCustomers(api: ApiClient) {
         Spacer(Modifier.height(8.dp)); ErrorBanner(error) { error = "" }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
             items(filtered, key = { it.i("id") }) { c ->
-                Surface(shape = RoundedCornerShape(20.dp), color = Color.White) {
+                Surface(shape = RoundedCornerShape(20.dp), color = AppSurface) {
                     Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) { Icon(Icons.Default.Person, null, tint = Orange) }
                         Spacer(Modifier.weight(1f))
                         Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(4f)) {
-                            Text(c.s("name"), color = NavyDeep, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(c.s("name"), color = Ink, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(c.s("company"), color = Muted, fontSize = 10.sp, maxLines = 1)
-                            Text("${c.s("mobile")}  •  ${c.s("code")}", color = NavySoft, fontSize = 10.sp)
+                            Text("${c.s("mobile")}  •  ${c.s("code")}", color = Muted, fontSize = 10.sp)
                         }
                     }
                 }
@@ -366,14 +379,14 @@ private fun AutomationWarehouse(api: ApiClient) {
         Spacer(Modifier.height(8.dp)); ErrorBanner(error) { error = "" }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
             items(filtered.take(500), key = { it.i("id") }) { iv ->
-                Surface(shape = RoundedCornerShape(17.dp), color = Color.White) {
+                Surface(shape = RoundedCornerShape(17.dp), color = AppSurface) {
                     Column(Modifier.fillMaxWidth().padding(12.dp), horizontalAlignment = Alignment.End) {
-                        Text(iv.s("serial"), color = NavyDeep, fontWeight = FontWeight.Black, fontSize = 14.sp)
+                        Text(iv.s("serial"), color = Ink, fontWeight = FontWeight.Black, fontSize = 14.sp)
                         Text(shortProductName(iv.s("product")), color = Muted, fontSize = 10.sp, maxLines = 1)
                         Row(Modifier.fillMaxWidth()) {
                             StatusPill(if (iv.i("order_id") == 0) "آزاد" else "${iv.s("order_number")}")
                             Spacer(Modifier.weight(1f))
-                            if (iv.s("carton_code").isNotBlank()) Text(iv.s("carton_code"), color = NavySoft, fontSize = 10.sp)
+                            if (iv.s("carton_code").isNotBlank()) Text(iv.s("carton_code"), color = Muted, fontSize = 10.sp)
                         }
                     }
                 }
@@ -406,12 +419,12 @@ private fun AutomationReports(api: ApiClient) {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                 item { HeroCard("فروش قطعی", "${formatMoney(data.l("total_amount"))} تومان", "${faNumber(data.i("total_orders"))} سفارش • ${faNumber(data.i("total_qty"))} قلم", Icons.Default.QueryStats, emphasis = true) }
                 items(data.arr("series").objects()) { row ->
-                    Surface(shape = RoundedCornerShape(18.dp), color = Color.White) {
+                    Surface(shape = RoundedCornerShape(18.dp), color = AppSurface) {
                         Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("${formatMoney(row.l("amount"))} تومان", color = Orange, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             Spacer(Modifier.weight(1f))
                             Column(horizontalAlignment = Alignment.End) {
-                                Text(row.s("label").ifBlank { row.s("period") }, color = NavyDeep, fontWeight = FontWeight.Bold)
+                                Text(row.s("label").ifBlank { row.s("period") }, color = Ink, fontWeight = FontWeight.Bold)
                                 Text("${faNumber(row.i("orders"))} سفارش • ${faNumber(row.i("qty"))} قلم", color = Muted, fontSize = 10.sp)
                             }
                         }

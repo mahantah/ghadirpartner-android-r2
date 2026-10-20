@@ -1,4 +1,4 @@
-name: Build Ghadir Partner Android R5.6
+name: Build Ghadir Partner Android UI Update
 on:
   push:
     branches: [main, codex/compact-r5, codex/integrate-r54, codex/figma-100-573, codex/r56-login-security]
@@ -9,6 +9,11 @@ permissions:
   contents: read
 jobs:
   portal:
+    name: Android API ${{ matrix.api }}
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [29, 35, 36]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -19,12 +24,12 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.11.1'
       - name: Install Android platform
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           test -x "$SDKMANAGER"
-          "$SDKMANAGER" 'platforms;android-35' 'build-tools;35.0.0'
+          "$SDKMANAGER" 'platforms;android-36' 'build-tools;35.0.0'
       - uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
@@ -37,17 +42,78 @@ jobs:
       - name: Verify cold start and resume on Android
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 29
+          api-level: ${{ matrix.api }}
           arch: x86_64
           disable-animations: true
           script: bash validation/run-emulator-tests.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: GhadirPartner-5.4.3.3-R5.6-Debug-APK
+          name: GhadirPartner-UI-Update-Debug-APK-API${{ matrix.api }}
           path: app/build/outputs/apk/portal/debug/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GhadirAutomation-UI-Update-Debug-APK-API${{ matrix.api }}
+          path: app/build/outputs/apk/automation/debug/*.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: R5-Build-Reports
+          name: UI-Build-Reports-API${{ matrix.api }}
+          path: app/build/reports/
+
+  release:
+    name: Minified release build and Android 16 smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Install Android platform
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0"'
+      - name: Build and lint release APKs and bundles
+        run: gradle --no-daemon --console=plain :app:assemblePortalRelease :app:bundlePortalRelease :app:lintPortalRelease :app:assembleAutomationRelease :app:bundleAutomationRelease :app:lintAutomationRelease
+      - name: Enable emulator acceleration
+        run: sudo chmod a+rw /dev/kvm
+      - name: Verify native 16 KB alignment
+        run: |
+          mkdir -p app/build/reports/native-alignment
+          for mode in portal automation; do
+            apk="app/build/outputs/apk/$mode/release/app-$mode-release-unsigned.apk"
+            python validation/check-native-alignment.py "$apk" > "app/build/reports/native-alignment/$mode-elf.txt"
+            "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 -v 4 "$apk" > "app/build/reports/native-alignment/$mode-zip.txt"
+          done
+      - name: Exercise minified release apps
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          arch: x86_64
+          disable-animations: true
+          script: bash validation/run-release-smoke.sh
+      - name: Collect unsigned release inputs for private signing
+        run: |
+          mkdir -p release-inputs
+          cp app/build/outputs/apk/portal/release/*-unsigned.apk release-inputs/
+          cp app/build/outputs/apk/automation/release/*-unsigned.apk release-inputs/
+          cp app/build/outputs/bundle/portalRelease/*.aab release-inputs/
+          cp app/build/outputs/bundle/automationRelease/*.aab release-inputs/
+          cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" release-inputs/
+          cp app/build/outputs/mapping/portalRelease/mapping.txt release-inputs/portal-mapping.txt
+          cp app/build/outputs/mapping/automationRelease/mapping.txt release-inputs/automation-mapping.txt
+          sha256sum release-inputs/* > release-inputs/UNSIGNED_SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Release-Unsigned-Inputs-For-Private-Signing
+          path: release-inputs/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Release-Security-And-Smoke-Reports
           path: app/build/reports/

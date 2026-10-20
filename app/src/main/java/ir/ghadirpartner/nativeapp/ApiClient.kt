@@ -12,6 +12,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -24,14 +25,21 @@ import java.util.concurrent.ConcurrentHashMap
 
 class ApiException(val status: Int, override val message: String) : Exception(message)
 
-private class PersistentCookieJar(context: Context) : CookieJar {
+internal class PersistentCookieJar(context: Context) : CookieJar {
     private val prefs = context.getSharedPreferences("ghadir_native_cookies", Context.MODE_PRIVATE)
+    private val secureStore=SecureSessionStore(context)
     private val key = "cookies_${BuildConfig.APP_MODE}"
     private val cache = mutableMapOf<String, Cookie>()
 
     init {
         val root = HttpUrl.Builder().scheme("https").host("ghadirpartner.ir").build()
-        prefs.getStringSet(key, emptySet())?.forEach { raw ->
+        val legacy=prefs.getStringSet(key,null)?.toSet()
+        val stored=legacy?:secureStore.load()
+        if(legacy!=null) {
+            secureStore.save(legacy)
+            prefs.edit().remove(key).commit()
+        }
+        stored.forEach { raw ->
             Cookie.parse(root, raw)?.let { cache[it.name + "|" + it.path] = it }
         }
         cleanup()
@@ -39,6 +47,7 @@ private class PersistentCookieJar(context: Context) : CookieJar {
 
     @Synchronized
     override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+        if(url.scheme!="https"||url.host!="ghadirpartner.ir")return
         cookies.forEach { cookie -> cache[cookie.name + "|" + cookie.path] = cookie }
         cleanup()
         persist()
@@ -47,13 +56,15 @@ private class PersistentCookieJar(context: Context) : CookieJar {
     @Synchronized
     override fun loadForRequest(url: HttpUrl): List<Cookie> {
         cleanup()
+        if(url.scheme!="https"||url.host!="ghadirpartner.ir")return emptyList()
         return cache.values.filter { it.matches(url) }
     }
 
     @Synchronized
     fun clear() {
         cache.clear()
-        prefs.edit().remove(key).apply()
+        secureStore.clear()
+        prefs.edit().remove(key).commit()
     }
 
     private fun cleanup() {
@@ -63,7 +74,7 @@ private class PersistentCookieJar(context: Context) : CookieJar {
     }
 
     private fun persist() {
-        prefs.edit().putStringSet(key, cache.values.map { it.toString() }.toSet()).apply()
+        secureStore.save(cache.values.map {it.toString()}.toSet())
     }
 }
 
@@ -71,6 +82,7 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
     private val cookieJar = PersistentCookieJar(context.applicationContext)
     private val client = internalClient ?: OkHttpClient.Builder()
         .cookieJar(cookieJar)
+        .followRedirects(false).followSslRedirects(false)
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
@@ -109,7 +121,11 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
         return result
     }
 
-    private fun urlFor(path: String): String = if (path.startsWith("http")) path else base + if (path.startsWith('/')) path else "/$path"
+    private fun urlFor(path:String):HttpUrl {
+        val url=(if(path.startsWith("http"))path else base+if(path.startsWith('/'))path else "/$path").toHttpUrl()
+        require(url.scheme=="https"&&url.host=="ghadirpartner.ir"&&url.port==443&&url.username.isEmpty()&&url.password.isEmpty()) {"نشانی ارتباط مجاز نیست"}
+        return url
+    }
 
     private fun publicError(text: String, fallback: String): String {
         if (text.isBlank()) return fallback
@@ -117,7 +133,7 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
             val json = JSONObject(text)
             json.optString("message").ifBlank { json.optString("error") }.ifBlank { fallback }
         } catch (_: Exception) {
-            text.take(300).ifBlank { fallback }
+            fallback
         }
     }
 
@@ -339,7 +355,7 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
         val doc = PdfDocument()
         try {
             val profile = me().optJSONObject("customer") ?: JSONObject()
-            OfficialInvoice.render(doc, order, profile)
+            OfficialInvoice.render(doc, order, profile, context)
 
             val safe = order.optString("number").replace(Regex("[^A-Za-z0-9_-]"), "-")
             val fileName = "proforma-${safe.ifBlank { order.optInt("id").toString() }}.pdf"

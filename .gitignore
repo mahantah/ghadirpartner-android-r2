@@ -6,3 +6,6 @@ local.properties
 validation/figma-originals/
 
 validation/ci-run-*/
+
+*.p12
+signing.properties

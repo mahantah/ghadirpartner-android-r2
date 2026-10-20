@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.paint
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -109,6 +110,13 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
             }
         }
     }
+    // Try once on entry. Cancellation stays on the password screen until the user retries.
+    LaunchedEffect(Unit) {
+        if(api.isPortal&&savedLogin!=null&&biometricEnabled(context,savedLogin.identity)) {
+            identity=savedLogin.identity
+            view="biometric"
+        }
+    }
     fun requestOtp() {
         if(loading||countdown>0)return
         scope.launch {
@@ -127,13 +135,15 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
         }
         return
     }
-    Column(Modifier.fillMaxSize().background(if(AppAppearance.dark)AppBackground else Color(0xFFF4F7FB)).navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        if(view=="login")Spacer(Modifier.height(48.dp)) else PortalBackHeader(when(view){"otp"->"کد تأیید";"biometric"->"ورود امن";else->"ورود به قدیر پارتنر"}) {
-            loginPrompt?.cancelAuthentication();view="login";error=""
+    Column(Modifier.fillMaxSize().paint(painterResource(R.drawable.ghadir_login_atelier),contentScale=ContentScale.Crop).background(Color(0xFF0B1F3A).copy(alpha=.16f)).statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
+        if(view=="login")Spacer(Modifier.height(48.dp)) else Surface(color=AppSurface.copy(alpha=.94f)) {
+            PortalBackHeader(when(view){"otp"->"کد تأیید";"biometric"->"ورود امن";else->"ورود به قدیر پارتنر"}) {
+                loginPrompt?.cancelAuthentication();view="login";error=""
+            }
         }
-        Surface(modifier=Modifier.padding(horizontal=20.dp).widthIn(max=420.dp).fillMaxWidth(),shape=RoundedCornerShape(16.dp),
-            color=if(view=="login")AppSurface else Color.Transparent,shadowElevation=if(view=="login")6.dp else 0.dp) {
-        Column(Modifier.fillMaxWidth().padding(if(view=="login")20.dp else 0.dp).padding(bottom=20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+        Surface(modifier=Modifier.padding(horizontal=20.dp).widthIn(max=420.dp).fillMaxWidth(),shape=RoundedCornerShape(24.dp),
+            color=AppSurface.copy(alpha=.95f),shadowElevation=6.dp) {
+        Column(Modifier.fillMaxWidth().padding(20.dp).padding(bottom=20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
             when(view) {
                 "otp"->{
                     DesignState("کد تأیید را وارد کنید","کد ارسال‌شده به شماره "+faDigits(identity),R.drawable.design_otp)
@@ -189,10 +199,10 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
                             catch(e:Exception){error=e.message?:"ورود ناموفق بود"}finally{loading=false}}
                     },enabled=!loading&&identity.isNotBlank()&&password.isNotBlank())
                     if(api.isPortal) {
-                        WebLoginButton("ورود با کد یک‌بارمصرف",{requestOtp()},enabled=!loading&&countdown==0&&identity.matches(Regex("09[0-9]{9}")),secondary=true)
-                        WebLoginButton("ورود با اثر انگشت",{view="biometric";biometricFailed=false;error=""},enabled=!loading,secondary=true)
+                        TextButton(onClick={requestOtp()},enabled=!loading&&countdown==0&&identity.matches(Regex("09[0-9]{9}"))) {Text("ورود با کد یک‌بارمصرف",color=Ink)}
+                        if(biometricEnabled(context,canonicalPortalIdentity(identity))) TextButton(onClick={view="biometric";biometricFailed=false;error=""},enabled=!loading) {Text("ورود با اثر انگشت",color=Ink)}
                     }
-                    WebLoginButton("فراموشی رمز عبور",{view="reset"},enabled=!loading,secondary=true)
+                    TextButton(onClick={view="reset"},enabled=!loading) {Text("فراموشی رمز عبور",color=Muted)}
                     Text("فعال‌سازی بیومتریک پس از ورود، از بخش پروفایل.",color=Muted,fontSize=12.sp)
                 }
             }
@@ -230,7 +240,7 @@ private fun PasswordResetScreen(api:ApiClient,initialIdentity:String,onBack:()->
             catch(e:Exception){error=e.message?:"ارسال کد ناموفق بود"}finally{loading=false}
         }
     }
-    Column(Modifier.fillMaxSize().portalBackdrop().navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().portalBackdrop().statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         PortalBackHeader("بازیابی رمز عبور",onBack)
         Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).padding(bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
             DesignNotice("شماره همراه حساب را تأیید کنید، سپس رمز جدید بسازید.")
@@ -271,7 +281,7 @@ private fun WebLoginButton(text:String,onClick:()->Unit,enabled:Boolean=true,sec
         shape=RoundedCornerShape(10.dp),
         colors=ButtonDefaults.buttonColors(containerColor=if(secondary) {
             if(AppAppearance.dark)AppSecondary else Color(0xFFEDF2F7)
-        } else Color(0xFFF58220),contentColor=if(secondary)Ink else Color.White)) {
+        } else Color(0xFFF58220),contentColor=if(secondary)Ink else Navy)) {
         Text(text,fontSize=14.sp,lineHeight=23.sp,fontWeight=FontWeight.Bold)
     }
 }

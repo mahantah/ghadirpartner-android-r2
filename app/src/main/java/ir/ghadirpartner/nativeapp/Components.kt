@@ -40,7 +40,7 @@ fun BrandHeader(title: String, subtitle: String = "", avatarUri: String = "") {
             context.contentResolver.openInputStream(Uri.parse(avatarUri))?.use { BitmapFactory.decodeStream(it) }
         } catch (_: Exception) { null }
     }
-    GlassSurface(color = Ink, modifier = Modifier.fillMaxWidth()) {
+    GlassSurface(color = Navy, modifier = Modifier.fillMaxWidth().statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
                 Text(title, color=Color.White, fontSize=20.sp, fontWeight=FontWeight.Bold)
