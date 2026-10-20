@@ -355,7 +355,7 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
         val doc = PdfDocument()
         try {
             val profile = me().optJSONObject("customer") ?: JSONObject()
-            OfficialInvoice.render(doc, order, profile)
+            OfficialInvoice.render(doc, order, profile, context)
 
             val safe = order.optString("number").replace(Regex("[^A-Za-z0-9_-]"), "-")
             val fileName = "proforma-${safe.ifBlank { order.optInt("id").toString() }}.pdf"

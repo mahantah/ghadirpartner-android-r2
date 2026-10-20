@@ -11,8 +11,8 @@ android {
     defaultConfig {
         minSdk 24
         targetSdk 36
-        versionCode 543057
-        versionName '5.4.3.3-r5.7'
+        versionCode 543058
+        versionName '5.4.3.3-r5.8'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
 

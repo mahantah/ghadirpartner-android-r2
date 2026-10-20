@@ -17,6 +17,8 @@ test ! -s app/build/reports/startup/crash.txt
 adb install -r app/build/outputs/apk/androidTest/portal/debug/app-portal-debug-androidTest.apk
 adb shell am instrument -w ir.ghadirpartner.portalapp.debug.test/androidx.test.runner.AndroidJUnitRunner > app/build/reports/startup/instrumentation.txt
 adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/invoice-reference.pdf > app/build/reports/invoice-reference.pdf
+adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/invoice-official.pdf > app/build/reports/invoice-official.pdf
+adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/invoice-long-fields.pdf > app/build/reports/invoice-long-fields.pdf
 adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/invoice-pagination.pdf > app/build/reports/invoice-pagination.pdf
 adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/profile-day.png > app/build/reports/profile-day.png
 adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/profile-night.png > app/build/reports/profile-night.png
