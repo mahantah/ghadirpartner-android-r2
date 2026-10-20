@@ -78,11 +78,11 @@ internal object OfficialInvoice {
             val net=total-item.optLong("discount_amount")+item.optLong("additional_amount")
             listOf(faNumber(i+1),faDigits(value(item,"product_code")),value(item,"product"),faNumber(item.optLong("qty")),item.optString("unit").ifBlank{"عدد"},money(item.optLong("unit_price")),money(total),optionalMoney(item,"discount_amount"),optionalMoney(item,"additional_amount"),money(net),optionalMoney(item,"tax_amount"),if(item.has("tax_amount")&&!item.isNull("tax_amount"))money(net+item.getLong("tax_amount"))else "—")
         }
-        val heights=rows.map {r -> maxOf(ROW,r.indices.maxOf {measure.layout(r[it],widths[it],7.8f).height.toFloat()}+3f) }
+        val heights=rows.map {r -> maxOf(ROW,r.indices.maxOf {measure.layout(r[it],widths[it],7.8f).height.toFloat()}+2f) }
         val address=order.optJSONObject("delivery_address")?:customer
         val name=value(customer,"company","name").takeUnless{it=="—"}?:value(order,"customer_name")
         val nameExtra=maxOf(0f,measure.layout(name,246f).height-ROW)
-        val addressHeight=maxOf(ROW,measure.layout(value(address,"address"),730f).height.toFloat()+2f)
+        val addressHeight=maxOf(ROW,measure.layout(value(address,"address"),730f).height.toFloat())
         val addressExtra=addressHeight-ROW
         val buyerExtra=nameExtra+addressExtra
         val tableY=248.04f+buyerExtra
@@ -121,7 +121,7 @@ internal object OfficialInvoice {
             groups.forEachIndexed {pageIndex,indices ->
                 val page=doc.startPage(PdfDocument.PageInfo.Builder(842,595,pageIndex+1).create())
                 val f=Form(page.canvas,face)
-                f.text("پیش فاکتور فروش کالا و خدمات",260f,30f,400f,23f,16f,true)
+                f.text("پیش فاکتور فروش کالا و خدمات",211.5f,30f,400f,23f,16f,true)
                 listOf("شماره سریال :" to value(order,"number"),"تاریخ :" to formatDateFa(order.optString("created_at")),"تاریخ اعتبار:" to (order.optString("valid_until").takeIf{it.isNotBlank()&&it!="null"}?.let{formatDateFa(it)}?:"—")).forEachIndexed {i,pair ->
                     val y=28.32f+i*ROW
                     f.box(LEFT,y,70.92f,ROW,faDigits(pair.second),8.2f)
@@ -198,7 +198,7 @@ internal object OfficialInvoice {
                         page.canvas.drawBitmap(stamp,Rect(18,420,1242,990),RectF(601f,y+1f,673f,y+34.4f),Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
                     }
                 } else f.box(LEFT,y,WIDTH,ROW,"ادامه اقلام و جمع نهایی در صفحه بعد",8f)
-                f.text("صفحه : ${faNumber(pageIndex+1)}"+(if(groups.size>1)" از ${faNumber(groups.size)}" else ""),LEFT,551f,110f,ROW,9f)
+                f.text("صفحه : ${faNumber(pageIndex+1)}"+(if(groups.size>1)" از ${faNumber(groups.size)}" else ""),LEFT,551f,70f,ROW,9f)
                 doc.finishPage(page)
             }
         } finally {stamp?.recycle()}
