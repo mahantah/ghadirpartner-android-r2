@@ -147,6 +147,7 @@ class DesignFlowTest {
             assertEquals("رسمی",body.s("invoice_type"))
             assertEquals("credit",body.s("requested_payment_method"))
             assertTrue(body.obj("settlement_details").b("terms_accepted"))
+            assertEquals(BuildConfig.ORDER_CREDIT_COMMITMENT_SHA256,body.obj("settlement_details").s("commitment_sha256"))
             assertEquals("serial_1_50",body.arr("items").getJSONObject(0).s("price_key"))
             assertEquals(1,body.arr("items").getJSONObject(0).i("qty"))
             assertEquals(2,body.arr("items").length())

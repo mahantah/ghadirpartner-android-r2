@@ -2,7 +2,7 @@
 
 Requires the separately reviewed server package in `mahantah/ghadirpartner#93` before distribution.
 
-- `POST /api/orders/add`: mandatory `invoice_type`; cash/check/credit methods for all purchase groups; explicit boolean credit consent in `settlement_details`.
+- `POST /api/orders/add`: mandatory `invoice_type`; cash/check/credit methods for all purchase groups; explicit boolean credit consent and matching `commitment_sha256` revision in `settlement_details`.
 - `items` in the request may contain different price options of one model; the server reprices each authorized option and enforces cumulative model stock.
 - Response `purchase_items` contains exact financial rows; `items` stays unique per physical model for warehouse compatibility.
 - `approval_status` and `rejection_reason` carry the company decision, separately from financial approval and fulfillment `status`.

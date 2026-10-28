@@ -117,7 +117,8 @@ internal fun CreditCommitment(value: JSONObject, onChange: (JSONObject) -> Unit)
         DesignNotice("تعهد تسویه\n\n" + BuildConfig.ORDER_CREDIT_COMMITMENT)
         Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Checkbox(value.b("terms_accepted"), { accepted ->
-                onChange(JSONObject(value.toString()).put("terms_accepted", accepted))
+                onChange(JSONObject(value.toString()).put("terms_accepted", accepted)
+                .put("commitment_sha256",if(accepted)BuildConfig.ORDER_CREDIT_COMMITMENT_SHA256 else ""))
             })
             Text("متن تعهد بالا را خواندم و تأیید می‌کنم.", color = Ink, modifier = Modifier.weight(1f))
         }

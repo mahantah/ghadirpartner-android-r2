@@ -57,6 +57,9 @@ internal class OrderCheckoutService(
             checkout.lines.isEmpty() -> "حداقل یک کالا به سفارش اضافه کنید"
             checkout.invoiceType !in listOf("رسمی", "غیررسمی") -> "نوع فاکتور را انتخاب کنید"
             checkout.paymentMethod !in listOf("cash", "check", "credit") -> "روش تسویه را انتخاب کنید"
+            checkout.paymentMethod == "credit" && checkout.settlement.b("terms_accepted") &&
+                checkout.settlement.s("commitment_sha256") != BuildConfig.ORDER_CREDIT_COMMITMENT_SHA256 ->
+                "متن تعهد جاری را دوباره تأیید کنید"
             else -> settlementError(checkout.paymentMethod, checkout.settlement)
         }
 
