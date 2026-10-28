@@ -23,4 +23,4 @@ gradle --no-daemon --console=plain :app:testPortalDebugUnitTest :app:assemblePor
 bash validation/run-emulator-tests.sh
 ```
 
-خروجی CI از نوع debug با شناسهٔ جداگانه است و جایگزین اپ انتشار نمی‌شود. مخزن فعلی ساخت release یا ارجاع به کلید انتشار ندارد؛ کلید خصوصی نباید به این مخزن عمومی اضافه شود. امضای نهایی باید با همان کلید R5.11 در محیط امن ساخت مالک انجام شود.
+خروجی CI از نوع debug با شناسهٔ جداگانه است و جایگزین اپ انتشار نمی‌شود. ارجاع امن به کلید انتشار در `config/release-signing.yaml` اضافه شده است. CI در رویداد push، در صورت موجود بودن secrets با نام‌های `ANDROID_KEYSTORE_BASE64`، `ANDROID_KEYSTORE_PASSWORD`، `ANDROID_KEY_ALIAS` و `ANDROID_KEY_PASSWORD`، هر دو APK/AAB انتشار را می‌سازد. گواهی هر APK باید با بستهٔ R5.11 همان اپ تطبیق داشته باشد؛ در غیر این صورت خروجی انتشار عرضه نمی‌شود. هیچ مقدار کلید یا رمزی در مخزن/گزارش درج نمی‌شود. وجود این secretها هنوز به معنی تأیید ساخت امضاشده نیست؛ نتیجهٔ workflow ملاک است.

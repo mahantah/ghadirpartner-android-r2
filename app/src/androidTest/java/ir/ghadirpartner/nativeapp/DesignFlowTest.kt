@@ -42,7 +42,7 @@ class DesignFlowTest {
         val payload=when(path) {
             "/api/me"->me.toString()
             "/api/orders"->"[$order]"
-            "/api/orders/add"->JSONObject(order.toString()).put("id",1001).put("number","GHP-MOCK-1001").put("status","ثبت شد").toString()
+            "/api/orders/add"->JSONObject(order.toString()).put("id",1001).put("number","GHP-MOCK-1001").put("status","در انتظار تأیید سفارش").put("approval_status","در انتظار تأیید").toString()
             "/api/offers"->"""[{"id":3,"title":"قدیر میکس؛ خرید ترکیبی","description":"پیشنهاد ویژه برای همکاران؛ شرایط و مدل‌های مشمول را ببینید.","discount_type":"percent","discount_value":5,"promo_code":"MOCK5"}]"""
             "/api/catalog"->"""[{"name":"i90","manufacturer":"SZZT","available":true,"stock":4,"serial_required":true,"price_updated_at":"2026-10-04","prices":{"serial_1_50":11400000,"serial_51_200":11600000,"panel_cash":11000000,"panel_7d":11300000,"panel_1m":11900000,"sales_agent":11200000}}]"""
             "/api/addresses"->"""[{"id":"saved-A","title":"دفتر","province":"تهران","city":"تهران","address":"خیابان دفتر"}]"""

@@ -20,6 +20,17 @@ if (!(orderPolicy instanceof Map) || orderPolicy.keySet() != policyKeys ||
     throw new GradleException('Invalid config/order-flow.yaml')
 }
 
+def signingPolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/release-signing.yaml').text)
+def signingFields = ['keystore_file', 'store_password', 'key_alias', 'key_password'] as Set
+if (!(signingPolicy instanceof Map) || signingPolicy.keySet() != signingFields ||
+    !signingPolicy.values().every { it instanceof String && it ==~ /\$\{[A-Z][A-Z0-9_]*\}/ }) {
+    throw new GradleException('Invalid environment references in config/release-signing.yaml')
+}
+def releaseSecrets = signingPolicy.collectEntries { key, reference ->
+    [(key): System.getenv(reference.substring(2, reference.length() - 1))]
+}
+def canSignRelease = releaseSecrets.values().every { it != null && !it.trim().isEmpty() }
+
 android {
     namespace 'ir.ghadirpartner.nativeapp'
     compileSdk 35
@@ -53,6 +64,17 @@ android {
         }
     }
 
+    signingConfigs {
+        if (canSignRelease) {
+            release {
+                storeFile file(releaseSecrets.keystore_file)
+                storePassword releaseSecrets.store_password
+                keyAlias releaseSecrets.key_alias
+                keyPassword releaseSecrets.key_password
+            }
+        }
+    }
+
     buildTypes {
         debug {
             debuggable true
@@ -60,6 +82,7 @@ android {
             versionNameSuffix '-beta'
         }
         release {
+            if (canSignRelease) signingConfig signingConfigs.release
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -155,4 +178,11 @@ def prepareBrandAssetsTask = tasks.register('prepareBrandAssets') {
 }
 tasks.matching { it.name == 'preBuild' || (it.name.startsWith('merge') && it.name.endsWith('Resources')) }.configureEach {
     dependsOn prepareBrandAssetsTask
+}
+
+// An unsigned release must never be mistaken for an installable update.
+tasks.matching { it.name in ['assemblePortalRelease', 'assembleAutomationRelease', 'bundlePortalRelease', 'bundleAutomationRelease'] }.configureEach {
+    doFirst {
+        if (!canSignRelease) throw new GradleException('Release signing environment is incomplete; no installable release may be published')
+    }
 }

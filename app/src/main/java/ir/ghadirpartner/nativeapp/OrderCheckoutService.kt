@@ -16,6 +16,13 @@ internal data class OrderCheckout(
 
 /** Translates checkout data to the existing authenticated orders API. */
 internal class OrderRepository(private val api: ApiClient) {
+    /** Refresh one account-owned order without reusing the short-lived list cache. */
+    suspend fun find(orderId: Int): JSONObject {
+        val orders: JSONArray = api.request("GET", "/api/orders", null) as JSONArray
+        return orders.objects().firstOrNull { it.i("id") == orderId }
+            ?: throw IllegalArgumentException("سفارش در دسترس نیست")
+    }
+
     /** Submit once; retries remain a deliberate customer action after an API failure. */
     suspend fun create(checkout: OrderCheckout): JSONObject {
         val items: JSONArray = JSONArray()
@@ -36,6 +43,9 @@ internal class OrderRepository(private val api: ApiClient) {
 
 /** The checkout facade; final submission repeats all required customer decisions. */
 internal class OrderCheckoutService(private val repository: OrderRepository) {
+    /** Read the latest company/fulfillment result through the same account-scoped repository. */
+    suspend fun find(orderId: Int): JSONObject = repository.find(orderId)
+
     /** Return the first missing required decision without performing network I/O. */
     fun validation(checkout: OrderCheckout): String = when {
         checkout.lines.isEmpty() -> "حداقل یک کالا به سفارش اضافه کنید"

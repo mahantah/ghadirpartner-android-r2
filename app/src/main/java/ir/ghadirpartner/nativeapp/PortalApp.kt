@@ -165,7 +165,7 @@ fun PortalApp(api: ApiClient, me: JSONObject, onLogout: () -> Unit) {
                     }, onOffer={ id -> selectedOffer=id;screen="offers" })
                     "order-detail" -> selectedOrder?.let { order ->
                         PortalOrderDetails(api, order, onBack = { screen = "orders" }, onProforma={proformaOrigin="order-detail";screen="proforma"},me=currentMe,
-                            onSerials={screen="serial-detail"},onSectionChanged={cancelView=it},backRequest=orderBackRequest)
+                            onSerials={screen="serial-detail"},onOrderUpdated={selectedOrder=it},onSectionChanged={cancelView=it},backRequest=orderBackRequest)
                     } ?: PortalOrders(api,onNavigate={screen=it}) { selectedOrder = it; screen = "order-detail" }
                     "serial-detail" -> selectedOrder?.let {order->PortalSerials(api,order,currentMe){screen="order-detail"}}
                     else -> PortalProfile(
@@ -364,7 +364,10 @@ private fun PortalOrders(api:ApiClient,deliveredOnly:Boolean=false,onNavigate:(S
     }
 }
 @Composable
-private fun PortalOrderDetails(api:ApiClient,order:JSONObject,onBack:()->Unit,onProforma:()->Unit,me:JSONObject=JSONObject(),onSerials:()->Unit={},onSectionChanged:(Boolean)->Unit={},backRequest:Int=0) {
+private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->Unit,onProforma:()->Unit,me:JSONObject=JSONObject(),onSerials:()->Unit={},onSectionChanged:(Boolean)->Unit={},backRequest:Int=0,onOrderUpdated:(JSONObject)->Unit={}) {
+    var order by remember(initialOrder.i("id")) {mutableStateOf(initialOrder)}
+    var refreshing by remember {mutableStateOf(false)}
+    val orderService = remember(api) {OrderCheckoutService(OrderRepository(api))}
     val scope=rememberCoroutineScope()
     var cancelView by remember {mutableStateOf(false)}
     var cancelling by remember {mutableStateOf(false)}
@@ -375,6 +378,17 @@ private fun PortalOrderDetails(api:ApiClient,order:JSONObject,onBack:()->Unit,on
     val total=order.l("approved_total").takeIf {it>0}?:order.l("estimated_total")
     val delivered=order.s("status")=="تحویل شد"
     val canCancel=order.s("status") !in listOf("ارسال شد","تحویل شد","لغو شد")
+    fun refreshOrder() {
+        if(refreshing)return
+        scope.launch {
+            refreshing=true
+            try {order=orderService.find(order.i("id"));onOrderUpdated(order);error=""}
+            catch(e:kotlinx.coroutines.CancellationException){throw e}
+            catch(e:Exception){error=e.message?:"به‌روزرسانی وضعیت ناموفق بود"}
+            finally {refreshing=false}
+        }
+    }
+    LaunchedEffect(initialOrder.i("id")){refreshOrder()}
     LaunchedEffect(cancelView){onSectionChanged(cancelView)}
     LaunchedEffect(backRequest){if(backRequest>0)cancelView=false}
     BackHandler(cancelView){if(!cancelling)cancelView=false}
@@ -409,6 +423,7 @@ private fun PortalOrderDetails(api:ApiClient,order:JSONObject,onBack:()->Unit,on
                 DetailLine("مبلغ کل",formatMoney(total)+" تومان")
             }}}
             item {OrderDeliveryTimeline(order.s("status"),order.s("approval_status"))}
+            item {GhadirButton(if(refreshing)"در حال به‌روزرسانی…" else "به‌روزرسانی وضعیت",{refreshOrder()},enabled=!refreshing,secondary=true)}
             if(order.s("rejection_reason").isNotBlank())item {DesignNotice("علت عدم تأیید شرکت\n\n"+order.s("rejection_reason"))}
             item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                 Text("اطلاعات تحویل",color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold)

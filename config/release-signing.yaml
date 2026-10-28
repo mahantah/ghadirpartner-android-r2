@@ -1,0 +1,4 @@
+keystore_file: ${ANDROID_KEYSTORE_FILE}
+store_password: ${ANDROID_KEYSTORE_PASSWORD}
+key_alias: ${ANDROID_KEY_ALIAS}
+key_password: ${ANDROID_KEY_PASSWORD}
