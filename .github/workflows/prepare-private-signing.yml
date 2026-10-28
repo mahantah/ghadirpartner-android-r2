@@ -1,0 +1,93 @@
+name: Prepare R5.12 for Private Signing
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/customer-order-review]
+    paths: ['.github/workflows/prepare-private-signing.yml']
+permissions:
+  contents: read
+jobs:
+  release-inputs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Install Android platform
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Build and lint release code without the private key
+        run: |
+          gradle --no-daemon --console=plain :app:prepareForPrivateSigning :app:lintPortalRelease :app:lintAutomationRelease
+      - name: Prepare unsigned inputs and published certificate references
+        run: |
+          set -euo pipefail
+          mkdir -p release-inputs/unsigned release-inputs/tools release-inputs/baseline release-inputs/metadata
+          cp app/build/outputs/apk/portal/release/*-unsigned.apk release-inputs/unsigned/portal-unsigned.apk
+          cp app/build/outputs/apk/automation/release/*-unsigned.apk release-inputs/unsigned/automation-unsigned.apk
+          cp app/build/outputs/bundle/portalRelease/*.aab release-inputs/unsigned/portal-unsigned.aab
+          cp app/build/outputs/bundle/automationRelease/*.aab release-inputs/unsigned/automation-unsigned.aab
+          cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" release-inputs/tools/
+          if [[ -f "$ANDROID_HOME/build-tools/35.0.0/NOTICE.txt" ]]; then cp "$ANDROID_HOME/build-tools/35.0.0/NOTICE.txt" release-inputs/tools/; fi
+          for flavor in portal automation; do
+            if [[ "$flavor" == portal ]]; then
+              previous=GhadirPartner-5.4.3.3-r5.11-portal-release.apk
+              package=ir.ghadirpartner.portalapp
+            else
+              previous=GhadirAutomation-5.4.3.3-r5.11-release.apk
+              package=ir.ghadirpartner.automationapp
+            fi
+            curl -fsSL --retry 2 "https://raw.githubusercontent.com/mahantah/curser/d751ed866014c3b300c673a41751637826e53efb/download/android/5.4.3.3-r5.11/$previous" -o "release-inputs/baseline/$flavor-r5.11.apk"
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "release-inputs/baseline/$flavor-r5.11.apk" > "release-inputs/metadata/$flavor-baseline-certificate.txt"
+            "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "release-inputs/baseline/$flavor-r5.11.apk" > "release-inputs/metadata/$flavor-baseline-package.txt"
+            "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "release-inputs/unsigned/$flavor-unsigned.apk" > "release-inputs/metadata/$flavor-new-package.txt"
+            grep -Fq "package: name='$package' versionCode='543062'" "release-inputs/metadata/$flavor-new-package.txt"
+            if grep -q '^application-debuggable' "release-inputs/metadata/$flavor-new-package.txt"; then exit 1; fi
+          done
+          sha256sum release-inputs/unsigned/* > release-inputs/metadata/UNSIGNED_SHA256SUMS.txt
+      - name: Create temporary smoke-test signatures only
+        run: |
+          set -euo pipefail
+          keytool -genkeypair -keystore "$RUNNER_TEMP/smoke.jks" -storepass android -keypass android -alias smoke -dname 'CN=CI Smoke Test' -keyalg RSA -keysize 2048 -validity 2
+          for flavor in portal automation; do
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign --ks "$RUNNER_TEMP/smoke.jks" --ks-pass pass:android --key-pass pass:android --out "$RUNNER_TEMP/$flavor-smoke.apk" "release-inputs/unsigned/$flavor-unsigned.apk"
+          done
+      - name: Enable emulator acceleration
+        run: sudo chmod a+rw /dev/kvm
+      - name: Verify minified release startup and resume for both modes
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            for flavor in portal automation; do
+              if [[ "$flavor" == portal ]]; then package=ir.ghadirpartner.portalapp; else package=ir.ghadirpartner.automationapp; fi
+              adb install -r "$RUNNER_TEMP/$flavor-smoke.apk"
+              adb logcat -c
+              adb shell am start -W -n "$package/ir.ghadirpartner.nativeapp.MainActivity"
+              sleep 15
+              adb shell pidof "$package"
+              adb shell input keyevent KEYCODE_HOME
+              adb shell am start -W -n "$package/ir.ghadirpartner.nativeapp.MainActivity"
+              sleep 5
+              adb shell pidof "$package"
+              adb logcat -d -b crash > "release-inputs/metadata/$flavor-smoke-crash.txt"
+              test ! -s "release-inputs/metadata/$flavor-smoke-crash.txt"
+            done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: R5.12-Unsigned-Inputs-For-Private-Signing
+          path: release-inputs/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Remove temporary smoke-test key and APKs
+        if: always()
+        run: rm -f "$RUNNER_TEMP/smoke.jks" "$RUNNER_TEMP/portal-smoke.apk" "$RUNNER_TEMP/automation-smoke.apk"

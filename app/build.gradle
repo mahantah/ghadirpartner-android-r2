@@ -181,9 +181,17 @@ tasks.matching { it.name == 'preBuild' || (it.name.startsWith('merge') && it.nam
     dependsOn prepareBrandAssetsTask
 }
 
+// This explicit task prepares unsigned inputs for signing with the owner's offline key.
+def preparingPrivateSigning = gradle.startParameter.taskNames.any {
+    it == ':app:prepareForPrivateSigning' || it == 'prepareForPrivateSigning'
+}
+tasks.register('prepareForPrivateSigning') {
+    dependsOn 'assemblePortalRelease', 'bundlePortalRelease', 'assembleAutomationRelease', 'bundleAutomationRelease'
+}
+
 // An unsigned release must never be mistaken for an installable update.
 tasks.matching { it.name in ['assemblePortalRelease', 'assembleAutomationRelease', 'bundlePortalRelease', 'bundleAutomationRelease'] }.configureEach {
     doFirst {
-        if (!canSignRelease) throw new GradleException('Release signing environment is incomplete; no installable release may be published')
+        if (!canSignRelease && !preparingPrivateSigning) throw new GradleException('Release signing environment is incomplete; no installable release may be published')
     }
 }
