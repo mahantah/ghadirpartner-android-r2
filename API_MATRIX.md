@@ -1,3 +1,16 @@
+# Proposed R5.12 order protocol
+
+Requires the separately reviewed server package in `mahantah/ghadirpartner#93` before distribution.
+
+- `POST /api/orders/add`: mandatory `invoice_type`; cash/check/credit methods for all purchase groups; explicit boolean credit consent and matching `commitment_sha256` revision in `settlement_details`.
+- `items` in the request may contain different price options of one model; the server reprices each authorized option and enforces cumulative model stock.
+- Response `purchase_items` contains exact financial rows; `items` stays unique per physical model for warehouse compatibility.
+- `approval_status` and `rejection_reason` carry the company decision, separately from financial approval and fulfillment `status`.
+- Automation admin/sales: `POST /api/customer-order/approve` and `POST /api/customer-order/reject` (mandatory reason); the server enforces roles and pending status.
+- Customer details explicitly refresh the account-owned order list to display the latest company decision.
+
+The historical matrix below describes the selected source baseline, not a claim that the new server package is deployed.
+
 # API Matrix Android R5.6
 
 Portal base: `https://ghadirpartner.ir/partners`.

@@ -1,8 +1,35 @@
+buildscript {
+    repositories { mavenCentral() }
+    dependencies { classpath 'org.yaml:snakeyaml:2.3' }
+}
+
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.compose'
 }
+
+def orderPolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/order-flow.yaml').text)
+def policyKeys = ['version_name', 'version_code', 'maximum_quantity', 'serial_tier_threshold', 'credit_commitment'] as Set
+if (!(orderPolicy instanceof Map) || orderPolicy.keySet() != policyKeys ||
+    !(orderPolicy.version_name instanceof String) || !(orderPolicy.version_name ==~ /[0-9.]+-r[0-9.]+/) ||
+    !(orderPolicy.version_code instanceof Integer) || orderPolicy.version_code <= 543061 ||
+    !(orderPolicy.maximum_quantity instanceof Integer) || !(orderPolicy.maximum_quantity in 1..999) ||
+    !(orderPolicy.serial_tier_threshold instanceof Integer) || !(orderPolicy.serial_tier_threshold in 1..orderPolicy.maximum_quantity) ||
+    !(orderPolicy.credit_commitment instanceof String) || orderPolicy.credit_commitment.trim().isEmpty()) {
+    throw new GradleException('Invalid config/order-flow.yaml')
+}
+
+def signingPolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/release-signing.yaml').text)
+def signingFields = ['keystore_file', 'store_password', 'key_alias', 'key_password'] as Set
+if (!(signingPolicy instanceof Map) || signingPolicy.keySet() != signingFields ||
+    !signingPolicy.values().every { it instanceof String && it ==~ /\$\{[A-Z][A-Z0-9_]*\}/ }) {
+    throw new GradleException('Invalid environment references in config/release-signing.yaml')
+}
+def releaseSecrets = signingPolicy.collectEntries { key, reference ->
+    [(key): System.getenv(reference.substring(2, reference.length() - 1))]
+}
+def canSignRelease = releaseSecrets.values().every { it != null && !it.trim().isEmpty() }
 
 android {
     namespace 'ir.ghadirpartner.nativeapp'
@@ -11,9 +38,13 @@ android {
     defaultConfig {
         minSdk 24
         targetSdk 35
-        versionCode 543056
-        versionName '5.4.3.3-r5.6'
+        versionCode orderPolicy.version_code
+        versionName orderPolicy.version_name
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        buildConfigField 'int', 'ORDER_MAXIMUM_QUANTITY', orderPolicy.maximum_quantity.toString()
+        buildConfigField 'int', 'ORDER_SERIAL_TIER_THRESHOLD', orderPolicy.serial_tier_threshold.toString()
+        buildConfigField 'String', 'ORDER_CREDIT_COMMITMENT', groovy.json.JsonOutput.toJson(orderPolicy.credit_commitment)
+        buildConfigField 'String', 'ORDER_CREDIT_COMMITMENT_SHA256', groovy.json.JsonOutput.toJson(java.security.MessageDigest.getInstance('SHA-256').digest(orderPolicy.credit_commitment.getBytes('UTF-8')).encodeHex().toString())
     }
 
     flavorDimensions 'mode'
@@ -34,6 +65,17 @@ android {
         }
     }
 
+    signingConfigs {
+        if (canSignRelease) {
+            release {
+                storeFile file(releaseSecrets.keystore_file)
+                storePassword releaseSecrets.store_password
+                keyAlias releaseSecrets.key_alias
+                keyPassword releaseSecrets.key_password
+            }
+        }
+    }
+
     buildTypes {
         debug {
             debuggable true
@@ -41,6 +83,7 @@ android {
             versionNameSuffix '-beta'
         }
         release {
+            if (canSignRelease) signingConfig signingConfigs.release
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -68,6 +111,7 @@ android {
 }
 
 dependencies {
+    testImplementation 'junit:junit:4.13.2'
     implementation 'com.caverock:androidsvg-aar:1.4'
     androidTestImplementation 'androidx.compose.ui:ui-test-junit4:1.7.8'
     debugImplementation 'androidx.compose.ui:ui-test-manifest:1.7.8'
@@ -135,4 +179,19 @@ def prepareBrandAssetsTask = tasks.register('prepareBrandAssets') {
 }
 tasks.matching { it.name == 'preBuild' || (it.name.startsWith('merge') && it.name.endsWith('Resources')) }.configureEach {
     dependsOn prepareBrandAssetsTask
+}
+
+// This explicit task prepares unsigned inputs for signing with the owner's offline key.
+def preparingPrivateSigning = gradle.startParameter.taskNames.any {
+    it == ':app:prepareForPrivateSigning' || it == 'prepareForPrivateSigning'
+}
+tasks.register('prepareForPrivateSigning') {
+    dependsOn 'assemblePortalRelease', 'bundlePortalRelease', 'assembleAutomationRelease', 'bundleAutomationRelease'
+}
+
+// An unsigned release must never be mistaken for an installable update.
+tasks.matching { it.name in ['assemblePortalRelease', 'assembleAutomationRelease', 'bundlePortalRelease', 'bundleAutomationRelease'] }.configureEach {
+    doFirst {
+        if (!canSignRelease && !preparingPrivateSigning) throw new GradleException('Release signing environment is incomplete; no installable release may be published')
+    }
 }

@@ -42,7 +42,7 @@ class DesignFlowTest {
         val payload=when(path) {
             "/api/me"->me.toString()
             "/api/orders"->"[$order]"
-            "/api/orders/add"->JSONObject(order.toString()).put("id",1001).put("number","GHP-MOCK-1001").put("status","ثبت شد").toString()
+            "/api/orders/add"->JSONObject(order.toString()).put("id",1001).put("number","GHP-MOCK-1001").put("status","در انتظار تأیید سفارش").put("approval_status","در انتظار تأیید").toString()
             "/api/offers"->"""[{"id":3,"title":"قدیر میکس؛ خرید ترکیبی","description":"پیشنهاد ویژه برای همکاران؛ شرایط و مدل‌های مشمول را ببینید.","discount_type":"percent","discount_value":5,"promo_code":"MOCK5"}]"""
             "/api/catalog"->"""[{"name":"i90","manufacturer":"SZZT","available":true,"stock":4,"serial_required":true,"price_updated_at":"2026-10-04","prices":{"serial_1_50":11400000,"serial_51_200":11600000,"panel_cash":11000000,"panel_7d":11300000,"panel_1m":11900000,"sales_agent":11200000}}]"""
             "/api/addresses"->"""[{"id":"saved-A","title":"دفتر","province":"تهران","city":"تهران","address":"خیابان دفتر"}]"""
@@ -106,9 +106,16 @@ class DesignFlowTest {
             compose.onNodeWithContentDescription("مدل دستگاه").performClick()
             compose.onNodeWithText("i90 • SZZT").performClick()
             compose.onNodeWithText("افزودن کالا").performScrollTo().performClick()
+            showText("ثبت در پنل");compose.onNodeWithText("ثبت در پنل").performClick()
+            showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").performClick()
             showField("نشانی تحویل");compose.onNodeWithContentDescription("نشانی تحویل").performClick()
             compose.onNodeWithText("دفتر • خیابان دفتر").performClick()
             shot("design-checkout-cart.png")
+            showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
+            waitText("نوع فاکتور را انتخاب کنید")
+            assertTrue(writes.isEmpty())
+            showField("نوع فاکتور • الزامی");compose.onNodeWithContentDescription("نوع فاکتور • الزامی").performClick()
+            compose.onNodeWithText("رسمی").performClick()
             showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
             shot("design-checkout-cash.png")
             compose.onNodeWithText("چک").performClick()
@@ -126,6 +133,9 @@ class DesignFlowTest {
             showText("اعتباری");compose.onNodeWithText("اعتباری").performClick()
             showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
             waitText("اعتبار حساب شما")
+            showText("پذیرش و ادامه");compose.onNodeWithText("پذیرش و ادامه").performClick()
+            waitText("شرایط درخواست اعتبار را بپذیرید")
+            assertTrue(writes.isEmpty())
             compose.onNode(isToggleable()).performScrollTo().performClick()
             shot("design-checkout-credit.png")
             showText("پذیرش و ادامه");compose.onNodeWithText("پذیرش و ادامه").performClick()
@@ -134,10 +144,15 @@ class DesignFlowTest {
             waitText("سفارش با موفقیت ثبت شد");shot("design-checkout-success.png")
             val body=writes.single {it.first=="/api/orders/add"}.second
             assertEquals("saved-A",body.s("address_id"))
+            assertEquals("رسمی",body.s("invoice_type"))
             assertEquals("credit",body.s("requested_payment_method"))
             assertTrue(body.obj("settlement_details").b("terms_accepted"))
+            assertEquals(BuildConfig.ORDER_CREDIT_COMMITMENT_SHA256,body.obj("settlement_details").s("commitment_sha256"))
             assertEquals("serial_1_50",body.arr("items").getJSONObject(0).s("price_key"))
             assertEquals(1,body.arr("items").getJSONObject(0).i("qty"))
+            assertEquals(2,body.arr("items").length())
+            assertEquals("panel_cash",body.arr("items").getJSONObject(1).s("price_key"))
+            assertEquals("i90",body.arr("items").getJSONObject(1).s("product"))
             compose.onAllNodesWithText("سفارش‌ها").onLast().performClick()
             waitText("جزئیات سفارش");shot("design-orders.png")
             compose.onNodeWithText("جزئیات سفارش").performScrollTo().performClick()

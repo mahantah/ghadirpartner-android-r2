@@ -39,7 +39,7 @@ internal object OfficialInvoice {
         val multiplier=if(order.optString("currency").equals("IRR",true))1L else 10L
         fun money(n: Long)=faDigits(NumberFormat.getIntegerInstance(Locale.US).format(Math.multiplyExact(n,multiplier)))
         fun optionalMoney(o:JSONObject,k:String)=if(o.has(k)&&!o.isNull(k))money(o.optLong(k)) else "—"
-        val items=order.optJSONArray("items")
+        val items=order.optJSONArray("purchase_items")?.takeIf { it.length()>0 } ?: order.optJSONArray("items")
         val rows=(0 until (items?.length()?:0)).map {i ->
             val it=items!!.getJSONObject(i);val qty=it.optLong("qty");val unit=it.optLong("unit_price")
             val total=if(it.has("line_total"))it.optLong("line_total") else Math.multiplyExact(qty,unit)
