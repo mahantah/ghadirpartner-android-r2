@@ -34,7 +34,7 @@ class CompanyOrderReviewTest {
     private val changed: AtomicInteger = AtomicInteger()
     private val order: JSONObject =
         JSONObject(
-            """{"id":91,"number":"FIXTURE-91","customer_name":"مشتری آزمایشی","status":"در انتظار تأیید سفارش","approval_status":"در انتظار تأیید","items":[]}""",
+            """{"id":91,"number":"FIXTURE-91","customer_name":"مشتری آزمایشی","status":"در انتظار تأیید سفارش","approval_status":"در انتظار تأیید","invoice_type":"رسمی","requested_payment_method_label":"اعتباری","estimated_total":553,"items":[{"product":"I90","qty":5,"serials":[]}],"purchase_items":[{"product":"I90","qty":2,"price_label":"ثبت در پنل","unit_price":101},{"product":"I90","qty":3,"price_label":"سریال آزاد","unit_price":117}]}""",
         )
 
     private fun client(): OkHttpClient =
@@ -98,6 +98,14 @@ class CompanyOrderReviewTest {
             compose.onNodeWithText("تأیید سفارش").performScrollTo().performClick()
             compose.waitUntil(15000) { changed.get() == 2 }
             assertEquals("/api/customer-order/approve", writes.last().first)
+            assertEquals(2, writes.size)
+        }
+        order.put("approval_status", "تأیید شده").put("status", "ثبت شده")
+        order.arr("items").getJSONObject(0).put("serials", org.json.JSONArray().put("FIXTURE-A").put("FIXTURE-B"))
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            showDialog(scenario, "finance")
+            compose.waitUntil(15000) { compose.onAllNodesWithText("تأیید شده توسط شرکت").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("۵ عدد • سریال ثبت‌شده: ۲").performScrollTo().assertExists()
             assertEquals(2, writes.size)
         }
     }

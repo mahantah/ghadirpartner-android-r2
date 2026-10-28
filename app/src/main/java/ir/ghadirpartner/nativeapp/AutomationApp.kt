@@ -267,6 +267,9 @@ internal fun AutomationOrderDialog(api: ApiClient, order: JSONObject, me: JSONOb
             LazyColumn(modifier = Modifier.heightIn(max = 560.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { ErrorBanner(error) { error = "" } }
                 item { DetailLine("بررسی شرکت", review.label) }
+                if (order.s("invoice_type").isNotBlank())item { DetailLine("نوع فاکتور", order.s("invoice_type")) }
+                if (order.s("requested_payment_method_label").isNotBlank())item { DetailLine("روش درخواستی تسویه", order.s("requested_payment_method_label")) }
+                if (order.has("estimated_total"))item { DetailLine("مبلغ درخواست", formatMoney(order.l("estimated_total")) + " تومان") }
                 if (!review.approved && !review.stopped && canReview) {
                     item { DesignField("علت عدم تأیید", rejectionReason, { rejectionReason = it }, singleLine = false, enabled = !saving) }
                     item { GhadirButton("تأیید سفارش", { decide(true) }, enabled = !saving) }
@@ -287,11 +290,14 @@ internal fun AutomationOrderDialog(api: ApiClient, order: JSONObject, me: JSONOb
                     }
                 }
                 }
-                items(order.arr("purchase_items").objects().ifEmpty {order.arr("items").objects()}) { item ->
+                items(order.arr("items").objects()) { item ->
                     Surface(shape = RoundedCornerShape(15.dp), color = Canvas) {
                         Column(Modifier.fillMaxWidth().padding(11.dp), horizontalAlignment = Alignment.End) {
                             Text(shortProductName(item.s("product")), color = NavyDeep, fontWeight = FontWeight.Bold)
                             Text("${faNumber(item.i("qty"))} عدد • سریال ثبت‌شده: ${faNumber(item.arr("serials").length())}", color = Muted, fontSize = 10.sp)
+                            order.arr("purchase_items").objects().filter { it.s("product") == item.s("product") }.forEach { purchase ->
+                                DetailLine(purchase.s("price_label"), faNumber(purchase.i("qty")) + " × " + formatMoney(purchase.l("unit_price")) + " تومان")
+                            }
                         }
                     }
                 }
