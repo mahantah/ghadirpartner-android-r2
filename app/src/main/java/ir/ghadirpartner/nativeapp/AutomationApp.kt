@@ -230,8 +230,9 @@ private fun FilterChipMenu(title: String, value: String, options: List<String>, 
     }
 }
 
+/** Review a pending customer order separately from finance and warehouse status changes. */
 @Composable
-private fun AutomationOrderDialog(api: ApiClient, order: JSONObject, me: JSONObject, onDismiss: () -> Unit, onChanged: () -> Unit) {
+internal fun AutomationOrderDialog(api: ApiClient, order: JSONObject, me: JSONObject, onDismiss: () -> Unit, onChanged: () -> Unit) {
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf(order.s("status")) }
     var payment by remember { mutableStateOf(order.s("payment_status")) }
