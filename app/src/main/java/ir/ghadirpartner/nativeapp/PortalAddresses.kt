@@ -11,7 +11,6 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 
-internal val priceTypes = listOf("serial_1_50" to "سریال آزاد ۱ تا ۵۰","serial_51_200" to "سریال آزاد ۵۱ تا ۲۰۰","sales_agent" to "عامل فروش","panel_cash" to "پنل — نقد","panel_7d" to "پنل — هفت‌روزه","panel_1m" to "پنل — یک‌ماهه")
 
 @Composable
 internal fun AddressSelector(api: ApiClient,selected: String,onSelected: (String)->Unit) {
