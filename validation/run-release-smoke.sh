@@ -2,7 +2,10 @@
 # Exercise minified release code with disposable signatures; the owner's key never enters CI.
 set -euo pipefail
 for seconds in "$RELEASE_SMOKE_STARTUP_SECONDS" "$RELEASE_SMOKE_RESUME_SECONDS"; do
-  [[ "$seconds" =~ ^[1-9][0-9]*$ ]] && (( seconds <= 60 ))
+  if [[ ! "$seconds" =~ ^[1-9][0-9]*$ ]] || (( seconds > 60 )); then
+    echo "Invalid release smoke timing configuration" >&2
+    exit 1
+  fi
 done
 for flavor in portal automation; do
   if [[ "$flavor" == portal ]]; then package=ir.ghadirpartner.portalapp; else package=ir.ghadirpartner.automationapp; fi
