@@ -45,7 +45,7 @@ fun AutomationApp(api: ApiClient, me: JSONObject, onLogout: () -> Unit) {
             Crossfade(screen, label = "automation-nav") { target ->
                 when (target) {
                     "home" -> AutomationDashboard(api, me, navigate = { screen = it }, onLogout = onLogout)
-                    "orders" -> AutomationOrders(api)
+                    "orders" -> AutomationOrders(api,me)
                     "customers" -> AutomationCustomers(api)
                     "warehouse" -> AutomationWarehouse(api)
                     else -> AutomationReports(api)
@@ -162,7 +162,7 @@ private fun MiniAdminAction(title: String, icon: androidx.compose.ui.graphics.ve
 }
 
 @Composable
-private fun AutomationOrders(api: ApiClient) {
+private fun AutomationOrders(api: ApiClient, me: JSONObject) {
     val scope = rememberCoroutineScope()
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
@@ -213,7 +213,7 @@ private fun AutomationOrders(api: ApiClient) {
         }
     }
     selected?.let { order ->
-        AutomationOrderDialog(api, order, onDismiss = { selected = null }, onChanged = { selected = null; refresh() })
+        AutomationOrderDialog(api, order, me, onDismiss = { selected = null }, onChanged = { selected = null; refresh() })
     }
 }
 
@@ -231,7 +231,7 @@ private fun FilterChipMenu(title: String, value: String, options: List<String>, 
 }
 
 @Composable
-private fun AutomationOrderDialog(api: ApiClient, order: JSONObject, onDismiss: () -> Unit, onChanged: () -> Unit) {
+private fun AutomationOrderDialog(api: ApiClient, order: JSONObject, me: JSONObject, onDismiss: () -> Unit, onChanged: () -> Unit) {
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf(order.s("status")) }
     var payment by remember { mutableStateOf(order.s("payment_status")) }
@@ -239,6 +239,22 @@ private fun AutomationOrderDialog(api: ApiClient, order: JSONObject, onDismiss: 
     var tracking by remember { mutableStateOf(order.s("tracking_code")) }
     var error by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
+    var rejectionReason by remember { mutableStateOf("") }
+    val review = CompanyReview.from(order.s("approval_status"), order.s("status"))
+    val canReview = me.arr("roles").let { roles -> (0 until roles.length()).any { roles.optString(it) in listOf("admin", "sales") } }
+    val reviewService = remember(api) { CompanyOrderReviewService(CompanyOrderReviewRepository(api)) }
+    fun decide(approved: Boolean) {
+        if (saving) return
+        scope.launch {
+            saving = true; error = ""
+            try {
+                reviewService.decide(CompanyOrderDecision(order.i("id"), approved, rejectionReason))
+                onChanged()
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) { error = e.message ?: "ثبت تصمیم شرکت ناموفق بود" }
+            finally { saving = false }
+        }
+    }
     val statusOptions = listOf("ثبت شده", "در حال آماده سازی", "آماده ارسال", "ارسال شد", "تحویل شد")
     val payOptions = listOf("پرداخت نشده", "در انتظار تأیید", "بیعانه", "تسویه کامل", "اعتباری", "چک", "اقساطی")
 
@@ -249,6 +265,14 @@ private fun AutomationOrderDialog(api: ApiClient, order: JSONObject, onDismiss: 
         text = {
             LazyColumn(modifier = Modifier.heightIn(max = 560.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { ErrorBanner(error) { error = "" } }
+                item { DetailLine("بررسی شرکت", review.label) }
+                if (!review.approved && !review.stopped && canReview) {
+                    item { DesignField("علت عدم تأیید", rejectionReason, { rejectionReason = it }, singleLine = false, enabled = !saving) }
+                    item { GhadirButton("تأیید سفارش", { decide(true) }, enabled = !saving) }
+                    item { GhadirButton("عدم تأیید سفارش", { decide(false) }, enabled = !saving && rejectionReason.isNotBlank(), secondary = true) }
+                }
+                if (order.s("rejection_reason").isNotBlank())item { DesignNotice("علت عدم تأیید: " + order.s("rejection_reason")) }
+                if (review.approved) {
                 item { SimpleDropdown("وضعیت سفارش", status, statusOptions) { status = it } }
                 item { SimpleDropdown("وضعیت تسویه", payment, payOptions) { payment = it } }
                 if (status == "ارسال شد") {
@@ -261,7 +285,8 @@ private fun AutomationOrderDialog(api: ApiClient, order: JSONObject, onDismiss: 
                         )
                     }
                 }
-                items(order.arr("items").objects()) { item ->
+                }
+                items(order.arr("purchase_items").objects().ifEmpty {order.arr("items").objects()}) { item ->
                     Surface(shape = RoundedCornerShape(15.dp), color = Canvas) {
                         Column(Modifier.fillMaxWidth().padding(11.dp), horizontalAlignment = Alignment.End) {
                             Text(shortProductName(item.s("product")), color = NavyDeep, fontWeight = FontWeight.Bold)
@@ -269,7 +294,7 @@ private fun AutomationOrderDialog(api: ApiClient, order: JSONObject, onDismiss: 
                         }
                     }
                 }
-                item {
+                if (review.approved)item {
                     GhadirButton(if (saving) "در حال ذخیره..." else "ذخیره تغییرات", enabled = !saving, onClick = {
                         scope.launch {
                             saving = true; error = ""

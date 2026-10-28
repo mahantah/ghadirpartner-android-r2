@@ -1,7 +1,7 @@
-name: Build Ghadir Partner Android R5.6
+name: Build Ghadir Partner Android R5.12
 on:
   push:
-    branches: [main, codex/compact-r5, codex/integrate-r54, codex/figma-100-573, codex/r56-login-security]
+    branches: [main, codex/compact-r5, codex/integrate-r54, codex/figma-100-573, codex/r56-login-security, feature/customer-order-review]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -30,7 +30,7 @@ jobs:
           path: ~/.android/debug.keystore
           key: ghadir-portal-r4-debug-signing-v1
       - name: Build and lint portal and automation apps
-        run: gradle --no-daemon --console=plain :app:assemblePortalDebug :app:assemblePortalDebugAndroidTest :app:lintPortalDebug :app:assembleAutomationDebug :app:lintAutomationDebug
+        run: gradle --no-daemon --console=plain :app:testPortalDebugUnitTest :app:assemblePortalDebug :app:assemblePortalDebugAndroidTest :app:lintPortalDebug :app:assembleAutomationDebug :app:lintAutomationDebug
       - name: Enable emulator acceleration
         run: |
           sudo chmod a+rw /dev/kvm
@@ -43,8 +43,13 @@ jobs:
           script: bash validation/run-emulator-tests.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: GhadirPartner-5.4.3.3-R5.6-Debug-APK
+          name: GhadirPartner-5.4.3.3-R5.12-Debug-APK
           path: app/build/outputs/apk/portal/debug/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GhadirAutomation-5.4.3.3-R5.12-Debug-APK
+          path: app/build/outputs/apk/automation/debug/*.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()

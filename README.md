@@ -1,3 +1,7 @@
+# Ghadir Partner Android R5.12 — proposed order update
+
+راهنمای تغییر سفارش و وابستگی سرور: [README_R512_FA.md](README_R512_FA.md).
+
 # Ghadir Partner Android R5.6
 
 راهنمای جاری: [README_R56_FA.md](README_R56_FA.md)
