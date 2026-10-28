@@ -3,13 +3,16 @@ on:
   workflow_dispatch:
   push:
     branches: [feature/customer-order-review]
-    paths: ['.github/workflows/prepare-private-signing.yml']
+    paths: ['.github/workflows/prepare-private-signing.yml', 'validation/run-release-smoke.sh']
 permissions:
   contents: read
 jobs:
   release-inputs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      RELEASE_SMOKE_STARTUP_SECONDS: '15'
+      RELEASE_SMOKE_RESUME_SECONDS: '5'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -66,22 +69,7 @@ jobs:
           api-level: 29
           arch: x86_64
           disable-animations: true
-          script: |
-            set -euo pipefail
-            for flavor in portal automation; do
-              if [[ "$flavor" == portal ]]; then package=ir.ghadirpartner.portalapp; else package=ir.ghadirpartner.automationapp; fi
-              adb install -r "$RUNNER_TEMP/$flavor-smoke.apk"
-              adb logcat -c
-              adb shell am start -W -n "$package/ir.ghadirpartner.nativeapp.MainActivity"
-              sleep 15
-              adb shell pidof "$package"
-              adb shell input keyevent KEYCODE_HOME
-              adb shell am start -W -n "$package/ir.ghadirpartner.nativeapp.MainActivity"
-              sleep 5
-              adb shell pidof "$package"
-              adb logcat -d -b crash > "release-inputs/metadata/$flavor-smoke-crash.txt"
-              test ! -s "release-inputs/metadata/$flavor-smoke-crash.txt"
-            done
+          script: bash validation/run-release-smoke.sh
       - uses: actions/upload-artifact@v4
         with:
           name: R5.12-Unsigned-Inputs-For-Private-Signing
