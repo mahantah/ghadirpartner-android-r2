@@ -19,6 +19,7 @@ import okhttp3.Protocol
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -64,7 +65,7 @@ class CompanyOrderReviewTest {
     ): Unit =
         scenario
             .onActivity { activity ->
-                val me = JSONObject().put("roles", org.json.JSONArray().put(role))
+                val me = JSONObject().put("roles", JSONArray().put(role))
                 activity.setContent {
                     GhadirTheme {
                         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
@@ -101,7 +102,7 @@ class CompanyOrderReviewTest {
             assertEquals(2, writes.size)
         }
         order.put("approval_status", "تأیید شده").put("status", "ثبت شده")
-        order.arr("items").getJSONObject(0).put("serials", org.json.JSONArray().put("FIXTURE-A").put("FIXTURE-B"))
+        order.arr("items").getJSONObject(0).put("serials", JSONArray().put("FIXTURE-A").put("FIXTURE-B"))
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             showDialog(scenario, "finance")
             compose.waitUntil(15000) { compose.onAllNodesWithText("تأیید شده توسط شرکت").fetchSemanticsNodes().isNotEmpty() }
