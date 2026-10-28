@@ -20,6 +20,16 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Check formatting of the new typed order components
+        run: |
+          curl -fsSL --retry 2 https://github.com/pinterest/ktlint/releases/download/1.5.0/ktlint -o "$RUNNER_TEMP/ktlint"
+          echo 'a16be01dcc480aab2f55f444b620142152f66e31564b3b9376506d624c28a2ad  '"$RUNNER_TEMP/ktlint" | sha256sum -c -
+          java -jar "$RUNNER_TEMP/ktlint" \
+            app/src/main/java/ir/ghadirpartner/nativeapp/OrderCartService.kt \
+            app/src/main/java/ir/ghadirpartner/nativeapp/OrderCheckoutService.kt \
+            app/src/main/java/ir/ghadirpartner/nativeapp/CompanyOrderReviewService.kt \
+            app/src/test/java/ir/ghadirpartner/nativeapp/OrderCartServiceTest.kt \
+            app/src/androidTest/java/ir/ghadirpartner/nativeapp/CompanyOrderReviewTest.kt
       - name: Install Android platform
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"

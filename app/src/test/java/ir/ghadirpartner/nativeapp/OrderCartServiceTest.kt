@@ -7,10 +7,12 @@ import org.junit.Test
 /** Tests real cart transitions instead of live orders or financial writes. */
 class OrderCartServiceTest {
     private val service: OrderCartService = OrderCartService(OrderPolicy(999, 50))
-    private val product: OrderCatalogEntry = OrderCatalogEntry(
-        "I90", 100,
-        mapOf("panel_cash" to 100L, "panel_7d" to 110L, "serial_1_50" to 120L, "serial_51_200" to 115L),
-    )
+    private val product: OrderCatalogEntry =
+        OrderCatalogEntry(
+            "I90",
+            100,
+            mapOf("panel_cash" to 100L, "panel_7d" to 110L, "serial_1_50" to 120L, "serial_51_200" to 115L),
+        )
 
     /** Panel and free-serial quantities share stock but keep independent financial rows. */
     @Test fun combinesTwoOptionsOfOneModel() {

@@ -16,7 +16,7 @@
 
 تنظیمات نسخه، سقف تعداد، مرز تعرفه و متن تعهد: `config/order-flow.yaml`؛ Gradle ساختار و محدوده‌ها را اعتبارسنجی می‌کند.
 
-بررسی پروژه:
+بررسی پروژه (CI قالب‌بندی پنج فایل جدید Kotlin را نیز با ktlint نسخهٔ ثابت و checksum ثابت کنترل می‌کند):
 
 ```sh
 gradle --no-daemon --console=plain :app:testPortalDebugUnitTest :app:assemblePortalDebug :app:assemblePortalDebugAndroidTest :app:lintPortalDebug :app:assembleAutomationDebug :app:lintAutomationDebug
