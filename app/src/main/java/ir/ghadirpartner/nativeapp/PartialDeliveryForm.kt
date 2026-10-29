@@ -3,7 +3,10 @@ package ir.ghadirpartner.nativeapp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -113,7 +116,16 @@ internal fun PartialDeliveryForm(
         AlertDialog(
             onDismissRequest = { if (!saving) confirming = false },
             title = { Text("ثبت خروج ${faNumber(total)} دستگاه؟") },
-            text = { Text("برای همین تعداد خروج انبار ثبت می‌شود و باقی بار باز می‌ماند. تسویهٔ مشتری تغییری نمی‌کند.") },
+            text = {
+                LazyColumn(Modifier.heightIn(max = 400.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item { Text("فقط سریال‌های زیر خارج می‌شوند و باقی بار باز می‌ماند. تسویهٔ مشتری تغییری نمی‌کند.") }
+                    items(selected, key = { it.product }) { selectedLine ->
+                        val serials = lines.first { it.product == selectedLine.product }.readySerials.take(selectedLine.quantity)
+                        Text(selectedLine.product + " • " + faNumber(selectedLine.quantity) + " دستگاه")
+                        Text(serials.joinToString("، "))
+                    }
+                }
+            },
             confirmButton = {
                 TextButton(enabled = !saving, onClick = {
                     scope.launch {

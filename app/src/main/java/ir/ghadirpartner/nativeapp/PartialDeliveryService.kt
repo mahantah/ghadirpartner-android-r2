@@ -9,6 +9,7 @@ internal data class PartialDeliveryLine(
     val ordered: Int,
     val shipped: Int,
     val ready: Int,
+    val readySerials: List<String> = emptyList(),
 ) {
     val remaining: Int get() = (ordered - shipped).coerceAtLeast(0)
 }
@@ -73,26 +74,29 @@ internal class PartialDeliveryRepository(
         order.arr("shipment_batches").objects().forEach { collect(it.arr("items")) }
         return order.arr("items").objects().map { row ->
             val sent = shipped[row.s("product")].orEmpty()
-            val ready =
+            val readySerials =
                 row
-                    .arr(
-                        "serials",
-                    ).strings()
+                    .arr("serials")
+                    .strings()
                     .map { it.trim().uppercase(java.util.Locale.ROOT) }
-                    .filter { it.isNotBlank() }
+                    .filter { it.isNotBlank() && it !in sent }
                     .distinct()
-                    .count {
-                        it !in
-                            sent
-                    }
-            PartialDeliveryLine(row.s("product"), row.i("qty"), sent.size, ready)
+            PartialDeliveryLine(row.s("product"), row.i("qty"), sent.size, readySerials.size, readySerials)
         }
     }
 
     /** Post only the explicit partial delivery operation, never the payment or whole-order status route. */
-    suspend fun dispatch(request: PartialDeliveryRequest): JSONObject {
+    suspend fun dispatch(
+        request: PartialDeliveryRequest,
+        lines: List<PartialDeliveryLine>,
+    ): JSONObject {
         val rows = JSONArray()
-        request.quantities.forEach { rows.put(JSONObject().put("product", it.product).put("qty", it.quantity)) }
+        val models = lines.associateBy { it.product }
+        request.quantities.forEach { selected ->
+            val serials = requireNotNull(models[selected.product]).readySerials.take(selected.quantity)
+            require(serials.size == selected.quantity) { "سریال‌های آماده را دوباره بررسی کنید" }
+            rows.put(JSONObject().put("product", selected.product).put("qty", selected.quantity).put("serials", JSONArray(serials)))
+        }
         val body =
             JSONObject()
                 .put("id", request.orderId)
@@ -144,6 +148,6 @@ internal class PartialDeliveryService(
             "نام و شماره تماس پیک الزامی است"
         }
         policy.validate(lines, request.quantities)
-        return repository.dispatch(request)
+        return repository.dispatch(request, lines)
     }
 }

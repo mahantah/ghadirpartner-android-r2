@@ -110,6 +110,15 @@ class PartialDeliveryFlowTest {
             assertEquals("حضوری", writes[1].s("shipping_type"))
             val rows = writes[1].arr("items").objects().associate { it.s("product") to it.i("qty") }
             assertEquals(mapOf("I90" to 2, "I80" to 1), rows)
+            assertEquals(
+                listOf("I90-1", "I90-2"),
+                writes[1]
+                    .arr("items")
+                    .objects()
+                    .first { it.s("product") == "I90" }
+                    .arr("serials")
+                    .strings(),
+            )
             assertEquals("بیعانه", order.s("payment_status"))
         }
     }
