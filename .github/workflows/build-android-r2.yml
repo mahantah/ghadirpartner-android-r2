@@ -1,7 +1,7 @@
-name: Build Ghadir Partner Android R5.12
+name: Build Ghadir Partner Android R5.13
 on:
   push:
-    branches: [main, codex/compact-r5, codex/integrate-r54, codex/figma-100-573, codex/r56-login-security, feature/customer-order-review]
+    branches: [main, codex/compact-r5, codex/integrate-r54, codex/figma-100-573, codex/r56-login-security, feature/customer-order-review, feature/authorized-partial-delivery]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -29,6 +29,10 @@ jobs:
             app/src/main/java/ir/ghadirpartner/nativeapp/OrderCheckoutService.kt \
             app/src/main/java/ir/ghadirpartner/nativeapp/CompanyOrderReviewService.kt \
             app/src/test/java/ir/ghadirpartner/nativeapp/OrderCartServiceTest.kt \
+            app/src/main/java/ir/ghadirpartner/nativeapp/PartialDeliveryService.kt \
+            app/src/main/java/ir/ghadirpartner/nativeapp/PartialDeliveryForm.kt \
+            app/src/test/java/ir/ghadirpartner/nativeapp/PartialDeliveryPolicyTest.kt \
+            app/src/androidTest/java/ir/ghadirpartner/nativeapp/PartialDeliveryFlowTest.kt \
             app/src/androidTest/java/ir/ghadirpartner/nativeapp/CompanyOrderReviewTest.kt
       - name: Install Android platform
         run: |
@@ -83,7 +87,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: steps.release.outputs.signed == 'true'
         with:
-          name: GhadirPartner-R5.12-Signed-Updates
+          name: GhadirPartner-R5.13-Signed-Updates
           path: |
             app/build/outputs/apk/*/release/*.apk
             app/build/outputs/bundle/*Release/*.aab

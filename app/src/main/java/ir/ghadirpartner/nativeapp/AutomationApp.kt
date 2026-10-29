@@ -243,7 +243,9 @@ internal fun AutomationOrderDialog(api: ApiClient, order: JSONObject, me: JSONOb
     var rejectionReason by remember { mutableStateOf("") }
     val review = CompanyReview.from(order.s("approval_status"), order.s("status"))
     val canReview = me.arr("roles").let { roles -> (0 until roles.length()).any { roles.optString(it) in listOf("admin", "sales") } }
+    val partialDelivery = remember(api) { PartialDeliveryService(PartialDeliveryRepository(api), PartialDeliveryPolicy(BuildConfig.ORDER_MAXIMUM_QUANTITY)) }
     val reviewService = remember(api) { CompanyOrderReviewService(CompanyOrderReviewRepository(api)) }
+    val deliveryLines = remember(order) { partialDelivery.lines(order) }
     fun decide(approved: Boolean) {
         if (saving) return
         scope.launch {
@@ -276,6 +278,9 @@ internal fun AutomationOrderDialog(api: ApiClient, order: JSONObject, me: JSONOb
                     item { GhadirButton("عدم تأیید سفارش", { decide(false) }, enabled = !saving && rejectionReason.isNotBlank(), secondary = true) }
                 }
                 if (order.s("rejection_reason").isNotBlank())item { DesignNotice("علت عدم تأیید: " + order.s("rejection_reason")) }
+                if (partialDelivery.canDispatch(order, me.arr("roles").strings())) item {
+                    PartialDeliveryForm(partialDelivery, order, onChanged)
+                }
                 if (review.approved) {
                 item { SimpleDropdown("وضعیت سفارش", status, statusOptions) { status = it } }
                 item { SimpleDropdown("وضعیت تسویه", payment, payOptions) { payment = it } }
@@ -295,6 +300,9 @@ internal fun AutomationOrderDialog(api: ApiClient, order: JSONObject, me: JSONOb
                         Column(Modifier.fillMaxWidth().padding(11.dp), horizontalAlignment = Alignment.End) {
                             Text(shortProductName(item.s("product")), color = NavyDeep, fontWeight = FontWeight.Bold)
                             Text("${faNumber(item.i("qty"))} عدد • سریال ثبت‌شده: ${faNumber(item.arr("serials").length())}", color = Muted, fontSize = 10.sp)
+                            deliveryLines.firstOrNull { it.product == item.s("product") }?.let { physical ->
+                                Text("خروج‌شده: ${faNumber(physical.shipped)} • ماندهٔ بار: ${faNumber(physical.remaining)}", color = Muted, fontSize = 10.sp)
+                            }
                             order.arr("purchase_items").objects().filter { it.s("product") == item.s("product") }.forEach { purchase ->
                                 DetailLine(purchase.s("price_label"), faNumber(purchase.i("qty")) + " × " + formatMoney(purchase.l("unit_price")) + " تومان")
                             }
@@ -328,7 +336,7 @@ internal fun AutomationOrderDialog(api: ApiClient, order: JSONObject, me: JSONOb
 }
 
 @Composable
-private fun SimpleDropdown(title: String, value: String, options: List<String>, onSelect: (String) -> Unit) {
+internal fun SimpleDropdown(title: String, value: String, options: List<String>, onSelect: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxWidth()) {
         OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = NavyDeep)) {
