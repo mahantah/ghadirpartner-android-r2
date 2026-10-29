@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [feature/authorized-partial-delivery]
-    paths: ['.github/workflows/prepare-private-signing.yml', 'validation/run-release-smoke.sh']
+    paths: ['.github/workflows/prepare-private-signing.yml', 'validation/run-release-smoke.sh', 'app/**', 'config/**']
 permissions:
   contents: read
 jobs:
