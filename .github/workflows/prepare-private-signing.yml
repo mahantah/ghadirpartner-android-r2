@@ -1,8 +1,8 @@
-name: Prepare R5.12 for Private Signing
+name: Prepare R5.13 for Private Signing
 on:
   workflow_dispatch:
   push:
-    branches: [feature/customer-order-review]
+    branches: [feature/authorized-partial-delivery]
     paths: ['.github/workflows/prepare-private-signing.yml', 'validation/run-release-smoke.sh']
 permissions:
   contents: read
@@ -50,7 +50,7 @@ jobs:
             "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "release-inputs/baseline/$flavor-r5.11.apk" > "release-inputs/metadata/$flavor-baseline-certificate.txt"
             "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "release-inputs/baseline/$flavor-r5.11.apk" > "release-inputs/metadata/$flavor-baseline-package.txt"
             "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "release-inputs/unsigned/$flavor-unsigned.apk" > "release-inputs/metadata/$flavor-new-package.txt"
-            grep -Fq "package: name='$package' versionCode='543062'" "release-inputs/metadata/$flavor-new-package.txt"
+            grep -Fq "package: name='$package' versionCode='543063'" "release-inputs/metadata/$flavor-new-package.txt"
             if grep -q '^application-debuggable' "release-inputs/metadata/$flavor-new-package.txt"; then exit 1; fi
           done
           sha256sum release-inputs/unsigned/* > release-inputs/metadata/UNSIGNED_SHA256SUMS.txt
@@ -72,7 +72,7 @@ jobs:
           script: bash validation/run-release-smoke.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: R5.12-Unsigned-Inputs-For-Private-Signing
+          name: R5.13-Unsigned-Inputs-For-Private-Signing
           path: release-inputs/
           if-no-files-found: error
           retention-days: 7

@@ -20,6 +20,15 @@ if (!(orderPolicy instanceof Map) || orderPolicy.keySet() != policyKeys ||
     throw new GradleException('Invalid config/order-flow.yaml')
 }
 
+def deliveryPolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/partial-delivery.yaml').text)
+def deliveryKeys = ['maximum_reason_length', 'carriers', 'tracking_carriers', 'ready_statuses'] as Set
+if (!(deliveryPolicy instanceof Map) || deliveryPolicy.keySet() != deliveryKeys ||
+    !(deliveryPolicy.maximum_reason_length instanceof Integer) || !(deliveryPolicy.maximum_reason_length in 1..2400) ||
+    !['carriers', 'tracking_carriers', 'ready_statuses'].every { key -> deliveryPolicy[key] instanceof List && !deliveryPolicy[key].isEmpty() && deliveryPolicy[key].every { it instanceof String && !it.trim().isEmpty() } } ||
+    !deliveryPolicy.carriers.containsAll(deliveryPolicy.tracking_carriers)) {
+    throw new GradleException('Invalid config/partial-delivery.yaml')
+}
+
 def signingPolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/release-signing.yaml').text)
 def signingFields = ['keystore_file', 'store_password', 'key_alias', 'key_password'] as Set
 if (!(signingPolicy instanceof Map) || signingPolicy.keySet() != signingFields ||
@@ -41,6 +50,10 @@ android {
         versionCode orderPolicy.version_code
         versionName orderPolicy.version_name
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        buildConfigField 'int', 'PARTIAL_DELIVERY_MAX_REASON_LENGTH', deliveryPolicy.maximum_reason_length.toString()
+        ['carriers', 'tracking_carriers', 'ready_statuses'].each { key ->
+            buildConfigField 'String', 'PARTIAL_DELIVERY_' + key.toUpperCase(java.util.Locale.ROOT), groovy.json.JsonOutput.toJson(groovy.json.JsonOutput.toJson(deliveryPolicy[key]))
+        }
         buildConfigField 'int', 'ORDER_MAXIMUM_QUANTITY', orderPolicy.maximum_quantity.toString()
         buildConfigField 'int', 'ORDER_SERIAL_TIER_THRESHOLD', orderPolicy.serial_tier_threshold.toString()
         buildConfigField 'String', 'ORDER_CREDIT_COMMITMENT', groovy.json.JsonOutput.toJson(orderPolicy.credit_commitment)

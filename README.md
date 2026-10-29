@@ -1,4 +1,6 @@
-# Ghadir Partner Android R5.12 — proposed order update
+# Ghadir Partner Android R5.13 — management partial delivery
+
+راهنمای تحویل بخشی با حفظ ماندهٔ بدهی: [README_R513_FA.md](README_R513_FA.md).
 
 راهنمای تغییر سفارش و وابستگی سرور: [README_R512_FA.md](README_R512_FA.md).
 

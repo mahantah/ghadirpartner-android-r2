@@ -1,0 +1,4 @@
+maximum_reason_length: 600
+carriers: [پیک, تیپاکس, چاپار, ماهکس, ترمینال, حضوری]
+tracking_carriers: [تیپاکس, چاپار, ماهکس]
+ready_statuses: [در حال آماده سازی, آماده ارسال, ارسال شد]
