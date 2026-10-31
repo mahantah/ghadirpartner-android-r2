@@ -183,13 +183,15 @@ internal fun DesignOfferHero(title:String,body:String,button:String?=null,showIc
     Box(Modifier.fillMaxWidth().heightIn(min=190.dp).clip(RoundedCornerShape(24.dp))) {
         Image(painterResource(R.drawable.figma_mix_offer),null,Modifier.matchParentSize(),contentScale=ContentScale.Crop)
         Box(Modifier.matchParentSize().background(Color(0xFF0A1424).copy(alpha=.45f)))
-        Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-            if(showIcon)Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
-                DesignGlyph(R.drawable.design_gift,null,Modifier.size(28.dp))
+        Column(Modifier.align(Alignment.Center).padding(20.dp),horizontalAlignment=Alignment.CenterHorizontally,
+            verticalArrangement=Arrangement.spacedBy(10.dp)) {
+            if(showIcon)DesignGlyph(R.drawable.design_gift,null,Modifier.size(28.dp))
+            Text(title,color=Color.White,fontSize=20.sp,lineHeight=33.sp,fontWeight=FontWeight.Bold,textAlign=TextAlign.Center)
+            Text(body,color=Color.White,fontSize=13.sp,lineHeight=22.sp,textAlign=TextAlign.Center)
+            if(button!=null)Button(onClick=onClick,shape=RoundedCornerShape(16.dp),
+                colors=ButtonDefaults.buttonColors(containerColor=Orange,contentColor=Navy)) {
+                Text(button,fontWeight=FontWeight.Bold)
             }
-            Text(title,color=Color.White,fontSize=20.sp,lineHeight=33.sp,fontWeight=FontWeight.Bold)
-            Text(body,color=Color.White,fontSize=13.sp,lineHeight=22.sp)
-            if(button!=null)GhadirButton(button,onClick)
         }
     }
 }
@@ -224,16 +226,11 @@ internal fun CheckoutOptionCard(title:String,summary:String,icon:androidx.compos
 internal fun ProfileServiceTile(title:String,subtitle:String,icon:androidx.compose.ui.graphics.vector.ImageVector,modifier:Modifier=Modifier,wide:Boolean=false,onClick:()->Unit) {
     Surface(modifier=modifier.clip(RoundedCornerShape(22.dp)).clickable(role=Role.Button,onClick=onClick),
         shape=RoundedCornerShape(22.dp),color=AppSurface,border=androidx.compose.foundation.BorderStroke(1.dp,Border)) {
-        if(wide) Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(Navy),contentAlignment=Alignment.Center){Icon(icon,null,tint=Orange,modifier=Modifier.size(26.dp))}
-            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                Text(title,color=Ink,fontWeight=FontWeight.Bold,fontSize=14.sp)
-                Text(subtitle,color=Muted,fontSize=11.sp)
-            }
-        } else Column(Modifier.fillMaxWidth().heightIn(min=126.dp).padding(14.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxWidth().heightIn(min=if(wide)100.dp else 126.dp).padding(14.dp),
+            horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(8.dp,Alignment.CenterVertically)) {
             Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(AppSecondary),contentAlignment=Alignment.Center){Icon(icon,null,tint=Orange,modifier=Modifier.size(25.dp))}
-            Text(title,color=Ink,fontWeight=FontWeight.Bold,fontSize=14.sp,lineHeight=22.sp)
-            Text(subtitle,color=Muted,fontSize=11.sp,lineHeight=18.sp)
+            Text(title,color=Ink,fontWeight=FontWeight.Bold,fontSize=14.sp,lineHeight=22.sp,textAlign=TextAlign.Center)
+            Text(subtitle,color=Muted,fontSize=11.sp,lineHeight=18.sp,textAlign=TextAlign.Center)
         }
     }
 }

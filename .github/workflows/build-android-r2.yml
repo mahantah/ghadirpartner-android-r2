@@ -3,7 +3,7 @@ on:
   push:
     branches: [main, codex/compact-r5, codex/integrate-r54, codex/figma-100-573, codex/r56-login-security]
   pull_request:
-    branches: [main, codex/r57-order-usability]
+    branches: [main, codex/r57-order-usability, feature/portal-r58-order-upgrade]
   workflow_dispatch:
 permissions:
   contents: read
