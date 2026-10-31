@@ -147,6 +147,7 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
             builder.post(payload)
         } else builder.get()
 
+        if(BuildConfig.APP_MODE=="portal")builder.header("X-Ghadir-Offer-Product-Scope","multiple")
         client.newCall(builder.build()).execute().use { response ->
             val text = response.body?.string().orEmpty().trim()
             if (!response.isSuccessful) {
