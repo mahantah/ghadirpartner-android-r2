@@ -826,6 +826,7 @@ private fun PortalNewOrder(api:ApiClient,initialOfferCode:String="",initialProdu
         }
     }
 }
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,String)->Unit={_,_->}) {
     var group by rememberSaveable {mutableStateOf("serial")}
@@ -852,18 +853,9 @@ private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,Stri
             (manufacturerFilter=="همه سازنده‌ها"||maker==manufacturerFilter)&&
             when(stockFilter){"موجود"->catalogInStock(p);"ناموجود"->!catalogInStock(p);else->true}
     }
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    Box(Modifier.fillMaxSize()) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=100.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         item {DesignChoices(listOf("agent" to "عامل فروش","panel" to "ثبت در پنل","serial" to "سریال آزاد"),group,{group=it})}
-        item {DesignField("جستجوی مدل یا شرکت سازنده",query,{query=it},"مدل یا سازنده را وارد کنید",R.drawable.design_search)}
-        item {DesignChoices(listOf("all" to "همه مدل‌ها","available" to "موجود","filters" to "فیلترها"),
-            if(showFilters)"filters" else if(stockFilter=="موجود")"available" else "all") {choice->
-            when(choice){"filters"->showFilters=!showFilters;"available"->{stockFilter="موجود";showFilters=false};else->{stockFilter="همه";showFilters=false}}
-        }}
-        if(showFilters)item {Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            DropdownField("مدل دستگاه",modelFilter,listOf("همه مدل‌ها")+products.map {it.s("name")}.distinct(),{shortProductName(it)}){modelFilter=it}
-            DropdownField("شرکت سازنده",manufacturerFilter,listOf("همه سازنده‌ها")+products.map {it.s("manufacturer").ifBlank {"بدون سازنده"}}.distinct(),{it}){manufacturerFilter=it}
-            DropdownField("وضعیت موجودی",stockFilter,listOf("همه","موجود","ناموجود"),{it}){stockFilter=it}
-        }}
         when {
             loading-> {
                 item {Text("در حال دریافت قیمت‌ها…",color=Muted,fontSize=12.sp)}
@@ -887,6 +879,22 @@ private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,Stri
                 if(date!=null)item {Text("آخرین به‌روزرسانی: "+formatDateFa(date),color=Muted,fontSize=12.sp)}
                 items(filtered,key={it.s("name")}) {p->CatalogListRow(p,group){onOrder(p.s("name"),group)}}
             }
+        }
+    }
+    FloatingActionButton(onClick={showFilters=true},modifier=Modifier.align(Alignment.BottomEnd)
+        .padding(end=20.dp,bottom=20.dp+LocalPortalBottomPadding.current),containerColor=Navy,contentColor=Orange) {
+        Icon(Icons.Default.FilterList,contentDescription="فیلتر لیست قیمت‌ها")
+    }
+    }
+    if(showFilters)ModalBottomSheet(onDismissRequest={showFilters=false},containerColor=AppSurface) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=20.dp).padding(bottom=32.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            Text("جست‌وجو و فیلتر قیمت‌ها",color=Ink,fontWeight=FontWeight.Bold,fontSize=20.sp)
+            DesignField("جستجوی مدل یا شرکت سازنده",query,{query=it},"مدل یا سازنده را وارد کنید",R.drawable.design_search)
+            DropdownField("مدل دستگاه",modelFilter,listOf("همه مدل‌ها")+products.map {it.s("name")}.distinct(),{shortProductName(it)}){modelFilter=it}
+            DropdownField("شرکت سازنده",manufacturerFilter,listOf("همه سازنده‌ها")+products.map {it.s("manufacturer").ifBlank {"بدون سازنده"}}.distinct(),{it}){manufacturerFilter=it}
+            DropdownField("وضعیت موجودی",stockFilter,listOf("همه","موجود","ناموجود"),{it}){stockFilter=it}
+            GhadirButton("نمایش نتایج",{showFilters=false})
+            GhadirButton("پاک کردن فیلترها",{query="";stockFilter="همه";manufacturerFilter="همه سازنده‌ها";modelFilter="همه مدل‌ها"},secondary=true)
         }
     }
 }
@@ -975,10 +983,10 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
         when(view) {
             "services"->{
                 item {Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Navy,Color(0xFF213E61)))).padding(18.dp)) {
-                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)) {
+                    Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(14.dp)) {
                         ProfilePhoto(photoUri,56.dp)
-                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                            Text(initial.s("name").ifBlank {me.s("username")},color=Color.White,fontSize=20.sp,fontWeight=FontWeight.Bold)
+                        Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                            Text(initial.s("name").ifBlank {me.s("username")},textAlign=TextAlign.Center,color=Color.White,fontSize=20.sp,fontWeight=FontWeight.Bold)
                             Text("حساب همکاری • "+faDigits(initial.s("code")),color=Color.White.copy(alpha=.75f),fontSize=12.sp)
                         }
                     }
@@ -1057,21 +1065,21 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
             }
             else->{
                 item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)){
+                    Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(14.dp)){
                         ProfilePhoto(photoUri)
-                        Column(Modifier.weight(1f)){
-                            Text(initial.s("name").ifBlank {me.s("username")},color=Ink,fontSize=24.sp,lineHeight=40.sp,fontWeight=FontWeight.Bold)
-                            Text(initial.s("company")+" • کد همکار "+faDigits(initial.s("code")),color=Muted,fontSize=12.sp)
+                        Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally){
+                            Text(initial.s("name").ifBlank {me.s("username")},textAlign=TextAlign.Center,color=Ink,fontSize=24.sp,lineHeight=40.sp,fontWeight=FontWeight.Bold)
+                            Text(initial.s("company")+" • کد همکار "+faDigits(initial.s("code")),textAlign=TextAlign.Center,color=Muted,fontSize=12.sp)
                         }
                     }
                     HorizontalDivider(color=Border)
-                    DetailLine("شماره همراه",faDigits(me.s("username")))
+                    Text("شماره همراه: "+faDigits(me.s("username")),color=Ink,textAlign=TextAlign.Center,modifier=Modifier.fillMaxWidth())
                 }}}
                 item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                     ProfileServiceTile("پروفایل من","اطلاعات و خدمات مشتری",Icons.Default.PersonOutline,Modifier.weight(1f)){view="services"}
                     ProfileServiceTile("تنظیمات","امنیت و اطلاعات تماس",Icons.Default.Settings,Modifier.weight(1f)){view="settings"}
                 }}
-                item {ProfileServiceTile("تماس با پشتیبانی · ۰۲۱۷۷۲۴۷۰۷۰","همراه شما در خرید و خدمات",Icons.Default.HeadsetMic,Modifier.fillMaxWidth(),wide=true) {
+                item {ProfileServiceTile("تماس با پشتیبانی ۰۲۱۷۷۲۴۷۰۷۰","همراه شما در خرید و خدمات",Icons.Default.HeadsetMic,Modifier.fillMaxWidth(),wide=true) {
                     try{context.startActivity(android.content.Intent(android.content.Intent.ACTION_DIAL,Uri.parse("tel:02177247070")))}
                     catch(_:Exception){error="برنامه تماس روی این دستگاه در دسترس نیست"}
                 }}
