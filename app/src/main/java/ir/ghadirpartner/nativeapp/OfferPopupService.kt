@@ -1,6 +1,7 @@
 package ir.ghadirpartner.nativeapp
 
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import org.json.JSONObject
 import java.security.MessageDigest
 
@@ -21,7 +22,7 @@ internal class OfferPopupRepository(private val preferences: SharedPreferences, 
     /** Return a copy so callers cannot mutate SharedPreferences' backing set. */
     fun seen(): Set<String> = preferences.getStringSet(key, emptySet())?.toSet() ?: emptySet()
     /** A dismissal acknowledges display without marking the server offer as purchased or read. */
-    fun acknowledge(id: Int) { preferences.edit().putStringSet(key, seen() + id.toString()).apply() }
+    fun acknowledge(id: Int) { preferences.edit { putStringSet(key, seen() + id.toString()) } }
 }
 
 /** Home-screen facade keeps display selection and acknowledgement in one place. */
