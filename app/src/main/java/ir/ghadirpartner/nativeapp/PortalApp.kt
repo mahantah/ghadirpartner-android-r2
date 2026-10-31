@@ -580,12 +580,13 @@ private val CartSaver = Saver<List<CartLine>, String>(
 
 private fun discountForOfferNative(offer: JSONObject?, cart: List<CartLine>): Long {
     if (offer == null) return 0L
-    val product = offer.s("product")
-    val eligible = cart.filter { product.isBlank() || it.product == product }.sumOf { it.unit * it.qty }
+    val products = offer.optJSONArray("products")?.strings()?.toSet()
+        ?: setOf(offer.s("product")).filter { it.isNotBlank() }.toSet()
+    val eligible = OrderOfferScope(products).eligibleAmount(cart)
     if (eligible <= 0L) return 0L
     val value = offer.l("discount_value").coerceAtLeast(0L)
     return when (offer.s("discount_type")) {
-        "percent" -> minOf(eligible, eligible * minOf(100L, value) / 100L)
+        "percent" -> minOf(eligible, (eligible / 100L) * minOf(100L, value) + (eligible % 100L) * minOf(100L, value) / 100L)
         "amount" -> minOf(eligible, value)
         else -> 0L
     }
