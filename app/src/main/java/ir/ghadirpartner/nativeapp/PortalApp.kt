@@ -206,6 +206,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                                 DetailLine("کد پیگیری",faDigits(order.s("number")))
                                 DetailLine("اقلام",orderItemsDescription(order))
                             }}
+                            DesignNotice("سفارش برای بررسی شرکت ثبت شد. نتیجهٔ تأیید یا عدم تأیید را در مراحل سفارش می‌بینید.")
                             GhadirButton("مشاهده سفارش",{screen="order-detail"})
                             GhadirButton("دریافت پیش‌فاکتور",{proformaOrigin="success";screen="proforma"},secondary=true)
                         }
@@ -225,7 +226,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                     }, onOffer={ id -> offersOrigin="inbox";selectedOffer=id;screen="offers" })
                     "order-detail" -> selectedOrder?.let { order ->
                         PortalOrderDetails(api, order, onBack = { screen = orderOrigin }, onProforma={proformaOrigin="order-detail";screen="proforma"},me=currentMe,
-                            onSerials={screen="serial-detail"},onSectionChanged={cancelView=it},backRequest=orderBackRequest)
+                            onSerials={screen="serial-detail"},onOrderUpdated={selectedOrder=it},onSectionChanged={cancelView=it},backRequest=orderBackRequest)
                     } ?: PortalOrders(api,onNavigate={screen=it}) { orderOrigin=screen; selectedOrder = it; screen = "order-detail" }
                     "serial-detail" -> selectedOrder?.let {order->PortalSerials(api,order,currentMe){screen="order-detail"}}
                     else -> PortalProfile(
@@ -432,7 +433,10 @@ private fun PortalOrders(api:ApiClient,deliveredOnly:Boolean=false,onNavigate:(S
     }
 }
 @Composable
-private fun PortalOrderDetails(api:ApiClient,order:JSONObject,onBack:()->Unit,onProforma:()->Unit,me:JSONObject=JSONObject(),onSerials:()->Unit={},onSectionChanged:(Boolean)->Unit={},backRequest:Int=0) {
+private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->Unit,onProforma:()->Unit,me:JSONObject=JSONObject(),onSerials:()->Unit={},onSectionChanged:(Boolean)->Unit={},backRequest:Int=0,onOrderUpdated:(JSONObject)->Unit={}) {
+    var order by remember(initialOrder.i("id")) {mutableStateOf(initialOrder)}
+    var refreshing by remember {mutableStateOf(false)}
+    val orderService = remember(api) {OrderCheckoutService(OrderRepository(api))}
     val scope=rememberCoroutineScope()
     var cancelView by remember {mutableStateOf(false)}
     var cancelling by remember {mutableStateOf(false)}
@@ -443,6 +447,17 @@ private fun PortalOrderDetails(api:ApiClient,order:JSONObject,onBack:()->Unit,on
     val total=order.l("approved_total").takeIf {it>0}?:order.l("estimated_total")
     val delivered=order.s("status")=="تحویل شد"
     val canCancel=order.s("status") !in listOf("ارسال شد","تحویل شد","لغو شد")
+    fun refreshOrder() {
+        if(refreshing)return
+        scope.launch {
+            refreshing=true
+            try {order=orderService.find(order.i("id"));onOrderUpdated(order);error=""}
+            catch(e:kotlinx.coroutines.CancellationException){throw e}
+            catch(e:Exception){error=e.message?:"به‌روزرسانی وضعیت ناموفق بود"}
+            finally {refreshing=false}
+        }
+    }
+    LaunchedEffect(initialOrder.i("id")){refreshOrder()}
     LaunchedEffect(cancelView){onSectionChanged(cancelView)}
     LaunchedEffect(backRequest){if(backRequest>0)cancelView=false}
     BackHandler(cancelView){if(!cancelling)cancelView=false}
@@ -476,7 +491,9 @@ private fun PortalOrderDetails(api:ApiClient,order:JSONObject,onBack:()->Unit,on
                 DetailLine("اقلام",orderItemsDescription(order))
                 DetailLine("مبلغ کل",formatMoney(total)+" تومان")
             }}}
-            item {OrderDeliveryTimeline(order.s("status"))}
+            item {OrderDeliveryTimeline(order.s("status"),order.s("approval_status"))}
+            item {GhadirButton(if(refreshing)"در حال به‌روزرسانی…" else "به‌روزرسانی وضعیت",{refreshOrder()},enabled=!refreshing,secondary=true)}
+            if(order.s("rejection_reason").isNotBlank())item {DesignNotice("علت عدم تأیید شرکت\n\n"+order.s("rejection_reason"))}
             item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                 Text("اطلاعات تحویل",color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold)
                 DetailLine("گیرنده",order.s("customer_name").ifBlank {me.obj("customer").s("name")})
@@ -492,7 +509,7 @@ private fun PortalOrderDetails(api:ApiClient,order:JSONObject,onBack:()->Unit,on
             if(canCancel&&!cancelSent)item {GhadirButton("درخواست لغو سفارش",{cancelView=true;error=""},secondary=true)}
             item {TextButton(onClick={more=!more}){Text(if(more)"بستن اطلاعات بیشتر" else "اقلام، توضیحات و آخرین تغییرات",color=Muted)}}
             if(more) {
-                items(order.arr("items").objects()) {line->GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                items(order.arr("purchase_items").objects().ifEmpty {order.arr("items").objects()}) {line->GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     Text(shortProductName(line.s("product")),color=Ink,fontWeight=FontWeight.Bold)
                     DetailLine("تعداد",faNumber(line.i("qty")))
                     if(line.s("price_label").isNotBlank())DetailLine("نوع قیمت",line.s("price_label"))
@@ -542,7 +559,6 @@ private val CartSaver = Saver<List<CartLine>, String>(
     restore = { JSONArray(it).objects().map { row -> CartLine(row.s("product"),row.i("qty"),row.s("priceKey"),row.s("priceLabel"),row.l("unit")) } }
 )
 
-private data class CartLine(val product: String, val qty: Int, val priceKey: String, val priceLabel: String, val unit: Long)
 
 private fun discountForOfferNative(offer: JSONObject?, cart: List<CartLine>): Long {
     if (offer == null) return 0L
@@ -561,6 +577,8 @@ private fun discountForOfferNative(offer: JSONObject?, cart: List<CartLine>): Lo
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PortalNewOrder(api:ApiClient,initialOfferCode:String="",initialProduct:String="",initialGroup:String="serial",onProductConsumed:()->Unit={},onBusyChanged:(Boolean)->Unit={},onDraftChanged:(Boolean)->Unit={},onStageChanged:(String)->Unit={},backRequest:Int=0,onSuccess:(JSONObject)->Unit) {
+    val checkoutService = remember(api) { OrderCheckoutService(OrderRepository(api)) }
+    val cartService = remember { OrderCartService(OrderPolicy(BuildConfig.ORDER_MAXIMUM_QUANTITY, BuildConfig.ORDER_SERIAL_TIER_THRESHOLD)) }
     val scope=rememberCoroutineScope()
     val listState=androidx.compose.foundation.lazy.rememberLazyListState()
     var loading by remember {mutableStateOf(true)}
@@ -583,7 +601,7 @@ private fun PortalNewOrder(api:ApiClient,initialOfferCode:String="",initialProdu
     // Receipt images can exceed Android's saved-instance-state transaction limit.
     val settlementSaver=remember(context) { cachedJsonSaver(context) }
     var settlement by rememberSaveable(stateSaver=settlementSaver) {mutableStateOf(JSONObject())}
-    var invoiceType by rememberSaveable {mutableStateOf("غیررسمی")}
+    var invoiceType by rememberSaveable {mutableStateOf("")}
     var notes by rememberSaveable {mutableStateOf("")}
     var optionSheet by rememberSaveable {mutableStateOf("")}
     var promoCode by rememberSaveable {mutableStateOf(initialOfferCode)}
@@ -626,7 +644,7 @@ private fun PortalNewOrder(api:ApiClient,initialOfferCode:String="",initialProdu
         catch(e:Exception){error=e.message?:"دریافت اطلاعات سفارش ناموفق بود"}finally{loading=false}
     }
     val qty=qtyText.toIntOrNull()?:0
-    val priceKey=when(group){"panel"->panelTier;"agent"->"sales_agent";else->if(qty<=50)"serial_1_50" else "serial_51_200"}
+    val priceKey=cartService.priceKey(group,panelTier,qty)
     val unit=selected?.obj("prices")?.l(priceKey)?:0L
     val subtotal=cart.sumOf {it.unit*it.qty}
     val discount=discountForOfferNative(appliedOffer,cart)
@@ -644,36 +662,35 @@ private fun PortalNewOrder(api:ApiClient,initialOfferCode:String="",initialProdu
     LaunchedEffect(initialOfferCode,offers,cart) {
         if(initialOfferCode.isNotBlank()&&promoNorm(promoCode)==promoNorm(initialOfferCode))applyPromo()
     }
+    fun catalogEntry(product: JSONObject): OrderCatalogEntry = OrderCatalogEntry(
+        product.s("name"), product.i("stock"),
+        product.obj("prices").keys().asSequence().associateWith { product.obj("prices").l(it) },
+    )
+    fun checkout(): OrderCheckout = OrderCheckout(
+        cart,selectedAddressId,invoiceType,payment,settlement,notes,appliedOffer?.s("promo_code")?:"",
+    )
     fun changeQuantity(line:CartLine, next:Int) {
-        val product=products.firstOrNull {it.s("name")==line.product}
-        if(product==null || next !in 1..product.i("stock")) { error="تعداد انتخاب‌شده در موجودی فعلی قابل سفارش نیست";return }
-        val key=if(line.priceKey.startsWith("serial_")) { if(next<=50) "serial_1_50" else "serial_51_200" } else line.priceKey
-        val price=product.obj("prices").l(key)
-        if(price<=0) { error="قیمت این تعداد در دسترس نیست";return }
-        cart=cart.map { if(it.product==line.product) it.copy(qty=next,priceKey=key,priceLabel=priceTypes.firstOrNull {it.first==key}?.second?:key,unit=price) else it }
-        settlement=JSONObject();error=""
+        val product=products.firstOrNull {it.s("name")==line.product} ?: return
+        try {
+            cart=cartService.changeQuantity(cart,line,catalogEntry(product),next)
+            settlement=JSONObject();error=""
+        } catch(e:IllegalArgumentException) {error=e.message?:"تعداد نامعتبر است"}
     }
     fun submit() {
         if(submitting)return
         if(addressText.isBlank()){error="نشانی تحویل را انتخاب کنید";step=1;return}
-        if(cart.any {line -> val p=products.firstOrNull {it.s("name")==line.product};p==null||!catalogInStock(p)||line.qty>p.i("stock")}) {
+        if(cart.any {line -> val p=products.firstOrNull {it.s("name")==line.product};p==null||!catalogInStock(p)||cart.filter{it.product==line.product}.sumOf{it.qty.toLong()}>p.i("stock")}) {
             error="موجودی سبد را دوباره بررسی کنید";step=0;return
         }
-        val validation=settlementError(payment,settlement)
-        if(validation.isNotBlank()){error=validation;step=1;return}
+        val validation=checkoutService.validation(checkout())
+        if(validation.isNotBlank()){error=validation;step=if(invoiceType.isBlank())0 else 1;return}
         if(promoCode.isNotBlank()&&(appliedOffer==null||discount<=0)){error="کد تخفیف را ابتدا اعمال و بررسی کنید";step=0;return}
         scope.launch {
             submitting=true;error=""
             try {
-                val items=JSONArray()
-                cart.forEach {items.put(JSONObject().put("product",it.product).put("qty",it.qty).put("price_key",it.priceKey))}
-                val body=JSONObject().put("items",items).put("address_id",selectedAddressId)
-                    .put("settlement_details",settlement).put("invoice_type",invoiceType)
-                    .put("requested_payment_method",payment).put("notes",notes)
-                    .put("promo_code",appliedOffer?.s("promo_code")?:"")
-                val order=api.post("/api/orders/add",body) as JSONObject
+                val order=checkoutService.submit(checkout())
                 cart=emptyList();step=0;settlement=JSONObject();notes="";promoCode="";appliedOffer=null
-                selected=null;selectedAddressId="";payment="cash";invoiceType="غیررسمی";optionSheet="";promoMessage=""
+                selected=null;selectedAddressId="";payment="cash";invoiceType="";optionSheet="";promoMessage=""
                 onSuccess(order)
             }catch(e:kotlinx.coroutines.CancellationException){throw e}
             catch(e:Exception){error=e.message?:"ثبت سفارش ناموفق بود"}
@@ -707,10 +724,10 @@ private fun PortalNewOrder(api:ApiClient,initialOfferCode:String="",initialProdu
                 DetailLine("قیمت واحد",if(unit>0)formatMoney(unit)+" تومان" else "—")
                 GhadirButton("افزودن کالا",{
                     val product=selected?:return@GhadirButton
-                    if(qty<1||qty>product.i("stock")){error="تعداد انتخاب‌شده در حال حاضر قابل سفارش نیست";return@GhadirButton}
-                    if(cart.any {it.product==product.s("name")}){error="این مدل قبلاً به سفارش اضافه شده است";return@GhadirButton}
-                    val label=priceTypes.firstOrNull {it.first==priceKey}?.second?:priceKey
-                    cart=cart+CartLine(product.s("name"),qty,priceKey,label,unit);settlement=JSONObject();error=""
+                    try {
+                        cart=cartService.add(cart,catalogEntry(product),qty,priceKey)
+                        settlement=JSONObject();error=""
+                    } catch(e:IllegalArgumentException) { error=e.message?:"افزودن کالا ناموفق بود" }
                 },enabled=selected!=null&&unit>0&&qty>0&&qty<=(selected?.i("stock")?:0),secondary=true)
             }}}
             item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -727,7 +744,11 @@ private fun PortalNewOrder(api:ApiClient,initialOfferCode:String="",initialProdu
                         Text(faNumber(line.qty),color=Ink)
                         TextButton(onClick={changeQuantity(line,(line.qty.toLong()+1).coerceAtMost(Int.MAX_VALUE.toLong()).toInt())},modifier=Modifier.semantics {contentDescription="افزایش تعداد "+line.product}) {Text("+")}
                     }
-                    TextButton(onClick={settlement=JSONObject();cart=cart.filterNot {it.product==line.product}}){Text("حذف "+shortProductName(line.product),color=Danger)}
+                    TextButton(onClick={
+                        products.firstOrNull {it.s("name")==line.product}?.let {product->
+                            cart=cartService.remove(cart,line,catalogEntry(product));settlement=JSONObject()
+                        }
+                    }){Text("حذف "+shortProductName(line.product)+" • "+line.priceLabel,color=Danger)}
                 }
                 DetailLine("تسویه",when(payment){"cash"->"نقد";"check"->"چک";else->"اعتباری"})
                 HorizontalDivider(color=Border)
@@ -739,12 +760,12 @@ private fun PortalNewOrder(api:ApiClient,initialOfferCode:String="",initialProdu
                     Text("جزئیات سفارش",color=Ink,fontWeight=FontWeight.Bold)
                     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         CheckoutOptionCard("کد تخفیف",promoCode.ifBlank {"افزودن کد"},Icons.Default.LocalOffer,Modifier.weight(1f),appliedOffer!=null){optionSheet="discount"}
-                        CheckoutOptionCard("نوع فاکتور",invoiceType,Icons.Default.ReceiptLong,Modifier.weight(1f),invoiceType=="رسمی"){optionSheet="invoice"}
+                        CheckoutOptionCard("نوع فاکتور",invoiceType.ifBlank {"انتخاب الزامی"},Icons.Default.ReceiptLong,Modifier.weight(1f),invoiceType=="رسمی"){optionSheet="invoice"}
                         CheckoutOptionCard("توضیحات",if(notes.isBlank())"افزودن یادداشت" else "یادداشت ثبت شد",Icons.Default.EditNote,Modifier.weight(1f),notes.isNotBlank()){optionSheet="notes"}
                     }
                 }
             }
-            item {GhadirButton("ادامه و بررسی سفارش",{error="";step=1},enabled=cart.isNotEmpty())}
+            item {GhadirButton("ادامه و بررسی سفارش",{if(invoiceType.isBlank())error="نوع فاکتور را انتخاب کنید" else {error="";step=1}},enabled=cart.isNotEmpty())}
         } else if(step==1) {
             item {
                 val choices=listOf(JSONObject().put("id","").put("title","آدرس اصلی پروفایل").put("address",customer.s("address")))+addresses
@@ -753,16 +774,17 @@ private fun PortalNewOrder(api:ApiClient,initialOfferCode:String="",initialProdu
             item {DesignField("گیرنده",receiver,{},"",enabled=false)}
             item {Text("روش تسویه • انتخاب نقد / چک / اعتباری",color=Muted,fontSize=12.sp)}
             item {DesignNotice("روش تسویه و مدارک پرداخت را تکمیل کنید.")}
-            item {DesignChoices(listOf("cash" to "نقد","check" to "چک","credit" to "اعتباری"),payment,{payment=it;settlement=JSONObject()})}
+            item {DesignChoices(listOf("cash" to "نقد","check" to "چک","credit" to "اعتباری"),payment,{if(payment!=it){payment=it;settlement=JSONObject()}})}
             item {SettlementForm(api,payment,total,settlement,onBusyChanged={evidenceBusy=it}){settlement=it}}
             item {GhadirButton(if(payment=="credit")"پذیرش و ادامه" else "ادامه به بررسی نهایی",{
-                error=settlementError(payment,settlement);if(error.isBlank()&&addressText.isBlank())error="نشانی تحویل را در پروفایل تکمیل کنید";if(error.isBlank())step=2
+                error=checkoutService.validation(checkout());if(error.isBlank()&&addressText.isBlank())error="نشانی تحویل را در پروفایل تکمیل کنید";if(error.isBlank())step=2
             },enabled=!evidenceBusy)}
             item {GhadirButton("بازگشت و ویرایش",{step=0},secondary=true)}
         } else {
-            item {DesignNotice("سفارش را نهایی می‌کنید؟\n\nمدل، تعداد، نشانی و روش تسویه را بررسی کنید. پس از ثبت، تغییر سفارش نیازمند بررسی پشتیبانی است.")}
+            item {DesignNotice("سفارش را نهایی می‌کنید؟\n\nمدل، تعداد، نشانی و روش تسویه را بررسی کنید. پس از ثبت، سفارش در انتظار تأیید شرکت قرار می‌گیرد و نتیجه در مراحل سفارش نمایش داده می‌شود.")}
             item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                 Text("بررسی سفارش",color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold)
+                DetailLine("نوع فاکتور",invoiceType)
                 cart.forEach {line->
                     DetailLine("کالا",shortProductName(line.product))
                     DetailLine("تعداد",faNumber(line.qty)+" دستگاه")

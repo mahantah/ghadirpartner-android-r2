@@ -97,11 +97,7 @@ internal fun SettlementForm(api:ApiClient,method:String,amount:Long,value:JSONOb
                 }
             }}
             if(creditLoaded&&credit.s("due_date").isNotBlank())DesignField("سررسید توافق‌شده",faDigits(credit.s("due_date")),{},icon=R.drawable.design_calendar,enabled=false)
-            DesignNotice("تعهد تسویه\n\nشرایط اعتبار و سررسید را پیش از ثبت بررسی کنید. تأیید نهایی درخواست با واحد مالی است.")
-            Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
-                Checkbox(value.b("terms_accepted"),{set("terms_accepted",it)})
-                Text("شرایط اعتبار و سررسید توافق‌شده را می‌پذیرم.",color=Ink,modifier=Modifier.weight(1f))
-            }
+            CreditCommitment(value,onChange)
             if(error.isNotBlank())GhadirButton("دریافت دوباره اعتبار",{retry++},secondary=true,enabled=!creditLoading)
         } else {
             DesignNotice(if(method=="check")"تسویه با چک\n\nاطلاعات چک برای بررسی واحد مالی ثبت می‌شود." else "تسویه نقدی\n\nثبت رسید پرداخت برای بررسی واحد مالی.")
@@ -117,5 +113,20 @@ internal fun SettlementForm(api:ApiClient,method:String,amount:Long,value:JSONOb
             DesignNotice(if(method=="check")"ثبت چک به معنی تأیید تسویه و مجوز ارسال نیست." else "ارسال سفارش پس از تأیید تسویه انجام می‌شود.")
         }
         if(error.isNotBlank())Text(error,color=Danger)
+    }
+}
+
+/** Keep the displayed commitment and the submitted explicit consent in the same state. */
+@Composable
+internal fun CreditCommitment(value: JSONObject, onChange: (JSONObject) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        DesignNotice("تعهد تسویه\n\n" + BuildConfig.ORDER_CREDIT_COMMITMENT)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Checkbox(value.b("terms_accepted"), { accepted ->
+                onChange(JSONObject(value.toString()).put("terms_accepted", accepted)
+                .put("commitment_sha256",if(accepted)BuildConfig.ORDER_CREDIT_COMMITMENT_SHA256 else ""))
+            })
+            Text("متن تعهد بالا را خواندم و تأیید می‌کنم.", color = Ink, modifier = Modifier.weight(1f))
+        }
     }
 }
