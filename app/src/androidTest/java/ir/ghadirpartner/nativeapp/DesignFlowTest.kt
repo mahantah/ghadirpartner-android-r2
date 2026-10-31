@@ -23,6 +23,7 @@ import okio.Buffer
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Rule
+import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
@@ -37,6 +38,26 @@ class DesignFlowTest {
     private var includeOrderMessage=false
     private var fixtureStock=4
     private val writes=CopyOnWriteArrayList<Pair<String,JSONObject>>()
+    @Before fun acknowledgeExistingFixtureOffer() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        OfferPopupRepository(context.getSharedPreferences("offer-popup",0),me.s("username")).acknowledge(3)
+    }
+    @Test fun offerPopupOpensDetailsOncePerAccount() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        context.getSharedPreferences("offer-popup",0).edit().clear().commit()
+        ActivityScenario.launch(MainActivity::class.java).use {scenario->
+            scenario.onActivity {a->a.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){PortalApp(ApiClient(a,client()),me,{})}}}}
+            waitText("مشاهده طرح")
+            compose.onNodeWithText("مشاهده طرح").performClick()
+            waitText("بسته ترکیبی برای خرید همکاران")
+            compose.onAllNodesWithText("پیشخوان").onLast().performClick()
+            waitText("سلام، علی رضایی")
+            compose.onNodeWithText("مشاهده طرح").assertDoesNotExist()
+            val own=OfferPopupRepository(context.getSharedPreferences("offer-popup",0),me.s("username"))
+            val other=OfferPopupRepository(context.getSharedPreferences("offer-popup",0),"OTHER-FIXTURE")
+            assertTrue("3" in own.seen());assertTrue(other.seen().isEmpty());assertTrue(writes.isEmpty())
+        }
+    }
     private fun client():OkHttpClient=OkHttpClient.Builder().addInterceptor {chain->
         val request=chain.request()
         check(request.url.host=="ghadirpartner.ir")

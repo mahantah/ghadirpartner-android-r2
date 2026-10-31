@@ -26,6 +26,9 @@ if (!(visualPolicy instanceof Map) || visualPolicy.keySet() != (['section_opacit
     throw new GradleException('Invalid config/portal-visuals.yaml')
 }
 
+def popupPolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/offer-popup.yaml').text)
+if (!(popupPolicy instanceof Map) || popupPolicy.keySet() != (['enabled'] as Set) || !(popupPolicy.enabled instanceof Boolean)) throw new GradleException('Invalid config/offer-popup.yaml')
+
 android {
     namespace 'ir.ghadirpartner.nativeapp'
     compileSdk 36
@@ -33,6 +36,7 @@ android {
     defaultConfig {
         buildConfigField 'float', 'SECTION_OPACITY_LIGHT', visualPolicy.section_opacity_light.toString() + 'f'
         buildConfigField 'float', 'SECTION_OPACITY_DARK', visualPolicy.section_opacity_dark.toString() + 'f'
+        buildConfigField 'boolean', 'OFFER_POPUP_ENABLED', popupPolicy.enabled.toString()
         minSdk 24
         targetSdk 36
         versionCode orderPolicy.version_code

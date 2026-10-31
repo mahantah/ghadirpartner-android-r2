@@ -185,7 +185,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                     "home" -> PortalHome(
                         api,
                         navigate = { selectedOffer=null; screen = it },
-                        customerName = customerName,
+                        customerName = customerName, accountKey=me.s("username"),
                         openOrder = { orderOrigin=screen; selectedOrder = it; screen = "order-detail" },
                         openOffer = {offersOrigin=screen;selectedOffer=it;screen="offers"}
                     )
@@ -271,7 +271,7 @@ internal fun offerDiscountTextNative(o: JSONObject): String {
 }
 
 @Composable
-private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) -> Unit, openOrder: (JSONObject) -> Unit, openOffer:(Int)->Unit={}, showReport:Boolean=false) {
+private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) -> Unit, openOrder: (JSONObject) -> Unit, openOffer:(Int)->Unit={}, showReport:Boolean=false, accountKey:String="") {
     val scope = rememberCoroutineScope()
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
@@ -279,6 +279,13 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
     var offers by remember { mutableStateOf(emptyList<JSONObject>()) }
     var stats by remember { mutableStateOf(JSONObject()) }
     var loadedAccount by remember {mutableStateOf(false)}
+    val popupContext=LocalContext.current
+    val popupService=remember(accountKey) {OfferPopupService(OfferPopupRepository(popupContext.getSharedPreferences("offer-popup",0),accountKey),OfferPopupPolicy())}
+    var popup by rememberSaveable(accountKey,stateSaver=NullableJsonSaver) {mutableStateOf<JSONObject?>(null)}
+    LaunchedEffect(offers) {
+        if(BuildConfig.OFFER_POPUP_ENABLED&&!showReport&&accountKey.isNotBlank())popup=popupService.next(offers)
+    }
+
 
     fun refresh() {
         scope.launch {
@@ -319,6 +326,17 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
             GhadirButton("تلاش دوباره",{refresh()})
         }
         return
+    }
+
+    popup?.let { offer ->
+        fun dismissOffer() {popupService.acknowledge(offer);popup=null}
+        AlertDialog(onDismissRequest={dismissOffer()},icon={Icon(Icons.Default.LocalOffer,null,tint=Orange)},
+            title={Text(offer.s("title"),textAlign=TextAlign.Center,modifier=Modifier.fillMaxWidth())},
+            text={Column(Modifier.heightIn(max=320.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                Text(offer.s("description").ifBlank {"شرایط این طرح ویژه را ببینید."},color=Ink,textAlign=TextAlign.Center,modifier=Modifier.fillMaxWidth())
+                Text(offerDiscountTextNative(offer),color=Orange,textAlign=TextAlign.Center,modifier=Modifier.fillMaxWidth())
+            }},confirmButton={TextButton(onClick={dismissOffer();openOffer(offer.i("id"))}){Text("مشاهده طرح")}},
+            dismissButton={TextButton(onClick={dismissOffer()}){Text("فعلاً بستن")}},containerColor=AppSurface)
     }
 
     if(showReport) {
