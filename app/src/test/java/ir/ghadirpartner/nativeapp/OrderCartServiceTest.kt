@@ -57,6 +57,33 @@ class OrderCartServiceTest {
         assertThrows(IllegalArgumentException::class.java) { service.add(huge, maximum, 1, "serial_1_50") }
     }
 
+    /** Editing the first, middle or last row must never reorder a multi-model draft. */
+    @Test fun quantityChangesKeepEveryRowInItsOriginalPosition() {
+        val models = listOf(product.copy(product="I80"), product, product.copy(product="V77"))
+        val original = models.fold(emptyList<CartLine>()) { lines, model -> service.add(lines, model, 2, "panel_cash") }
+        models.forEachIndexed { index, model ->
+            val edited = service.changeQuantity(original, original[index], model, 3)
+            assertEquals(original.map { it.stableKey }, edited.map { it.stableKey })
+            assertEquals(3, edited[index].qty)
+            original.indices.filter { it != index }.forEach { assertEquals(original[it], edited[it]) }
+        }
+    }
+
+    /** Crossing a serial price tier keeps the same visual row and the panel option distinct. */
+    @Test fun serialTierChangesKeepIdentityAndPosition() {
+        val serial = service.add(emptyList(), product, 50, "serial_1_50")
+        val mixed = service.add(serial, product, 2, "panel_cash")
+        val edited = service.changeQuantity(mixed, mixed.first(), product, 51)
+        assertEquals(mixed.map { it.stableKey }, edited.map { it.stableKey })
+        assertEquals("serial_51_200", edited.first().priceKey)
+        assertEquals(115L, edited.first().unit)
+        assertEquals(mixed.last(), edited.last())
+        assertEquals(2, edited.map { it.stableKey }.distinct().size)
+        assertThrows(IllegalArgumentException::class.java) {
+            service.changeQuantity(mixed, mixed.first(), product.copy(product="V77"), 51)
+        }
+    }
+
     /** Invalid policy values cannot silently alter quantity rules. */
     @Test fun rejectsInvalidPolicy() {
         assertThrows(IllegalArgumentException::class.java) { OrderPolicy(0, 50) }

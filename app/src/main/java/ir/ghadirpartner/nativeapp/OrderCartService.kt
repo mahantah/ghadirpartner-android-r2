@@ -7,7 +7,11 @@ internal data class CartLine(
     val priceKey: String,
     val priceLabel: String,
     val unit: Long,
-)
+) {
+    /** Keep row identity independent of quantity and the free-serial price tier. */
+    val stableKey: String
+        get() = "${product.length}:$product:${if (priceKey.startsWith("serial_")) "serial" else priceKey}"
+}
 
 /** The server-authorized prices and shared stock for one model. */
 internal data class OrderCatalogEntry(
@@ -61,8 +65,20 @@ internal class OrderCartService(
 
     /** Change one option while retaining the other options and their shared stock constraint. */
     fun changeQuantity(lines: List<CartLine>, line: CartLine, product: OrderCatalogEntry, quantity: Int): List<CartLine> {
-        require(lines.any {it.product == line.product && it.priceKey == line.priceKey}) {"ردیف سفارش پیدا نشد"}
-        return add(lines.filterNot {it.product == line.product && it.priceKey == line.priceKey}, product, quantity, line.priceKey)
+        val index: Int = lines.indexOfFirst { it.product == line.product && it.priceKey == line.priceKey }
+        require(index >= 0) { "ردیف سفارش پیدا نشد" }
+        require(product.product == line.product) { "مدل ردیف سفارش مطابقت ندارد" }
+        require(quantity in 1..policy.maximumQuantity) { "تعداد معتبر وارد کنید" }
+        require((product.prices[line.priceKey] ?: 0L) > 0L) { "این نوع قیمت برای حساب شما فعال نیست" }
+        // Update in place: remove/add changes the user's visual order and scroll target.
+        val updated: List<CartLine> = lines.mapIndexed { position, current ->
+            if (position == index) current.copy(qty = quantity, unit = product.prices[line.priceKey] ?: 0L) else current
+        }
+        val requested: Long = updated.filter { it.product == product.product }.sumOf { it.qty.toLong() }
+        require(requested <= minOf(product.stock, policy.maximumQuantity)) {
+            "مجموع تعداد این مدل در تمام نوع‌های خرید از موجودی قابل سفارش بیشتر است"
+        }
+        return reprice(updated, product)
     }
 
     /** Remove only the chosen option, keeping other purchases of the same model. */

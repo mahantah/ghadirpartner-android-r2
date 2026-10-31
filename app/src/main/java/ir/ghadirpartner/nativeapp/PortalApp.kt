@@ -726,6 +726,10 @@ private fun PortalNewOrder(api:ApiClient,initialOfferCode:String="",initialProdu
             item {Text("۱. انتخاب کالا",color=Ink,fontSize=18.sp,fontWeight=FontWeight.Bold)}
             item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 DropdownField("مدل دستگاه",selected?.let {shortProductName(it.s("name"))+" • "+it.s("manufacturer")}?:"انتخاب دستگاه",products,{shortProductName(it.s("name"))+" • "+it.s("manufacturer")}) {selected=it}
+                selected?.let { product ->
+                    Text(product.s("name"), color=Ink, fontWeight=FontWeight.Bold, fontSize=16.sp, lineHeight=26.sp)
+                    if(product.s("manufacturer").isNotBlank())Text("سازنده: "+product.s("manufacturer"), color=Muted, fontSize=12.sp, lineHeight=20.sp)
+                }
                 Text("نوع قیمت",color=Muted,fontSize=12.sp)
                 DesignChoices(listOf("agent" to "عامل فروش","panel" to "ثبت در پنل","serial" to "سریال آزاد"),group,{group=it})
                 if(group=="panel")DropdownField("نوع خرید پنل",catalogPriceRows("panel").first {it.first==panelTier}.second,catalogPriceRows("panel"),{it.second}){panelTier=it.first}
@@ -752,22 +756,20 @@ private fun PortalNewOrder(api:ApiClient,initialOfferCode:String="",initialProdu
             item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 Text("سبد سفارش",color=Ink,fontWeight=FontWeight.Bold)
                 if(cart.isEmpty())Text("هنوز کالایی به سبد اضافه نشده است.",color=Muted,fontSize=12.sp)
-                cart.forEach {line->
-                    DetailLine("کالا",shortProductName(line.product))
-                    DetailLine("تعداد",faNumber(line.qty)+" دستگاه")
-                    DetailLine("نوع قیمت",line.priceLabel)
-                    DetailLine("قیمت واحد",formatMoney(line.unit)+" تومان")
-                    DetailLine("مبلغ ردیف",formatMoney(line.unit*line.qty)+" تومان")
-                    Row(verticalAlignment=Alignment.CenterVertically) {
-                        TextButton(onClick={changeQuantity(line,line.qty-1)},enabled=line.qty>1,modifier=Modifier.semantics {contentDescription="کاهش تعداد "+line.product}) {Text("−")}
-                        Text(faNumber(line.qty),color=Ink)
-                        TextButton(onClick={changeQuantity(line,(line.qty.toLong()+1).coerceAtMost(Int.MAX_VALUE.toLong()).toInt())},modifier=Modifier.semantics {contentDescription="افزایش تعداد "+line.product}) {Text("+")}
+                cart.forEach { line ->
+                    key(line.stableKey) {
+                        OrderLineCard(
+                            line = line,
+                            onIncrease = { changeQuantity(line, (line.qty.toLong() + 1).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()) },
+                            onDecrease = { changeQuantity(line, line.qty - 1) },
+                            onRemove = {
+                                products.firstOrNull { it.s("name") == line.product }?.let { product ->
+                                    cart = cartService.remove(cart, line, catalogEntry(product))
+                                    settlement = JSONObject()
+                                }
+                            },
+                        )
                     }
-                    TextButton(onClick={
-                        products.firstOrNull {it.s("name")==line.product}?.let {product->
-                            cart=cartService.remove(cart,line,catalogEntry(product));settlement=JSONObject()
-                        }
-                    }){Text("حذف "+shortProductName(line.product)+" • "+line.priceLabel,color=Danger)}
                 }
                 DetailLine("تسویه",when(payment){"cash"->"نقد";"check"->"چک";else->"اعتباری"})
                 HorizontalDivider(color=Border)
@@ -804,17 +806,13 @@ private fun PortalNewOrder(api:ApiClient,initialOfferCode:String="",initialProdu
             item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                 Text("بررسی سفارش",color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold)
                 DetailLine("نوع فاکتور",invoiceType)
-                cart.forEach {line->
-                    DetailLine("کالا",shortProductName(line.product))
-                    DetailLine("تعداد",faNumber(line.qty)+" دستگاه")
-                    DetailLine("نوع قیمت",line.priceLabel)
-                    DetailLine("قیمت واحد",formatMoney(line.unit)+" تومان")
+                cart.forEach { line ->
+                    key(line.stableKey) { OrderLineCard(line) }
                 }
                 DetailLine("تسویه",when(payment){"cash"->"نقد";"check"->"چک";else->"اعتباری"})
                 HorizontalDivider(color=Border)
                 if(discount>0)DetailLine("تخفیف",formatMoney(discount)+" تومان")
                 DetailLine("جمع سفارش",formatMoney(total)+" تومان")
-                DetailLine("نوع فاکتور",invoiceType)
                 if(appliedOffer!=null)DetailLine("کد تخفیف",appliedOffer!!.s("promo_code"))
                 if(notes.isNotBlank())Text("توضیحات: "+notes,color=Ink,fontSize=14.sp)
                 Text("گیرنده: "+receiver,color=Ink,fontSize=14.sp)
