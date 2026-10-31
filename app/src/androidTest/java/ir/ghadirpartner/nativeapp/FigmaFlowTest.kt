@@ -8,6 +8,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import okhttp3.*
@@ -65,7 +66,18 @@ class FigmaFlowTest {
             shot("profile-night.png")
             compose.onNodeWithContentDescription("حالت روز").performClick()
             compose.onNodeWithText("پروفایل من").performClick()
-            compose.onNodeWithText("فاکتورهای من").performScrollTo().performClick()
+            val invoiceAction=compose.onNodeWithText("فاکتورهای من").performScrollTo()
+            // Centered profile cards are taller; reveal the complete target above the floating bar before tapping.
+            repeat(4) {
+                compose.waitForIdle()
+                val bar=compose.onNodeWithContentDescription("ناوبری شناور").fetchSemanticsNode().boundsInRoot
+                val overlap=invoiceAction.fetchSemanticsNode().boundsInRoot.bottom-bar.top+12f
+                if(overlap>0) {
+                    compose.onAllNodes(hasScrollToIndexAction()).onFirst().performSemanticsAction(SemanticsActions.ScrollBy){it(0f,overlap)}
+                    compose.mainClock.advanceTimeByFrame()
+                }
+            }
+            invoiceAction.performClick()
             compose.waitUntil(10000){compose.onAllNodesWithText("دانلود PDF پیش‌فاکتور").fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithText("دانلود PDF پیش‌فاکتور").assertExists()
             shot("invoice-list.png")
