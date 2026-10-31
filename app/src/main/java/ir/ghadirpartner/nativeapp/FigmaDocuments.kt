@@ -83,7 +83,8 @@ fun PortalDocuments(api:ApiClient,me:JSONObject,selected:JSONObject?=null,onOpen
                     Text("شماره تماس: "+faDigits(me.s("username")),color=Ink,fontSize=13.sp)
                 }
                 HorizontalDivider(color=Border)
-                order.arr("items").objects().forEach {line->
+                order.arr("purchase_items").objects().ifEmpty {order.arr("items").objects()}.forEach {line->
+                    DetailLine("نوع خرید",line.s("price_label"))
                     DetailLine(shortProductName(line.s("product")),faNumber(line.i("qty"))+" دستگاه")
                     DetailLine("قیمت واحد",formatMoney(line.l("unit_price")))
                 }
@@ -103,17 +104,25 @@ fun PortalDocuments(api:ApiClient,me:JSONObject,selected:JSONObject?=null,onOpen
         }
     }
 }
+/** Show the company decision separately from fulfillment; pending and rejected are never completed. */
 @Composable
-fun OrderDeliveryTimeline(status: String) {
-    val labels=listOf("ثبت","آماده‌سازی","ارسال","تحویل")
-    val current=when {status=="تحویل شد"->3;status=="ارسال شد"->2;status.contains("آماده")->1;else->0}
+fun OrderDeliveryTimeline(status: String, approvalStatus: String = "") {
+    val review = CompanyReview.from(approvalStatus, status)
+    val labels = listOf("ثبت سفارش", review.label, "آماده‌سازی", "ارسال", "تحویل")
+    val current = when {
+        !review.approved -> 0
+        status == "تحویل شد" -> 4
+        status == "ارسال شد" -> 3
+        status.contains("آماده") -> 2
+        else -> 1
+    }
     GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        Text("مراحل تحویل",fontWeight=FontWeight.Bold,color=Ink,fontSize=20.sp)
+        Text("مراحل سفارش",fontWeight=FontWeight.Bold,color=Ink,fontSize=20.sp)
         labels.forEachIndexed {i,label->
             Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                if(i<=current&&!status.contains("لغو"))DesignGlyph(R.drawable.design_delivered,null,Modifier.size(22.dp))
-                else Text("○",color=Muted,modifier=Modifier.width(22.dp))
-                Text(label,color=Ink,fontSize=14.sp,lineHeight=23.sp)
+                if(i<=current)DesignGlyph(R.drawable.design_delivered,null,Modifier.size(22.dp))
+                else Text(if(i==1&&review.stopped)"×" else "○",color=if(i==1&&review.stopped)Danger else Muted,modifier=Modifier.width(22.dp))
+                Text(label,color=if(i==1&&review.stopped)Danger else Ink,fontSize=14.sp,lineHeight=23.sp)
             }
         }
     }}

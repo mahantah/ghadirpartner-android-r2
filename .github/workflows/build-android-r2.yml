@@ -35,7 +35,7 @@ jobs:
           path: ~/.android/debug.keystore
           key: ghadir-portal-r4-debug-signing-v1
       - name: Build and lint portal and automation apps
-        run: gradle --no-daemon --console=plain :app:assemblePortalDebug :app:assemblePortalDebugAndroidTest :app:lintPortalDebug :app:assembleAutomationDebug :app:lintAutomationDebug
+        run: gradle --no-daemon --console=plain :app:testPortalDebugUnitTest :app:assemblePortalDebug :app:assemblePortalDebugAndroidTest :app:lintPortalDebug :app:assembleAutomationDebug :app:lintAutomationDebug
       - name: Enable emulator acceleration
         run: |
           sudo chmod a+rw /dev/kvm

@@ -117,6 +117,11 @@ class DesignFlowTest {
         val top=compose.onNodeWithContentDescription("ناوبری شناور").fetchSemanticsNode().boundsInRoot.top
         assertTrue("Control must be above the floating navigation before tapping",node.fetchSemanticsNode().boundsInRoot.bottom<=top)
     }
+    private fun chooseInvoice() {
+        showField("تنظیم نوع فاکتور");compose.onNodeWithContentDescription("تنظیم نوع فاکتور").performClick()
+        compose.onNodeWithText("غیررسمی",substring=false).performClick()
+        compose.onNodeWithText("تأیید و بستن").performClick()
+    }
     @Test fun catalogCheckoutAndSerials() {
         ActivityScenario.launch(MainActivity::class.java).use {scenario->
             scenario.onActivity {activity->
@@ -138,6 +143,7 @@ class DesignFlowTest {
             compose.onNodeWithText("i90 • SZZT").performClick()
             showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").performClick()
             shot("design-checkout-cart.png")
+            chooseInvoice()
             showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
             showField("نشانی تحویل");compose.onNodeWithContentDescription("نشانی تحویل").performClick()
             compose.onNodeWithText("دفتر • خیابان دفتر").performClick()
@@ -169,6 +175,8 @@ class DesignFlowTest {
             assertEquals("saved-A",body.s("address_id"))
             assertEquals("credit",body.s("requested_payment_method"))
             assertTrue(body.obj("settlement_details").b("terms_accepted"))
+            assertEquals(BuildConfig.ORDER_CREDIT_COMMITMENT_SHA256,body.obj("settlement_details").s("commitment_sha256"))
+            assertEquals("غیررسمی",body.s("invoice_type"))
             assertEquals("serial_1_50",body.arr("items").getJSONObject(0).s("price_key"))
             assertEquals(1,body.arr("items").getJSONObject(0).i("qty"))
             compose.onAllNodesWithText("سفارش‌ها").onLast().performClick()
@@ -194,6 +202,7 @@ class DesignFlowTest {
             waitText("افزودن کالا")
             showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").performClick()
             showField("افزایش تعداد i90");compose.onNodeWithContentDescription("افزایش تعداد i90").performClick()
+            chooseInvoice()
             showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
             showField("نشانی تحویل");compose.onNodeWithContentDescription("نشانی تحویل").performClick()
             compose.onNodeWithText("دفتر • خیابان دفتر").performClick()
@@ -275,6 +284,7 @@ class DesignFlowTest {
             hideKeyboard(scenario)
             showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").performClick()
             showField("افزایش تعداد i90");compose.onNodeWithContentDescription("افزایش تعداد i90").performClick()
+            chooseInvoice()
             showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
             showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
             showText("تأیید و ثبت نهایی");compose.onNodeWithText("تأیید و ثبت نهایی").performClick()

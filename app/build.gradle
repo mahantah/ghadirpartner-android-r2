@@ -1,7 +1,23 @@
+buildscript {
+    repositories { mavenCentral() }
+    dependencies { classpath 'org.yaml:snakeyaml:2.3' }
+}
+
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.compose'
+}
+
+def orderPolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/order-flow.yaml').text)
+def policyKeys = ['version_name', 'version_code', 'maximum_quantity', 'serial_tier_threshold', 'credit_commitment'] as Set
+if (!(orderPolicy instanceof Map) || orderPolicy.keySet() != policyKeys ||
+    !(orderPolicy.version_name instanceof String) || !(orderPolicy.version_name ==~ /[0-9.]+-r[0-9.]+/) ||
+    !(orderPolicy.version_code instanceof Integer) || orderPolicy.version_code <= 543061 ||
+    !(orderPolicy.maximum_quantity instanceof Integer) || !(orderPolicy.maximum_quantity in 1..Integer.MAX_VALUE) ||
+    !(orderPolicy.serial_tier_threshold instanceof Integer) || !(orderPolicy.serial_tier_threshold in 1..orderPolicy.maximum_quantity) ||
+    !(orderPolicy.credit_commitment instanceof String) || orderPolicy.credit_commitment.trim().isEmpty()) {
+    throw new GradleException('Invalid config/order-flow.yaml')
 }
 
 android {
@@ -11,9 +27,13 @@ android {
     defaultConfig {
         minSdk 24
         targetSdk 36
-        versionCode 543058
-        versionName '5.4.3.3-r5.8'
+        versionCode orderPolicy.version_code
+        versionName orderPolicy.version_name
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        buildConfigField 'int', 'ORDER_MAXIMUM_QUANTITY', orderPolicy.maximum_quantity.toString()
+        buildConfigField 'int', 'ORDER_SERIAL_TIER_THRESHOLD', orderPolicy.serial_tier_threshold.toString()
+        buildConfigField 'String', 'ORDER_CREDIT_COMMITMENT', groovy.json.JsonOutput.toJson(orderPolicy.credit_commitment)
+        buildConfigField 'String', 'ORDER_CREDIT_COMMITMENT_SHA256', groovy.json.JsonOutput.toJson(java.security.MessageDigest.getInstance('SHA-256').digest(orderPolicy.credit_commitment.getBytes('UTF-8')).encodeHex().toString())
     }
 
     flavorDimensions 'mode'
@@ -70,6 +90,7 @@ android {
 }
 
 dependencies {
+    testImplementation 'junit:junit:4.13.2'
     implementation 'com.caverock:androidsvg-aar:1.4'
     androidTestImplementation 'androidx.compose.ui:ui-test-junit4:1.7.8'
     debugImplementation 'androidx.compose.ui:ui-test-manifest:1.7.8'
