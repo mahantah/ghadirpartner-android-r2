@@ -105,7 +105,6 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
 
     var checkoutBusy by remember {mutableStateOf(false)}
     var profileBusy by remember {mutableStateOf(false)}
-    var draftHasItems by remember {mutableStateOf(false)}
     var checkoutDraftSnapshot by remember {mutableStateOf<JSONObject?>(null)}
     var checkoutSessionKey by rememberSaveable {mutableIntStateOf(0)}
     var restoreCheckoutDraft by remember {mutableStateOf<JSONObject?>(null)}
@@ -118,7 +117,6 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
             abandonedRevision++
         }
         checkoutDraftSnapshot=null
-        draftHasItems=false
         checkoutSessionKey++
     }
     fun clearAbandonedDraft() {
@@ -134,7 +132,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
     var orderBackRequest by remember {mutableIntStateOf(0)}
     fun goBack() {
         if(checkoutBusy||profileBusy)return
-        if(screen=="new"&&checkoutTitle=="ثبت سفارش"&&draftHasItems)parkActiveCheckout()
+        if(screen=="new"&&checkoutTitle=="ثبت سفارش")parkActiveCheckout()
         when (screen) {
             "new" -> if (checkoutTitle != "ثبت سفارش") checkoutBackRequest++ else {parkActiveCheckout();screen="home"}
             "profile" -> if (profileTitle != "پروفایل") profileBackRequest++ else screen="home"
@@ -151,7 +149,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
     BackHandler(enabled = screen != "home") { goBack() }
     fun selectTab(destination:String) {
         if(checkoutBusy||profileBusy)return
-        if(screen=="new"&&destination!="new"&&draftHasItems)parkActiveCheckout()
+        if(screen=="new"&&destination!="new")parkActiveCheckout()
         selectedOffer=null;screen=destination
     }
     val navScreen=when(screen){"serials","serial-detail","order-detail","success"->"orders";"documents","proforma","addresses","summary"->"profile";"inbox","offers"->"home";else->screen}
@@ -169,8 +167,8 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
             val title=if(screen=="serial-detail")"سریال دستگاه‌ها" else if(screen=="order-detail"&&cancelView)"لغو سفارش" else if(screen=="profile")profileTitle else if(screen=="new")checkoutTitle else if(screen=="offers"&&selectedOffer!=null)"جزئیات آفر" else titles[screen]?:"قدیر پارتنر"
             if(backScreen) PortalBackHeader(title) {
                 goBack()
-            } else PortalGlassHeader(title,screen=="home",inbox.unread,onOffers={if(!checkoutBusy&&!profileBusy){if(screen=="new"&&draftHasItems)parkActiveCheckout();offersOrigin=screen;selectedOffer=null;screen="offers"}}) {
-                if(!checkoutBusy&&!profileBusy){if(screen=="new"&&draftHasItems)parkActiveCheckout();screen="inbox";appScope.launch {inbox.refresh()}}
+            } else PortalGlassHeader(title,screen=="home",inbox.unread,onOffers={if(!checkoutBusy&&!profileBusy){if(screen=="new")parkActiveCheckout();offersOrigin=screen;selectedOffer=null;screen="offers"}}) {
+                if(!checkoutBusy&&!profileBusy){if(screen=="new")parkActiveCheckout();screen="inbox";appScope.launch {inbox.refresh()}}
             }
         },
         bottomBar = {
@@ -199,7 +197,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                         restoreCheckoutDraft=it;checkoutSessionKey++;screen="new"
                     },onDeleteAbandoned={clearAbandonedDraft()},onNavigate={screen=it}) { orderOrigin=screen; selectedOrder = it; screen = "order-detail" }
                     "new" -> PortalNewOrder(api, offerCode, catalogProduct, catalogGroup, restoreDraft=restoreCheckoutDraft,abandonedBanner=abandonedOrder,
-                        onProductConsumed={catalogProduct=""},onBusyChanged={checkoutBusy=it},onDraftChanged={draftHasItems=it},
+                        onProductConsumed={catalogProduct=""},onBusyChanged={checkoutBusy=it},
                         onDraftSnapshot={checkoutDraftSnapshot=it},onClearAbandoned={clearAbandonedDraft()},onRestoreConsumed={restoreCheckoutDraft=null},
                         onStageChanged={checkoutTitle=it},backRequest=checkoutBackRequest) { createdOrder ->
                         offerCode=""
@@ -636,7 +634,6 @@ private fun PortalNewOrder(
     abandonedBanner:JSONObject?=null,
     onProductConsumed:()->Unit={},
     onBusyChanged:(Boolean)->Unit={},
-    onDraftChanged:(Boolean)->Unit={},
     onDraftSnapshot:(JSONObject?)->Unit={},
     onClearAbandoned:()->Unit={},
     onRestoreConsumed:()->Unit={},
@@ -677,7 +674,6 @@ private fun PortalNewOrder(
     LaunchedEffect(settlement) {
         if(settlement.b("restore_failed")){step=1;error="اطلاعات تسویه بازیابی نشد؛ لطفاً دوباره تکمیل کنید.";settlement=defaultSplitSettlement(0L)}
     }
-    LaunchedEffect(cart){onDraftChanged(cart.isNotEmpty())}
     var restoreApplied by rememberSaveable {mutableStateOf(false)}
     LaunchedEffect(submitting,evidenceBusy){onBusyChanged(submitting||evidenceBusy)}
     DisposableEffect(Unit){onDispose{onBusyChanged(false)}}
@@ -745,7 +741,10 @@ private fun PortalNewOrder(
     fun applyPromo() {
         val match=offers.firstOrNull {promoNorm(it.s("promo_code"))==promoNorm(promoCode)&&it.s("discount_type") in listOf("percent","amount")&&it.l("discount_value")>0}
         val amount=discountForOfferNative(match,cart)
-        if(appliedOffer?.toString()!=match?.toString())settlement=defaultSplitSettlement(total)
+        if(appliedOffer?.toString()!=match?.toString()) {
+            // The discount changes the invoice total during the next composition.
+            settlement=defaultSplitSettlement((subtotal-amount).coerceAtLeast(0L))
+        }
         appliedOffer=if(amount>0)match else null
         promoMessage=if(amount>0)offerDiscountTextNative(match!!)+" اعمال شد." else "این کد برای کالاهای فعلی سفارش معتبر یا فعال نیست."
     }
