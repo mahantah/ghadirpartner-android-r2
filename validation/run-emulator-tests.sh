@@ -15,7 +15,16 @@ adb logcat -d -b crash > app/build/reports/startup/crash.txt
 adb shell pidof ir.ghadirpartner.portalapp.debug
 test ! -s app/build/reports/startup/crash.txt
 adb install -r app/build/outputs/apk/androidTest/portal/debug/app-portal-debug-androidTest.apk
-adb shell am instrument -w ir.ghadirpartner.portalapp.debug.test/androidx.test.runner.AndroidJUnitRunner > app/build/reports/startup/instrumentation.txt
+if ! adb shell am instrument -w ir.ghadirpartner.portalapp.debug.test/androidx.test.runner.AndroidJUnitRunner > app/build/reports/startup/instrumentation.txt; then
+  cat app/build/reports/startup/instrumentation.txt
+  echo 'Android instrumentation command failed' >&2
+  exit 1
+fi
+if ! grep -Eq '^OK \([0-9]+ tests?\)' app/build/reports/startup/instrumentation.txt; then
+  cat app/build/reports/startup/instrumentation.txt
+  echo 'Android instrumentation tests did not all pass' >&2
+  exit 1
+fi
 adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/invoice-reference.pdf > app/build/reports/invoice-reference.pdf
 adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/invoice-official.pdf > app/build/reports/invoice-official.pdf
 adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/invoice-long-fields.pdf > app/build/reports/invoice-long-fields.pdf
@@ -31,4 +40,3 @@ for name in design-home-day design-home-night design-catalog-serial design-catal
     rm -f "app/build/reports/design/$name.png"
   fi
 done
-grep -q 'OK (30 tests)' app/build/reports/startup/instrumentation.txt
