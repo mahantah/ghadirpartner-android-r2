@@ -111,7 +111,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
     var abandonedRevision by remember {mutableIntStateOf(0)}
     val abandonedOrder=remember(abandonedRevision) {AbandonedOrderStore.load(context)}
     fun parkActiveCheckout() {
-        val snapshot=checkoutDraftSnapshot
+        val snapshot=checkoutDraftSnapshot ?: AbandonedOrderStore.load(context)
         if(snapshot!=null&&snapshot.optJSONArray("cart")?.length()?:0>0) {
             AbandonedOrderStore.save(context,snapshot)
             abandonedRevision++
@@ -197,7 +197,11 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                     },onDeleteAbandoned={clearAbandonedDraft()},onNavigate={screen=it}) { orderOrigin=screen; selectedOrder = it; screen = "order-detail" }
                     "new" -> PortalNewOrder(api, offerCode, catalogProduct, catalogGroup, restoreDraft=restoreCheckoutDraft,abandonedBanner=abandonedOrder,
                         onProductConsumed={catalogProduct=""},onBusyChanged={checkoutBusy=it},
-                        onDraftSnapshot={checkoutDraftSnapshot=it},onClearAbandoned={clearAbandonedDraft()},onRestoreConsumed={restoreCheckoutDraft=null},
+                        onDraftSnapshot={snapshot->
+                            checkoutDraftSnapshot=snapshot
+                            // Persist during edits so immediate navigation cannot discard the last cart.
+                            if(snapshot!=null)AbandonedOrderStore.save(context,snapshot)
+                        },onClearAbandoned={clearAbandonedDraft()},onRestoreConsumed={restoreCheckoutDraft=null},
                         onStageChanged={checkoutTitle=it},backRequest=checkoutBackRequest) { createdOrder ->
                         offerCode=""
                         clearAbandonedDraft()
