@@ -457,8 +457,8 @@ private fun PortalOrders(
                 val preview=cartFromDraft(abandonedOrder)
                 if(preview.isNotEmpty())Text(preview.joinToString(" • "){"${shortProductName(it.product)} × ${faNumber(it.qty)}"},color=Ink,fontSize=13.sp)
                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    GhadirButton("ادامه سفارش",{onContinueAbandoned(abandonedOrder)},Modifier.weight(1f))
-                    GhadirButton("حذف سفارش",onDeleteAbandoned,Modifier.weight(1f),secondary=true)
+                    GhadirButton("ادامه سفارش",{onContinueAbandoned(abandonedOrder)},modifier=Modifier.weight(1f))
+                    GhadirButton("حذف سفارش",onDeleteAbandoned,secondary=true,modifier=Modifier.weight(1f))
                 }
             }}
         }

@@ -1,7 +1,7 @@
 name: Build Ghadir Partner Android UI Update
 on:
   push:
-    branches: [main, codex/compact-r5, codex/integrate-r54, codex/figma-100-573, codex/r56-login-security]
+    branches: [main, codex/compact-r5, codex/integrate-r54, codex/figma-100-573, codex/r56-login-security, fix/portal-order-row-stability, cursor/r5.18-edits-5ae8]
   pull_request:
     branches: [main, codex/r57-order-usability, feature/portal-r58-order-upgrade, feature/portal-r515-visual-polish, feature/portal-offer-popup, feature/portal-offer-products]
   workflow_dispatch:

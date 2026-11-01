@@ -22,6 +22,9 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 
+internal fun asciiDigits(value: String): String =
+    value.map { if (it.isDigit()) Character.digit(it, 10).toString() else it.toString() }.joinToString("")
+
 @Composable
 internal fun SettlementForm(
     api: ApiClient,
