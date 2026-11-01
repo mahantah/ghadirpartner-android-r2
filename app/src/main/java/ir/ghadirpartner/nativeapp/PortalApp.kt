@@ -132,7 +132,6 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
     var orderBackRequest by remember {mutableIntStateOf(0)}
     fun goBack() {
         if(checkoutBusy||profileBusy)return
-        if(screen=="new"&&checkoutTitle=="ثبت سفارش")parkActiveCheckout()
         when (screen) {
             "new" -> if (checkoutTitle != "ثبت سفارش") checkoutBackRequest++ else {parkActiveCheckout();screen="home"}
             "profile" -> if (profileTitle != "پروفایل") profileBackRequest++ else screen="home"
