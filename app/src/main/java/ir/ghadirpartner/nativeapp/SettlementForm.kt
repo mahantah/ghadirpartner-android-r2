@@ -128,9 +128,15 @@ internal fun SettlementForm(
         if (invoiceType == "رسمی") {
             DesignNotice("فاکتور رسمی — فروشنده: هوشمند پرداز پویا تجارت قدیر — شناسه ملی ۱۴۰۱۰۳۶۶۳۹۵")
         }
-        SplitMethodRow("نقد", value.b("cash_enabled"), amountText("cash"), { set("cash_enabled", it) }, { setAmount("cash", it) })
-        SplitMethodRow("چک", value.b("check_enabled"), amountText("check"), { set("check_enabled", it) }, { setAmount("check", it) })
-        SplitMethodRow("اعتباری", value.b("credit_enabled"), amountText("credit"), { set("credit_enabled", it) }, { setAmount("credit", it) })
+        SplitMethodRow("نقد", value.b("cash_enabled"), amountText("cash"), { enabled ->
+            patch { it.put("cash_enabled", enabled); if (!enabled) it.put("cash_amount", 0L) }
+        }, { setAmount("cash", it) })
+        SplitMethodRow("چک", value.b("check_enabled"), amountText("check"), { enabled ->
+            patch { it.put("check_enabled", enabled); if (!enabled) it.put("check_amount", 0L) }
+        }, { setAmount("check", it) })
+        SplitMethodRow("اعتباری", value.b("credit_enabled"), amountText("credit"), { enabled ->
+            patch { it.put("credit_enabled", enabled); if (!enabled) it.put("credit_amount", 0L) }
+        }, { setAmount("credit", it) })
         if (value.b("cash_enabled") && value.optLong("cash_amount") > 0L) {
             DesignNotice("تسویه نقدی\n\nثبت رسید پرداخت برای بررسی واحد مالی.")
             DesignField("شماره پیگیری", value.s("tracking_number"), { set("tracking_number", asciiDigits(it).take(100)) }, "شماره پیگیری انتقال — در صورت پرداخت", enabled = !busy)

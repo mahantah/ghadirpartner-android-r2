@@ -7,7 +7,7 @@ internal fun settlementInvoiceTotal(d: JSONObject, fallback: Long): Long =
 
 internal fun settlementAllocated(d: JSONObject): Long =
     listOf("cash", "check", "credit").sumOf { part ->
-        if (d.b("${part}_enabled") || d.optLong("${part}_amount") > 0L) d.optLong("${part}_amount") else 0L
+        if (d.b("${part}_enabled") && d.optLong("${part}_amount") > 0L) d.optLong("${part}_amount") else 0L
     }
 
 internal fun settlementRemaining(d: JSONObject, invoiceTotal: Long): Long =
