@@ -36,28 +36,28 @@ internal fun PortalAddresses(api: ApiClient) {
     var city by remember {mutableStateOf("")}
     var address by remember {mutableStateOf("")}
     var postal by remember {mutableStateOf("")}
+    var showForm by remember {mutableStateOf(false)}
     LaunchedEffect(Unit) {try {rows=(api.get("/api/addresses") as JSONArray).objects()}catch(e:Exception){error=e.message ?: "خطا"}}
     fun save(remove: String?=null) {scope.launch {
         busy=true;error=""
         try {
             val body=if(remove!=null) JSONObject().put("delete_id",remove) else JSONObject().put("id",id).put("title",title.trim()).put("province",province.trim()).put("city",city.trim()).put("address",address.trim()).put("postal_code",postal)
             rows=(api.post("/api/addresses",body) as JSONArray).objects()
-            id="";title="";province="";city="";address="";postal=""
+            id="";title="";province="";city="";address="";postal="";showForm=false
         }catch(e:Exception){error=e.message ?: "ذخیره آدرس ناموفق بود"}finally {busy=false}
     }}
     LazyColumn(Modifier.fillMaxSize().padding(16.dp),contentPadding=PaddingValues(bottom=24.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(10.dp)) {
         item {ErrorBanner(error){error=""}}
         items(rows,key={it.s("id")}) {row->GlassSurface {Column(Modifier.fillMaxWidth().padding(12.dp)) {
             Text(row.s("title"),color=Ink);Text(row.s("province")+"، "+row.s("city")+"، "+row.s("address"),color=Muted)
-            Row {GlassTextButton(onClick={id=row.s("id");title=row.s("title");province=row.s("province");city=row.s("city");address=row.s("address");postal=row.s("postal_code")},enabled=!busy){Text("ویرایش")}
+            Row {GlassTextButton(onClick={showForm=true;id=row.s("id");title=row.s("title");province=row.s("province");city=row.s("city");address=row.s("address");postal=row.s("postal_code")},enabled=!busy){Text("ویرایش")}
                 GlassTextButton(onClick={save(row.s("id"))},enabled=!busy){Text("حذف",color=Danger)}}
         }}}
-        item {Text(if(id.isBlank()) "آدرس جدید" else "ویرایش آدرس",color=Ink)}
-        item {OutlinedTextField(title,{title=it.take(60)},label={Text("عنوان، مثلاً دفتر")},modifier=Modifier.fillMaxWidth())}
-        item {OutlinedTextField(province,{province=it.take(80)},label={Text("استان")},modifier=Modifier.fillMaxWidth())}
-        item {OutlinedTextField(city,{city=it.take(80)},label={Text("شهر")},modifier=Modifier.fillMaxWidth())}
-        item {OutlinedTextField(address,{address=it.take(1000)},label={Text("نشانی کامل و پلاک")},modifier=Modifier.fillMaxWidth(),minLines=2)}
-        item {OutlinedTextField(postal,{postal=it.filter(Char::isDigit).take(10)},label={Text("کدپستی اختیاری")},modifier=Modifier.fillMaxWidth())}
-        item {GhadirButton(if(busy) "در حال ذخیره…" else "ذخیره آدرس",{save()},enabled=!busy&&title.isNotBlank()&&province.isNotBlank()&&city.isNotBlank()&&address.isNotBlank())}
+        item {GhadirButton(if(showForm)"بستن فرم" else "ثبت آدرس جدید",{showForm=!showForm;if(!showForm){id="";title="";province="";city="";address="";postal=""}},secondary=true,enabled=!busy)}
+        if(showForm) {
+            item {Text(if(id.isBlank()) "آدرس جدید" else "ویرایش آدرس",color=Ink)}
+            item {AddressFormFields(title,{title=it},province,{province=it},city,{city=it},address,{address=it},postal,{postal=it})}
+            item {GhadirButton(if(busy) "در حال ذخیره…" else "ذخیره آدرس",{save()},enabled=!busy&&title.isNotBlank()&&province.isNotBlank()&&city.isNotBlank()&&address.isNotBlank())}
+        }
     }
 }

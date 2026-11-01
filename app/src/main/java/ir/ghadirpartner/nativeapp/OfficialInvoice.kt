@@ -73,10 +73,13 @@ internal object OfficialInvoice {
         val items=order.optJSONArray("purchase_items")?.takeIf {it.length()>0} ?: order.optJSONArray("items")
         val lines=(0 until (items?.length()?:0)).map {items!!.getJSONObject(it)}
         fun lineTotal(o:JSONObject)=if(o.has("line_total"))o.getLong("line_total")else Math.multiplyExact(o.optLong("qty"),o.optLong("unit_price"))
+        val officialRows=isOfficial(order)
         val rows=lines.mapIndexed {i,item ->
-            val total=lineTotal(item)
-            val net=total-item.optLong("discount_amount")+item.optLong("additional_amount")
-            listOf(faNumber(i+1),faDigits(value(item,"product_code")),value(item,"product"),faNumber(item.optLong("qty")),item.optString("unit").ifBlank{"عدد"},money(item.optLong("unit_price")),money(total),optionalMoney(item,"discount_amount"),optionalMoney(item,"additional_amount"),money(net),optionalMoney(item,"tax_amount"),if(item.has("tax_amount")&&!item.isNull("tax_amount"))money(net+item.getLong("tax_amount"))else "—")
+            val amounts=InvoiceAmounts.fromAppLine(item,officialRows)
+            val discountCell=optionalMoney(item,"discount_amount")
+            val additionalCell=optionalMoney(item,"additional_amount")
+            val taxCell=amounts.taxAmount?.let(::money) ?: "—"
+            listOf(faNumber(i+1),faDigits(value(item,"product_code")),value(item,"product"),faNumber(item.optLong("qty")),item.optString("unit").ifBlank{"عدد"},money(amounts.unitPrice),money(amounts.lineTotal),discountCell,additionalCell,money(amounts.netAfterAdjustments),taxCell,money(amounts.invoiceNet))
         }
         val heights=rows.map {r -> maxOf(ROW,r.indices.maxOf {measure.layout(r[it],widths[it],7.8f).height.toFloat()}+2f) }
         val address=order.optJSONObject("delivery_address")?:customer
@@ -87,21 +90,21 @@ internal object OfficialInvoice {
         val buyerExtra=nameExtra+addressExtra
         val tableY=248.04f+buyerExtra
         val bodyY=tableY+35.52f
-        val subtotal=if(order.has("subtotal_before_discount"))order.getLong("subtotal_before_discount")else lines.sumOf{lineTotal(it)}
-        val total=order.optLong("approved_total").takeIf{it>0}?:order.optLong("estimated_total")
-        fun aggregate(key:String):String = when {
-            order.has(key)&&!order.isNull(key)->money(order.getLong(key))
-            lines.isNotEmpty()&&lines.all{it.has(key)&&!it.isNull(key)}->money(lines.sumOf{it.getLong(key)})
-            else->"—"
-        }
-        val discount=aggregate("discount_amount")
-        val additional=aggregate("additional_amount")
-        val tax=aggregate("tax_amount")
-        val net=if(discount!="—"&&additional!="—")money(subtotal-(if(order.has("discount_amount"))order.getLong("discount_amount")else lines.sumOf{it.getLong("discount_amount")})+(if(order.has("additional_amount"))order.getLong("additional_amount")else lines.sumOf{it.getLong("additional_amount")}))else "—"
+        val computed=lines.map{InvoiceAmounts.fromAppLine(it,officialRows)}
+        val subtotal=computed.sumOf{it.lineTotal}
+        val total=order.optLong("approved_total").takeIf{it>0}?:order.optLong("estimated_total").takeIf{it>0}?:computed.sumOf{it.invoiceNet}
+        val discount=if(lines.any{it.has("discount_amount")&&!it.isNull("discount_amount")})money(lines.sumOf{it.optLong("discount_amount")})else "—"
+        val additional=if(lines.any{it.has("additional_amount")&&!it.isNull("additional_amount")})money(lines.sumOf{it.optLong("additional_amount")})else "—"
+        val tax=if(officialRows) money(computed.sumOf{it.taxAmount?:0L}) else "—"
+        val net=if(officialRows) money(computed.sumOf{it.netAfterAdjustments}) else money(computed.sumOf{it.invoiceNet})
         val totalWords=words(Math.multiplyExact(total,multiplier))+" ریال"
         val paymentHeight=maxOf(27.6f,measure.layout(totalWords,537.27f).height+8f)
         val bankNotes="همکار عزیز نسبت به تسویه مبلغ فاکتور به صورت نقدی به حساب زیر واریز گردد:\n*بانک مهرایران* حقوقی\n*شماره شبا:* \u2066IR200600000000100438838749\u2069\n*نام صاحب حساب:* هوشمند پرداز پویا تجارت قدیر"
-        val notes=listOf(bankNotes,order.optString("notes").takeUnless{it.isBlank()||it=="null"}).filterNotNull().joinToString("\n")
+        val method=value(order,"requested_payment_method","payment_method")
+        val checkNote=if(officialRows&&(method=="check"||method=="mixed"||value(order,"requested_payment_method_label").contains("چک")))
+            "چک به نام سلمان بوربور فرون‌آباد — کد ملی ۰۴۹۳۳۹۱۷۶۲"
+        else null
+        val notes=listOf(bankNotes,checkNote,order.optString("notes").takeUnless{it.isBlank()||it=="null"}).filterNotNull().joinToString("\n")
         val noteHeight=maxOf(71.64f,measure.layout(notes,680f,8f,align=Layout.Alignment.ALIGN_NORMAL).height+20f)
         val footerHeight=ROW+paymentHeight+noteHeight+35.4f
         val available=550f-bodyY-footerHeight
@@ -130,7 +133,7 @@ internal object OfficialInvoice {
                 f.banner(78f,"مشخصات فروشنده")
                 f.box(LEFT,92.16f,WIDTH,56.76f)
                 f.field("نام شخص حقیقی/حقوقی :","هوشمند پرداز پویا تجارت قدیر",558f,93.2f,252f,112f)
-                f.field("شماره اقتصادی :","۱۴۰۱۰۳۶۶۳۹۵",396f,93.2f,160f,84f)
+                f.field("شماره اقتصادی :","۴۱۱۶۴۴۳۸۳۹۹۵",396f,93.2f,160f,84f)
                 f.field("شماره ثبت /شماره ملی:","۵۸۴۵۵۹",210f,93.2f,185f,120f)
                 f.field("شناسه ملی:","۱۴۰۱۰۳۶۶۳۹۵",32f,93.2f,146f,61f)
                 f.field("کد پستی:","۱۶۸۷۶۸۷۵۱۸",295f,107.36f,113f,42f)

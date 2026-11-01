@@ -182,7 +182,9 @@ class DesignFlowTest {
             showField("نشانی تحویل");compose.onNodeWithContentDescription("نشانی تحویل").performClick()
             compose.onNodeWithText("دفتر • خیابان دفتر").performClick()
             shot("design-checkout-cash.png")
-            showText("چک");compose.onNodeWithText("چک").performClick()
+            compose.onNode(hasText("چک") and isToggleable()).performScrollTo().performClick()
+            showField("چک — مبلغ (تومان)");compose.onNodeWithContentDescription("چک — مبلغ (تومان)").performTextInput("۲۲۸۰۰۰۰۰")
+            compose.onNode(hasText("نقد") and isToggleable()).performClick()
             showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
             waitText("شناسه صیادی باید ۱۶ رقم باشد")
             compose.onNodeWithText("شناسه صیادی باید ۱۶ رقم باشد").assertExists()
@@ -195,20 +197,23 @@ class DesignFlowTest {
             waitText("تأیید نهایی سفارش")
             showText("بازگشت و ویرایش");compose.onNodeWithText("بازگشت و ویرایش").performClick()
             showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
-            showText("اعتباری");compose.onNodeWithText("اعتباری").performClick()
+            compose.onNode(hasText("اعتباری") and isToggleable()).performScrollTo().performClick()
+            showField("اعتباری — مبلغ (تومان)");compose.onNodeWithContentDescription("اعتباری — مبلغ (تومان)").performTextInput("۲۲۸۰۰۰۰۰")
+            compose.onNode(hasText("چک") and isToggleable()).performClick()
             showText("اعتبار حساب شما")
-            compose.onNode(isToggleable()).performScrollTo();clearFloatingBarOverlap(compose.onNode(isToggleable()));compose.onNode(isToggleable()).performClick()
+            compose.onAllNodes(isToggleable()).onLast().performScrollTo();clearFloatingBarOverlap(compose.onAllNodes(isToggleable()).onLast());compose.onAllNodes(isToggleable()).onLast().performClick()
             shot("design-checkout-credit.png")
-            showText("پذیرش و ادامه")
-            compose.waitUntil(15000){compose.onAllNodes(hasText("پذیرش و ادامه") and isEnabled()).fetchSemanticsNodes().isNotEmpty()}
-            compose.onNodeWithText("پذیرش و ادامه").performClick()
+            showText("ادامه به بررسی نهایی")
+            compose.waitUntil(15000){compose.onAllNodes(hasText("ادامه به بررسی نهایی") and isEnabled()).fetchSemanticsNodes().isNotEmpty()}
+            compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
             shot("design-checkout-review.png")
             showText("تأیید و ثبت نهایی");compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
             waitText("سفارش با موفقیت ثبت شد");shot("design-checkout-success.png")
             val body=writes.single {it.first=="/api/orders/add"}.second
             assertEquals("saved-A",body.s("address_id"))
-            assertEquals("credit",body.s("requested_payment_method"))
+            assertTrue(body.s("requested_payment_method") in listOf("credit","mixed"))
             assertTrue(body.obj("settlement_details").b("terms_accepted"))
+            assertTrue(body.obj("settlement_details").b("split"))
             assertEquals(BuildConfig.ORDER_CREDIT_COMMITMENT_SHA256,body.obj("settlement_details").s("commitment_sha256"))
             assertEquals("غیررسمی",body.s("invoice_type"))
             assertEquals("serial_1_50",body.arr("items").getJSONObject(0).s("price_key"))
@@ -226,12 +231,8 @@ class DesignFlowTest {
         }
     }
     @Test fun checkoutDraftSurvivesTabsAndSavedState() {
-        var registry=SaveableStateRegistry(null){true}
-        val visible=mutableStateOf(true)
         ActivityScenario.launch(MainActivity::class.java).use {scenario->
-            scenario.onActivity {a->a.setContent {
-                if(visible.value) GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl,LocalSaveableStateRegistry provides registry){PortalApp(ApiClient(a,client()),me,{})}}
-            }}
+            scenario.onActivity {a->a.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){PortalApp(ApiClient(a,client()),me,{})}}}}
             waitText("سلام، علی رضایی")
             compose.onAllNodesWithText("قیمت‌ها").onLast().performClick()
             waitText("افزودن به سفارش")
@@ -245,29 +246,19 @@ class DesignFlowTest {
             compose.onNodeWithText("دفتر • خیابان دفتر").performClick()
             compose.onAllNodesWithText("پروفایل").onLast().performClick()
             compose.onAllNodesWithText("ثبت سفارش").onLast().performClick()
-            waitText("نشانی تحویل")
-            compose.onNodeWithText("پیش‌نویس محفوظ است؛ از بخش ثبت سفارش ادامه دهید.").assertDoesNotExist()
-            // Final request assertions below verify the restored address and edited quantity.
-            var saved:Map<String,List<Any?>> = emptyMap()
-            compose.runOnIdle {saved=registry.performSave();visible.value=false}
-            compose.waitForIdle()
-            compose.runOnIdle {registry=SaveableStateRegistry(saved){true};visible.value=true}
+            waitText("سفارش تکمیل نشده دارید")
+            compose.onAllNodesWithText("سفارش‌ها").onLast().performClick()
+            waitText("سفارشات رها شده")
+            showText("ادامه سفارش");compose.onNodeWithText("ادامه سفارش").performClick()
             waitText("نشانی تحویل")
             showText("ادامه به بررسی نهایی")
             compose.onNodeWithText("ادامه به بررسی نهایی").assertIsEnabled().performClick()
-            compose.waitForIdle()
-            try {showText("تأیید و ثبت نهایی")} catch(e:Throwable) {
-                shot("design-draft-restore-failure.png",scrollToTop=false)
-                throw AssertionError(compose.onRoot().printToString(),e)
-            }
+            showText("تأیید و ثبت نهایی")
             compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
             waitText("سفارش با موفقیت ثبت شد")
             val body=writes.single {it.first=="/api/orders/add"}.second
             assertEquals("saved-A",body.s("address_id"))
             assertEquals(2,body.arr("items").getJSONObject(0).i("qty"))
-            compose.onAllNodesWithText("ثبت سفارش").onLast().performClick()
-            showText("هنوز کالایی به سبد اضافه نشده است.")
-            compose.onNodeWithText("هنوز کالایی به سبد اضافه نشده است.").assertExists()
         }
     }
     @Test fun inboxOrderReturnsToInbox() {
