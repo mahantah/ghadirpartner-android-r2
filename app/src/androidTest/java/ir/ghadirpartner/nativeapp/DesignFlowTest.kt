@@ -250,6 +250,8 @@ class DesignFlowTest {
             showField("نشانی تحویل");compose.onNodeWithContentDescription("نشانی تحویل").performClick()
             compose.onNodeWithText("دفتر • خیابان دفتر").performClick()
             compose.onAllNodesWithText("پروفایل").onLast().performClick()
+            waitText("تنظیمات")
+            assertNotNull("Checkout draft must be stored before leaving the tab", AbandonedOrderStore.load(InstrumentationRegistry.getInstrumentation().targetContext))
             compose.onAllNodesWithText("ثبت سفارش").onLast().performClick()
             waitText("سفارش تکمیل نشده دارید")
             compose.onAllNodesWithText("سفارش‌ها").onLast().performClick()
