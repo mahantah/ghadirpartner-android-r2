@@ -40,6 +40,10 @@ class DesignFlowTest {
     private val writes=CopyOnWriteArrayList<Pair<String,JSONObject>>()
     @Before fun acknowledgeExistingFixtureOffer() {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
+        writes.clear()
+        includeOrderMessage=false
+        fixtureStock=4
+        context.getSharedPreferences("ghadir_abandoned_order",0).edit().clear().commit()
         OfferPopupRepository(context.getSharedPreferences("offer-popup",0),me.s("username")).acknowledge(3)
     }
     @Test fun offerPopupOpensDetailsOncePerAccount() {
@@ -182,9 +186,9 @@ class DesignFlowTest {
             showField("نشانی تحویل");compose.onNodeWithContentDescription("نشانی تحویل").performClick()
             compose.onNodeWithText("دفتر • خیابان دفتر").performClick()
             shot("design-checkout-cash.png")
-            compose.onNode(hasText("چک") and isToggleable()).performScrollTo().performClick()
+            showField("فعال‌سازی چک");compose.onNodeWithContentDescription("فعال‌سازی چک").performScrollTo().performClick()
             showField("چک — مبلغ (تومان)");compose.onNodeWithContentDescription("چک — مبلغ (تومان)").performTextInput("۲۲۸۰۰۰۰۰")
-            compose.onNode(hasText("نقد") and isToggleable()).performClick()
+            compose.onNodeWithContentDescription("فعال‌سازی نقد").performClick()
             showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
             waitText("شناسه صیادی باید ۱۶ رقم باشد")
             compose.onNodeWithText("شناسه صیادی باید ۱۶ رقم باشد").assertExists()
@@ -197,11 +201,12 @@ class DesignFlowTest {
             waitText("تأیید نهایی سفارش")
             showText("بازگشت و ویرایش");compose.onNodeWithText("بازگشت و ویرایش").performClick()
             showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
-            compose.onNode(hasText("اعتباری") and isToggleable()).performScrollTo().performClick()
+            showField("فعال‌سازی اعتباری");compose.onNodeWithContentDescription("فعال‌سازی اعتباری").performScrollTo().performClick()
             showField("اعتباری — مبلغ (تومان)");compose.onNodeWithContentDescription("اعتباری — مبلغ (تومان)").performTextInput("۲۲۸۰۰۰۰۰")
-            compose.onNode(hasText("چک") and isToggleable()).performClick()
+            compose.onNodeWithContentDescription("فعال‌سازی چک").performClick()
             showText("اعتبار حساب شما")
-            compose.onAllNodes(isToggleable()).onLast().performScrollTo();clearFloatingBarOverlap(compose.onAllNodes(isToggleable()).onLast());compose.onAllNodes(isToggleable()).onLast().performClick()
+            showField("پذیرش تعهد اعتبار");clearFloatingBarOverlap(compose.onNodeWithContentDescription("پذیرش تعهد اعتبار"))
+            compose.onNodeWithContentDescription("پذیرش تعهد اعتبار").performScrollTo().performClick()
             shot("design-checkout-credit.png")
             showText("ادامه به بررسی نهایی")
             compose.waitUntil(15000){compose.onAllNodes(hasText("ادامه به بررسی نهایی") and isEnabled()).fetchSemanticsNodes().isNotEmpty()}
