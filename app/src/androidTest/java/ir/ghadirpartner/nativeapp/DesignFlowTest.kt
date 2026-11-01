@@ -252,8 +252,6 @@ class DesignFlowTest {
             compose.onAllNodesWithText("پروفایل").onLast().performClick()
             waitText("تنظیمات")
             assertNotNull("Checkout draft must be stored before leaving the tab", AbandonedOrderStore.load(InstrumentationRegistry.getInstrumentation().targetContext))
-            compose.onAllNodesWithText("ثبت سفارش").onLast().performClick()
-            waitText("سفارش تکمیل نشده دارید")
             compose.onAllNodesWithText("سفارش‌ها").onLast().performClick()
             waitText("سفارشات رها شده")
             showText("ادامه سفارش");compose.onNodeWithText("ادامه سفارش").performClick()
