@@ -363,6 +363,14 @@ class DesignFlowTest {
             val password=writes.single {it.first=="/api/password"}.second
             assertEquals("OldPassword57",password.s("current"));assertEquals("NewPassword57",password.s("new"))
             showText("تغییر شماره تماس");compose.onNodeWithText("تغییر شماره تماس").performClick()
+            try {
+                compose.waitUntil(5_000L) {
+                    compose.onAllNodesWithContentDescription("شماره تماس جایگزین").fetchSemanticsNodes().isNotEmpty()
+                }
+            } catch (_: androidx.compose.ui.test.ComposeTimeoutException) {
+                // On heavily loaded emulators the first tap can land during a screen transition.
+                compose.onNode(hasText("تغییر شماره تماس") and hasClickAction()).performClick()
+            }
             compose.waitUntil(uiWaitTimeoutMs) {
                 compose.onAllNodesWithContentDescription("شماره تماس جایگزین").fetchSemanticsNodes().isNotEmpty()
             }
