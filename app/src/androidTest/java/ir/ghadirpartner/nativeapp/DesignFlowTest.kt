@@ -363,6 +363,9 @@ class DesignFlowTest {
             val password=writes.single {it.first=="/api/password"}.second
             assertEquals("OldPassword57",password.s("current"));assertEquals("NewPassword57",password.s("new"))
             showText("تغییر شماره تماس");compose.onNodeWithText("تغییر شماره تماس").performClick()
+            compose.waitUntil(uiWaitTimeoutMs) {
+                compose.onAllNodesWithContentDescription("شماره تماس جایگزین").fetchSemanticsNodes().isNotEmpty()
+            }
             showField("شماره تماس جایگزین");compose.onNodeWithContentDescription("شماره تماس جایگزین").performTextInput("۰۹۱۲۱۱۱۱۱۱۱")
             hideKeyboard(scenario)
             showText("ذخیره شماره تماس");compose.onNodeWithText("ذخیره شماره تماس").performClick()
