@@ -32,6 +32,7 @@ import kotlinx.coroutines.runBlocking
 
 /** End-to-end UI contracts use an injected transport. No live SMS/order/payment is sent. */
 class DesignFlowTest {
+    private val uiWaitTimeoutMs = 30_000L
     @get:Rule val compose=createEmptyComposeRule()
     private val me=JSONObject("""{"username":"09121234567","roles":["customer"],"id":1024,"customer":{"name":"علی رضایی","company":"فروشگاه رضایی","code":"1024","province":"تهران","city":"تهران","address":"نشانی نمونه"}}""")
     private val order=JSONObject("""{"id":1024,"number":"GHP-MOCK-1024","customer_id":1024,"customer_name":"علی رضایی","status":"تحویل شد","payment_status":"تسویه کامل","requested_payment_method_label":"نقد","estimated_total":22800000,"approved_total":22800000,"created_at":"2026-10-04","shipping_address":"تهران، نشانی ثبت‌شده","items":[{"product":"i90","qty":2,"unit_price":11400000,"line_total":22800000,"serials":[{"serial":"902410001","imei":"865432109876543"},{"serial":"902410002"}]}]}""")
@@ -111,7 +112,11 @@ class DesignFlowTest {
         compose.waitForIdle()
     }
     private fun waitText(text:String) {
-        compose.waitUntil(15000){compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()}
+        try {
+            compose.waitUntil(uiWaitTimeoutMs) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+        } catch (error: androidx.compose.ui.test.ComposeTimeoutException) {
+            throw AssertionError("Timed out waiting for UI text: $text", error)
+        }
     }
     private fun showText(text:String) {
         val lists=compose.onAllNodes(hasScrollToIndexAction())
@@ -189,6 +194,7 @@ class DesignFlowTest {
             showField("فعال‌سازی چک");compose.onNodeWithContentDescription("فعال‌سازی چک").performScrollTo().performClick()
             showField("چک — مبلغ (تومان)");compose.onNodeWithContentDescription("چک — مبلغ (تومان)").performTextInput("۲۲۴۰۰۰۰۰")
             compose.onNodeWithContentDescription("فعال‌سازی نقد").performClick()
+            compose.waitForIdle()
             showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
             waitText("شناسه صیادی باید ۱۶ رقم باشد")
             compose.onNodeWithText("شناسه صیادی باید ۱۶ رقم باشد").assertExists()
