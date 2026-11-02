@@ -169,7 +169,9 @@ class DesignFlowTest {
             compose.onNodeWithContentDescription("جستجوی مدل یا شرکت سازنده").performTextInput("i90")
             hideKeyboard(scenario)
             compose.onNodeWithText("نمایش نتایج").performScrollTo().performClick()
-            compose.onNodeWithContentDescription("جستجوی مدل یا شرکت سازنده").assertDoesNotExist()
+            compose.waitUntil(uiWaitTimeoutMs) {
+                compose.onAllNodesWithContentDescription("جستجوی مدل یا شرکت سازنده").fetchSemanticsNodes().isEmpty()
+            }
             shot("design-catalog-serial.png")
             compose.onNodeWithText("ثبت در پنل").performClick()
             compose.onNodeWithText("۱۱٬۰۰۰٬۰۰۰ تومان").assertExists();shot("design-catalog-panel.png")
