@@ -101,8 +101,6 @@ class DesignFlowTest {
         if(scrollToTop&&lists.fetchSemanticsNodes().size==1)lists.onFirst().performScrollToIndex(0)
         compose.waitForIdle()
         val instrumentation=InstrumentationRegistry.getInstrumentation()
-        compose.mainClock.advanceTimeBy(400)
-        compose.waitForIdle()
         val bitmap=compose.onAllNodes(isRoot()).onLast().captureToImage().asAndroidBitmap()
         File(instrumentation.targetContext.filesDir,name).outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
         bitmap.recycle()
@@ -141,7 +139,7 @@ class DesignFlowTest {
             if(overlap<=0)return
             compose.onAllNodes(hasScrollToIndexAction()).onFirst()
                 .performSemanticsAction(SemanticsActions.ScrollBy){it(0f,overlap)}
-            compose.mainClock.advanceTimeByFrame()
+            compose.waitForIdle()
         }
         compose.waitForIdle()
         val top=compose.onNodeWithContentDescription("ناوبری شناور").fetchSemanticsNode().boundsInRoot.top
