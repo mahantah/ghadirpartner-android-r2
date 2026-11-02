@@ -221,6 +221,7 @@ class DesignFlowTest {
             showText("ادامه به بررسی نهایی")
             compose.waitUntil(15000){compose.onAllNodes(hasText("ادامه به بررسی نهایی") and isEnabled()).fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
+            waitText("بررسی سفارش")
             shot("design-checkout-review.png")
             showText("تأیید و ثبت نهایی");compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
             waitText("سفارش با موفقیت ثبت شد");shot("design-checkout-success.png")
