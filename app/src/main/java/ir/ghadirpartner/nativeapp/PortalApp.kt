@@ -468,7 +468,7 @@ private fun PortalOrders(
         if(!deliveredOnly&&abandonedOrder!=null)item {
             GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 Text("سفارشات رها شده",color=Ink,fontWeight=FontWeight.Bold,fontSize=18.sp)
-                Text("یک سفارش تکمیل‌نشده ذخیره شده است.",color=Muted,fontSize=13.sp)
+                Text("یک سفارش تکمیل‌نشده ذخیره شده است؛ معتبر تا ساعت ۲۴ امروز به وقت تهران.",color=Muted,fontSize=13.sp)
                 val preview=cartFromDraft(abandonedOrder)
                 if(preview.isNotEmpty())Text(preview.joinToString(" • "){"${shortProductName(it.product)} × ${faNumber(it.qty)}"},color=Ink,fontSize=13.sp)
                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {

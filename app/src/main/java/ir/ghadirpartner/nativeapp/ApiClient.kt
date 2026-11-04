@@ -106,15 +106,9 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
         text.startsWith("[") -> JSONArray(text)
         else -> text
     }
-    private fun payloadText(value: Any): String = when (value) {
-        is JSONObject -> value.toString()
-        is JSONArray -> value.toString()
-        else -> value.toString()
-    }
-
     /** Returns independent JSON objects and keeps parsing off the UI thread. */
     suspend fun get(path: String): Any = withContext(Dispatchers.IO) {
-        clonePayload(memoryCache.read(path) { payloadText(request("GET", path, null)) })
+        clonePayload(memoryCache.read(path) { requestText("GET", path, null) })
     }
 
     /** Invalidates cached reads before and after every server mutation. */
@@ -139,7 +133,12 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
         }
     }
 
+    /** Adapts transport text to the existing JSON API without exposing shared mutable objects. */
     suspend fun request(method: String, path: String, body: JSONObject?): Any = withContext(Dispatchers.IO) {
+        clonePayload(requestText(method, path, body))
+    }
+
+    private fun requestText(method: String, path: String, body: JSONObject?): String {
         val builder = Request.Builder()
             .url(urlFor(path))
             .header("Accept", "application/json, text/plain;q=0.9")
@@ -150,17 +149,12 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
         } else builder.get()
 
         if(BuildConfig.APP_MODE=="portal")builder.header("X-Ghadir-Offer-Product-Scope","multiple")
-        client.newCall(builder.build()).execute().use { response ->
+        return client.newCall(builder.build()).execute().use { response ->
             val text = response.body?.string().orEmpty().trim()
             if (!response.isSuccessful) {
                 throw ApiException(response.code, publicError(text, "خطای ارتباط با سرور (${response.code})"))
             }
-            if (text.isBlank()) return@use JSONObject()
-            when {
-                text.startsWith("{") -> JSONObject(text)
-                text.startsWith("[") -> JSONArray(text)
-                else -> text
-            }
+            text.ifBlank { "{}" }
         }
     }
 
