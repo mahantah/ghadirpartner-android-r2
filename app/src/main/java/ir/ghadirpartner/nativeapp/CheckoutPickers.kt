@@ -29,6 +29,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import java.util.Locale
@@ -104,7 +106,7 @@ private fun SelectionField(
         Text(label, color = AppInk)
         Surface(
             modifier =
-                Modifier.fillMaxWidth().clickable(
+                Modifier.fillMaxWidth().semantics { contentDescription = label }.clickable(
                     enabled = enabled,
                     role = Role.Button,
                     onClickLabel = "انتخاب $label",
