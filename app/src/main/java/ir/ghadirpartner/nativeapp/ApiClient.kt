@@ -21,7 +21,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.ConcurrentHashMap
 
 class ApiException(val status: Int, override val message: String) : Exception(message)
 
@@ -91,10 +90,17 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
     val isPortal: Boolean get() = BuildConfig.APP_MODE == "portal"
     val base: String get() = BuildConfig.API_BASE.trimEnd('/')
 
-    private data class MemoryEntry(val savedAt: Long, val json: String)
-    private val memoryCache = ConcurrentHashMap<String, MemoryEntry>()
-    private val cacheablePrefixes = listOf("/api/catalog", "/api/offers", "/api/orders", "/api/reports/customer-summary")
-    private fun isCacheable(path: String): Boolean = cacheablePrefixes.any { path.startsWith(it) }
+    private val memoryCache = ResponseCache(
+        mapOf(
+            "/api/catalog" to BuildConfig.CATALOG_CACHE_MS,
+            "/api/offers" to BuildConfig.OFFERS_CACHE_MS,
+            "/api/orders" to BuildConfig.ORDERS_CACHE_MS,
+            "/api/me" to BuildConfig.PROFILE_CACHE_MS,
+            "/api/addresses" to BuildConfig.ADDRESSES_CACHE_MS,
+            "/api/reports/customer-summary" to BuildConfig.SUMMARY_CACHE_MS,
+        ),
+        CheckoutClock { android.os.SystemClock.elapsedRealtime() },
+    )
     private fun clonePayload(text: String): Any = when {
         text.startsWith("{") -> JSONObject(text)
         text.startsWith("[") -> JSONArray(text)
@@ -106,19 +112,15 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
         else -> value.toString()
     }
 
-    suspend fun get(path: String): Any {
-        if (isCacheable(path)) {
-            val hit = memoryCache[path]
-            if (hit != null && System.currentTimeMillis() - hit.savedAt < 15_000L) return clonePayload(hit.json)
-        }
-        val result = request("GET", path, null)
-        if (isCacheable(path)) memoryCache[path] = MemoryEntry(System.currentTimeMillis(), payloadText(result))
-        return result
+    /** Returns independent JSON objects and keeps parsing off the UI thread. */
+    suspend fun get(path: String): Any = withContext(Dispatchers.IO) {
+        clonePayload(memoryCache.read(path) { payloadText(request("GET", path, null)) })
     }
+
+    /** Invalidates cached reads before and after every server mutation. */
     suspend fun post(path: String, body: JSONObject = JSONObject()): Any {
-        val result = request("POST", path, body)
         memoryCache.clear()
-        return result
+        return try { request("POST", path, body) } finally { memoryCache.clear() }
     }
 
     private fun urlFor(path:String):HttpUrl {
@@ -188,6 +190,7 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
     }
 
     suspend fun logout() {
+        memoryCache.clear()
         try { get("/api/logout") } catch (_: Exception) {}
         cookieJar.clear()
         memoryCache.clear()

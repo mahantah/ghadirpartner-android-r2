@@ -108,19 +108,33 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
     var checkoutDraftSnapshot by remember {mutableStateOf<JSONObject?>(null)}
     var checkoutSessionKey by rememberSaveable {mutableIntStateOf(0)}
     var restoreCheckoutDraft by remember {mutableStateOf<JSONObject?>(null)}
+    val abandonedStore = remember(me.s("username")) {
+        AbandonedOrderService(
+            AbandonedOrderRepository(context, me.s("username")),
+            DailyDraftPolicy(CheckoutClock { System.currentTimeMillis() }, java.util.TimeZone.getTimeZone(BuildConfig.CHECKOUT_TIME_ZONE)),
+        )
+    }
     var abandonedRevision by remember {mutableIntStateOf(0)}
-    val abandonedOrder=remember(abandonedRevision) {AbandonedOrderStore.load(context)}
+    LaunchedEffect(abandonedStore) {
+        (context as FragmentActivity).lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                abandonedRevision++
+                delay(abandonedStore.millisUntilMidnight())
+            }
+        }
+    }
+    val abandonedOrder=remember(abandonedRevision) {abandonedStore.load()}
     fun parkActiveCheckout() {
-        val snapshot=checkoutDraftSnapshot ?: AbandonedOrderStore.load(context)
+        val snapshot=checkoutDraftSnapshot ?: abandonedStore.load()
         if(snapshot!=null&&snapshot.optJSONArray("cart")?.length()?:0>0) {
-            AbandonedOrderStore.save(context,snapshot)
+            abandonedStore.save(snapshot)
             abandonedRevision++
         }
         checkoutDraftSnapshot=null
         checkoutSessionKey++
     }
     fun clearAbandonedDraft() {
-        AbandonedOrderStore.clear(context)
+        abandonedStore.clear()
         abandonedRevision++
         restoreCheckoutDraft=null
     }
@@ -200,7 +214,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                         onDraftSnapshot={snapshot->
                             checkoutDraftSnapshot=snapshot
                             // Persist during edits so immediate navigation cannot discard the last cart.
-                            if(snapshot!=null)AbandonedOrderStore.save(context,snapshot)
+                            if(snapshot!=null)abandonedStore.save(snapshot)
                         },onClearAbandoned={clearAbandonedDraft()},onRestoreConsumed={restoreCheckoutDraft=null},
                         onStageChanged={checkoutTitle=it},backRequest=checkoutBackRequest) { createdOrder ->
                         offerCode=""

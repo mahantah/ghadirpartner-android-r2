@@ -1,2 +1,4 @@
-section_opacity_light: 0.84
-section_opacity_dark: 0.88
+section_opacity_light: 0.96
+section_opacity_dark: 0.96
+background_light: "#FFE9EFF5"
+background_dark: "#FF0C131D"
