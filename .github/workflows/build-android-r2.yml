@@ -1,7 +1,7 @@
 name: Build Ghadir Partner Android R5.14
 on:
   push:
-    branches: [main, codex/compact-r5, codex/integrate-r54, codex/figma-100-573, codex/r56-login-security, feature/customer-order-review, feature/authorized-partial-delivery]
+    branches: [main, codex/compact-r5, codex/integrate-r54, codex/figma-100-573, codex/r56-login-security, feature/customer-order-review, feature/authorized-partial-delivery, fix/warehouse-pagination-20261104]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -89,7 +89,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: steps.release.outputs.signed == 'true'
         with:
-          name: GhadirPartner-R5.13-Signed-Updates
+          name: GhadirPartner-R5.14-Signed-Updates
           path: |
             app/build/outputs/apk/*/release/*.apk
             app/build/outputs/bundle/*Release/*.aab
@@ -106,12 +106,12 @@ jobs:
           script: bash validation/run-emulator-tests.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: GhadirPartner-5.4.3.3-R5.12-Debug-APK
+          name: GhadirPartner-5.4.3.3-R5.14-Debug-APK
           path: app/build/outputs/apk/portal/debug/*.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: GhadirAutomation-5.4.3.3-R5.12-Debug-APK
+          name: GhadirAutomation-5.4.3.3-R5.14-Debug-APK
           path: app/build/outputs/apk/automation/debug/*.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
