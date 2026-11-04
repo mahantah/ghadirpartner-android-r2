@@ -29,6 +29,13 @@ if (!(deliveryPolicy instanceof Map) || deliveryPolicy.keySet() != deliveryKeys 
     throw new GradleException('Invalid config/partial-delivery.yaml')
 }
 
+def warehousePolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/warehouse-reads.yaml').text)
+if (!(warehousePolicy instanceof Map) || warehousePolicy.keySet() != (['page_size', 'search_debounce_ms'] as Set) ||
+    !(warehousePolicy.page_size instanceof Integer) || !(warehousePolicy.page_size in 1..500) ||
+    !(warehousePolicy.search_debounce_ms instanceof Integer) || !(warehousePolicy.search_debounce_ms in 0..2000)) {
+    throw new GradleException('Invalid config/warehouse-reads.yaml')
+}
+
 def signingPolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/release-signing.yaml').text)
 def signingFields = ['keystore_file', 'store_password', 'key_alias', 'key_password'] as Set
 if (!(signingPolicy instanceof Map) || signingPolicy.keySet() != signingFields ||
@@ -50,6 +57,8 @@ android {
         versionCode orderPolicy.version_code
         versionName orderPolicy.version_name
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        buildConfigField 'int', 'WAREHOUSE_PAGE_SIZE', warehousePolicy.page_size.toString()
+        buildConfigField 'int', 'WAREHOUSE_SEARCH_DEBOUNCE_MS', warehousePolicy.search_debounce_ms.toString()
         buildConfigField 'int', 'PARTIAL_DELIVERY_MAX_REASON_LENGTH', deliveryPolicy.maximum_reason_length.toString()
         ['carriers', 'tracking_carriers', 'ready_statuses'].each { key ->
             buildConfigField 'String', 'PARTIAL_DELIVERY_' + key.toUpperCase(java.util.Locale.ROOT), groovy.json.JsonOutput.toJson(groovy.json.JsonOutput.toJson(deliveryPolicy[key]))
