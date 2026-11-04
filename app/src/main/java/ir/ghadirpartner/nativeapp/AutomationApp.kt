@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.json.JSONArray
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import org.json.JSONObject
 
 private val automationNav = listOf(
@@ -384,41 +386,63 @@ private fun AutomationCustomers(api: ApiClient) {
 
 @Composable
 private fun AutomationWarehouse(api: ApiClient) {
+    val service = remember(api) { WarehouseInventoryService(WarehouseInventoryRepository(api), BuildConfig.WAREHOUSE_PAGE_SIZE) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
     var query by remember { mutableStateOf("") }
-    var inventory by remember { mutableStateOf(emptyList<JSONObject>()) }
-    LaunchedEffect(Unit) {
-        try { inventory = (api.get("/api/inventory") as JSONArray).objects() }
-        catch (e: Exception) { error = e.message ?: "خطا در دریافت انبار" }
-        loading = false
+    var page by remember { mutableStateOf(1) }
+    var retry by remember { mutableStateOf(0) }
+    var inventory by remember { mutableStateOf(emptyList<WarehouseSerial>()) }
+    var result by remember { mutableStateOf<WarehouseInventoryPage?>(null) }
+    LaunchedEffect(query, page, retry) {
+        loading = true
+        error = ""
+        try {
+            if (query.isNotBlank()) delay(BuildConfig.WAREHOUSE_SEARCH_DEBOUNCE_MS.toLong())
+            val next = service.load(query, page)
+            inventory = if (page == 1) next.rows else (inventory + next.rows).distinctBy { it.id }
+            result = next
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            error = failure.message ?: "خطا در دریافت انبار"
+        } finally {
+            loading = false
+        }
     }
-    if (loading) { LoadingPane(); return }
-    val free = inventory.count { it.i("order_id") == 0 }
-    val assigned = inventory.size - free
-    val filtered = inventory.filter { i -> query.isBlank() || listOf(i.s("serial"), i.s("product"), i.s("carton_code"), i.s("order_number")).any { it.contains(query, true) } }
+    val free = result?.free ?: 0
+    val assigned = result?.assigned ?: 0
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             KpiCard("تخصیص‌یافته", faNumber(assigned), Icons.Default.AssignmentTurnedIn, Modifier.weight(1f)) {}
             KpiCard("سریال آزاد", faNumber(free), Icons.Default.Inventory, Modifier.weight(1f)) {}
         }
-        Spacer(Modifier.height(10.dp)); SearchBox(query, { query = it }, "جستجوی سریال، مدل، کارتن یا سفارش")
+        Spacer(Modifier.height(10.dp)); SearchBox(query, { query = it; page = 1; inventory = emptyList(); result = null }, "جستجوی سریال، مدل، کارتن یا سفارش")
         Spacer(Modifier.height(8.dp)); ErrorBanner(error) { error = "" }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
-            items(filtered.take(500), key = { it.i("id") }) { iv ->
+            items(inventory, key = { it.id }) { iv ->
                 Surface(shape = RoundedCornerShape(17.dp), color = Color.White) {
                     Column(Modifier.fillMaxWidth().padding(12.dp), horizontalAlignment = Alignment.End) {
-                        Text(iv.s("serial"), color = NavyDeep, fontWeight = FontWeight.Black, fontSize = 14.sp)
-                        Text(shortProductName(iv.s("product")), color = Muted, fontSize = 10.sp, maxLines = 1)
+                        Text(iv.serial, color = NavyDeep, fontWeight = FontWeight.Black, fontSize = 14.sp)
+                        Text(shortProductName(iv.product), color = Muted, fontSize = 10.sp, maxLines = 1)
                         Row(Modifier.fillMaxWidth()) {
-                            StatusPill(if (iv.i("order_id") == 0) "آزاد" else "${iv.s("order_number")}")
+                            StatusPill(if (iv.orderId == 0) "آزاد" else iv.orderNumber)
                             Spacer(Modifier.weight(1f))
-                            if (iv.s("carton_code").isNotBlank()) Text(iv.s("carton_code"), color = NavySoft, fontSize = 10.sp)
+                            if (iv.cartonCode.isNotBlank()) Text(iv.cartonCode, color = NavySoft, fontSize = 10.sp)
                         }
                     }
                 }
             }
-            if (filtered.size > 500) item { Text("برای سرعت اپ فقط ۵۰۰ نتیجه اول نمایش داده شد. جستجو را دقیق‌تر کنید.", color = Muted, fontSize = 10.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
+            if (loading) item { LoadingPane() }
+            if (!loading && error.isNotBlank()) item {
+                Button(onClick = { retry++ }, modifier = Modifier.fillMaxWidth()) { Text("تلاش دوباره") }
+            }
+            if (!loading && error.isBlank() && result?.hasMore() == true) item {
+                Button(onClick = { page++ }, modifier = Modifier.fillMaxWidth()) { Text("نمایش نتایج بعدی") }
+            }
+            if (!loading && error.isBlank() && inventory.isEmpty()) item {
+                Text("سریالی پیدا نشد.", color = Muted, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            }
         }
     }
 }
