@@ -150,15 +150,11 @@ internal fun SettlementForm(
             )
         }
         if (value.b("check_enabled") && value.optLong("check_amount") > 0L) {
-            val payeeNote = if (invoiceType == "رسمی") {
-                "چک به نام سلمان بوربور فرون‌آباد — کد ملی ۰۴۹۳۳۹۱۷۶۲"
-            } else {
-                "اطلاعات چک برای بررسی واحد مالی ثبت می‌شود."
-            }
+            val payeeNote = ChequePayeePolicy().instructionsFor(invoiceType)
             DesignNotice("تسویه با چک\n\n$payeeNote")
             DesignField("شناسه صیادی", value.s("check_number"), { set("check_number", asciiDigits(it).filter(Char::isDigit).take(16)) }, "شناسه ۱۶ رقمی", keyboardType = KeyboardType.Number, enabled = !busy)
-            DesignField("بانک", value.s("bank_name"), { set("bank_name", it.take(80)) }, "نام بانک", enabled = !busy)
-            DesignField("سررسید", value.s("due_date"), { set("due_date", asciiDigits(it).take(30)) }, "تاریخ شمسی", R.drawable.design_calendar, enabled = !busy)
+            BankSelectionField(value.s("bank_name"), !busy) { set("bank_name", it) }
+            PersianDateSelectionField("سررسید", value.s("due_date"), !busy) { set("due_date", it) }
             GhadirButton(
                 if (busy) "در حال آماده‌سازی تصویر…" else if (value.s("check_image_base64").isNotBlank() || value.s("image_base64").isNotBlank()) "تصویر چک انتخاب شد؛ تغییر" else "بارگذاری تصویر چک",
                 { imageTarget = "check"; picker.launch("image/*") },
