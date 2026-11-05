@@ -35,12 +35,12 @@ class CheckoutPolicyTest {
         assertTrue(policy.isValid(now))
     }
 
-    /** Invoice selection changes only the configured legal beneficiary. */
+    /** Informal cheque instructions preserve the national ID leading zero; formal ones omit it. */
     @Test
     fun choosesCompanyForFormalAndPersonForInformal() {
-        val policy = ChequePayeePolicy("شرکت", "سلمان بور بور")
-        assertEquals("شرکت", policy.nameFor("رسمی"))
-        assertEquals("سلمان بور بور", policy.nameFor("غیر رسمی"))
+        val policy = ChequePayeePolicy("شرکت", "سلمان بور بور", "0493391762")
+        assertEquals("چک به نام شرکت", policy.instructionsFor("رسمی"))
+        assertEquals("چک به نام سلمان بور بور\nکد ملی: 0493391762", policy.instructionsFor("غیر رسمی"))
     }
 
     /** Concurrent readers share transport but refresh when the TTL ends. */

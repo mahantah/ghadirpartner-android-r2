@@ -150,7 +150,7 @@ internal fun SettlementForm(
             )
         }
         if (value.b("check_enabled") && value.optLong("check_amount") > 0L) {
-            val payeeNote = "چک به نام " + ChequePayeePolicy().nameFor(invoiceType)
+            val payeeNote = ChequePayeePolicy().instructionsFor(invoiceType)
             DesignNotice("تسویه با چک\n\n$payeeNote")
             DesignField("شناسه صیادی", value.s("check_number"), { set("check_number", asciiDigits(it).filter(Char::isDigit).take(16)) }, "شناسه ۱۶ رقمی", keyboardType = KeyboardType.Number, enabled = !busy)
             BankSelectionField(value.s("bank_name"), !busy) { set("bank_name", it) }

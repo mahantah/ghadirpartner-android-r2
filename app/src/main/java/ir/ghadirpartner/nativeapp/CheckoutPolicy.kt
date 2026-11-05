@@ -7,9 +7,11 @@ import java.util.TimeZone
 internal class ChequePayeePolicy(
     private val formal: String = BuildConfig.CHEQUE_FORMAL_PAYEE,
     private val informal: String = BuildConfig.CHEQUE_INFORMAL_PAYEE,
+    private val informalNationalId: String = BuildConfig.CHEQUE_INFORMAL_NATIONAL_ID,
 ) {
-    /** Returns the configured beneficiary without changing settlement amounts. */
-    fun nameFor(invoiceType: String): String = if (invoiceType == "رسمی") formal else informal
+    /** Includes the personal national ID only in informal-invoice cheque instructions. */
+    fun instructionsFor(invoiceType: String): String =
+        if (invoiceType == "رسمی") "چک به نام $formal" else "چک به نام $informal\nکد ملی: $informalNationalId"
 }
 
 /** Supplies wall time for business-day boundaries independently of the device zone. */

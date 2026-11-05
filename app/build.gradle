@@ -29,9 +29,10 @@ if (!(visualPolicy instanceof Map) || visualPolicy.keySet() != (['section_opacit
 
 def checkoutPolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/checkout-policy.yaml').text)
 def cacheKeys = ['catalog_cache_ms', 'offers_cache_ms', 'orders_cache_ms', 'profile_cache_ms', 'addresses_cache_ms', 'summary_cache_ms']
-def checkoutKeys = (cacheKeys + ['time_zone', 'formal_payee', 'informal_payee', 'banks']) as Set
+def checkoutKeys = (cacheKeys + ['time_zone', 'formal_payee', 'informal_payee', 'informal_national_id', 'banks']) as Set
 if (!(checkoutPolicy instanceof Map) || checkoutPolicy.keySet() != checkoutKeys ||
     !['time_zone', 'formal_payee', 'informal_payee'].every { checkoutPolicy[it] instanceof String && !checkoutPolicy[it].trim().isEmpty() } ||
+    !(checkoutPolicy.informal_national_id instanceof String) || !(checkoutPolicy.informal_national_id ==~ /[0-9]{10}/) ||
     !java.util.TimeZone.availableIDs.contains(checkoutPolicy.time_zone) ||
     !cacheKeys.every { checkoutPolicy[it] instanceof Integer && checkoutPolicy[it] in 1..300000 } ||
     !(checkoutPolicy.banks instanceof List) || checkoutPolicy.banks.isEmpty() ||
@@ -53,6 +54,7 @@ android {
         buildConfigField 'String', 'CHECKOUT_TIME_ZONE', groovy.json.JsonOutput.toJson(checkoutPolicy.time_zone)
         buildConfigField 'String', 'CHEQUE_FORMAL_PAYEE', groovy.json.JsonOutput.toJson(checkoutPolicy.formal_payee)
         buildConfigField 'String', 'CHEQUE_INFORMAL_PAYEE', groovy.json.JsonOutput.toJson(checkoutPolicy.informal_payee)
+        buildConfigField 'String', 'CHEQUE_INFORMAL_NATIONAL_ID', groovy.json.JsonOutput.toJson(checkoutPolicy.informal_national_id)
         buildConfigField 'String', 'CHEQUE_BANKS', groovy.json.JsonOutput.toJson(checkoutPolicy.banks.join('\n'))
         buildConfigField 'long', 'CATALOG_CACHE_MS', checkoutPolicy.catalog_cache_ms.toString() + 'L'
         buildConfigField 'long', 'OFFERS_CACHE_MS', checkoutPolicy.offers_cache_ms.toString() + 'L'
