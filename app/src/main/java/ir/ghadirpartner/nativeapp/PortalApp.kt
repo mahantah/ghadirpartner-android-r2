@@ -1090,7 +1090,6 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
     val cameraFile=remember(me.i("id")){java.io.File(context.filesDir,"profile/camera-"+me.i("id")+".jpg").apply{parentFile?.mkdirs()}}
     val cameraUri=remember(cameraFile){androidx.core.content.FileProvider.getUriForFile(context,context.packageName+".files",cameraFile)}
     val camera=rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()){ok->if(ok)savePhoto(cameraUri.buildUpon().appendQueryParameter("v",System.currentTimeMillis().toString()).build().toString())}
-    val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){ok->if(ok)camera.launch(cameraUri) else error="برای گرفتن عکس، اجازهٔ دوربین لازم است."}
     fun parentView()=when(view){"edit","photo","deleted"->"services";"password","phone"->"settings";else->"profile"}
     LaunchedEffect(view){onSectionChanged(when(view){
         "services"->"پروفایل من";"settings"->"تنظیمات";"password"->"تغییر رمز ورود";"phone"->"تغییر شماره تماس"
@@ -1165,7 +1164,16 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
                 }}
                 item {DesignNotice("انتخاب تصویر\n\nاز دوربین یا گالری عکس انتخاب کنید. در صورت حذف، لوگوی اصلی شرکت نمایش داده می‌شود.")}
                 item {GhadirButton("انتخاب از گالری",{gallery.launch(arrayOf("image/*"))})}
-                item {GhadirButton("گرفتن عکس",{permission.launch(android.Manifest.permission.CAMERA)},secondary=true)}
+                item {
+                    GhadirButton("گرفتن عکس", {
+                        error = ""
+                        try {
+                            camera.launch(cameraUri)
+                        } catch (_: android.content.ActivityNotFoundException) {
+                            error = "برنامهٔ دوربین در دسترس نیست. می‌توانید از گالری عکس انتخاب کنید."
+                        }
+                    }, secondary = true)
+                }
                 item {GhadirButton("حذف عکس و بازگشت به لوگو",{
                     photoUri="";prefs.edit().remove(photoKey).apply();onPhotoUpdated("");view="deleted"
                 },secondary=true,enabled=photoUri.isNotBlank())}
@@ -1200,6 +1208,7 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
                     ProfileServiceTile("پروفایل من","اطلاعات و خدمات مشتری",Icons.Default.PersonOutline,Modifier.weight(1f)){view="services"}
                     ProfileServiceTile("تنظیمات","امنیت و اطلاعات تماس",Icons.Default.Settings,Modifier.weight(1f)){view="settings"}
                 }}
+                item { PortalPrivacyLink() }
                 item {ProfileServiceTile("تماس با پشتیبانی ۰۲۱۷۷۲۴۷۰۷۰","همراه شما در خرید و خدمات",Icons.Default.HeadsetMic,Modifier.fillMaxWidth(),wide=true) {
                     try{context.startActivity(android.content.Intent(android.content.Intent.ACTION_DIAL,Uri.parse("tel:02177247070")))}
                     catch(_:Exception){error="برنامه تماس روی این دستگاه در دسترس نیست"}
