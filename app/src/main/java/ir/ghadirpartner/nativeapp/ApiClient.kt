@@ -123,13 +123,17 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
         return url
     }
 
-    private fun publicError(text: String, fallback: String): String {
+    private fun publicError(text: String, fallback: String, allowPlainText: Boolean = false): String {
         if (text.isBlank()) return fallback
         return try {
             val json = JSONObject(text)
             json.optString("message").ifBlank { json.optString("error") }.ifBlank { fallback }
-        } catch (_: Exception) {
-            fallback
+        } catch (_: org.json.JSONException) {
+            if (allowPlainText && text.length <= 320 && text.none { it.isISOControl() || it == '<' || it == '>' }) {
+                text
+            } else {
+                fallback
+            }
         }
     }
 
@@ -152,7 +156,9 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
         return client.newCall(builder.build()).execute().use { response ->
             val text = response.body?.string().orEmpty().trim()
             if (!response.isSuccessful) {
-                throw ApiException(response.code, publicError(text, "خطای ارتباط با سرور (${response.code})"))
+                val plainError = response.code in 400..499 &&
+                    response.header("Content-Type")?.substringBefore(';')?.trim().equals("text/plain", ignoreCase = true)
+                throw ApiException(response.code, publicError(text, "خطای ارتباط با سرور (${response.code})", plainError))
             }
             text.ifBlank { "{}" }
         }
