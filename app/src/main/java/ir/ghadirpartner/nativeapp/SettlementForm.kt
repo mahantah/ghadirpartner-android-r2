@@ -41,10 +41,12 @@ internal fun SettlementForm(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val currentTotal by rememberUpdatedState(invoiceTotal)
+    val currentValue by rememberUpdatedState(value)
+    val updateSettlement by rememberUpdatedState(onChange)
     fun patch(block: (JSONObject) -> Unit) {
-        val next = JSONObject(value.toString())
+        val next = JSONObject(currentValue.toString())
         block(next)
-        onChange(refreshSettlementTotals(next, currentTotal))
+        updateSettlement(refreshSettlementTotals(next, currentTotal))
     }
     fun set(key: String, v: Any) = patch { it.put(key, v) }
     fun amountText(part: String): String = value.optLong("${part}_amount").takeIf { it > 0L }?.toString() ?: ""
@@ -84,9 +86,7 @@ internal fun SettlementForm(
         }
     }
     var imageTarget by remember { mutableStateOf("cash") }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val target = imageTarget
+    fun attachImage(uri: Uri, target: String, temporaryFile: java.io.File? = null) {
         scope.launch {
             busy = true
             error = ""
@@ -120,9 +120,20 @@ internal fun SettlementForm(
             } catch (e: Exception) {
                 error = e.message ?: "انتخاب تصویر ناموفق بود"
             } finally {
+                temporaryFile?.delete()
                 busy = false
             }
         }
+    }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) attachImage(uri, imageTarget)
+    }
+    val chequePhoto = remember(context) { java.io.File(context.cacheDir, "cheque-capture/cheque.jpg") }
+    val chequePhotoUri = remember(context, chequePhoto) {
+        androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".files", chequePhoto)
+    }
+    val chequeCamera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { captured ->
+        if (captured) attachImage(chequePhotoUri, "check", chequePhoto) else chequePhoto.delete()
     }
     val remaining = settlementRemaining(value, invoiceTotal)
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -157,6 +168,19 @@ internal fun SettlementForm(
             DesignField("شناسه صیادی", value.s("check_number"), { set("check_number", asciiDigits(it).filter(Char::isDigit).take(16)) }, "شناسه ۱۶ رقمی", keyboardType = KeyboardType.Number, enabled = !busy)
             BankSelectionField(value.s("bank_name"), !busy) { set("bank_name", it) }
             PersianDateSelectionField("سررسید", value.s("due_date"), !busy) { set("due_date", it) }
+            GhadirButton("گرفتن عکس چک", {
+                error = ""
+                val directory = chequePhoto.parentFile
+                if (directory == null || (!directory.isDirectory && !directory.mkdirs())) {
+                    error = "آماده‌سازی محل عکس ممکن نشد."
+                } else {
+                    try {
+                        chequeCamera.launch(chequePhotoUri)
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        error = "برنامهٔ دوربین در دسترس نیست. تصویر چک را از گالری انتخاب کنید."
+                    }
+                }
+            }, enabled = !busy, secondary = true)
             GhadirButton(
                 if (busy) "در حال آماده‌سازی تصویر…" else if (value.s("check_image_base64").isNotBlank() || value.s("image_base64").isNotBlank()) "تصویر چک انتخاب شد؛ تغییر" else "بارگذاری تصویر چک",
                 { imageTarget = "check"; picker.launch("image/*") },
