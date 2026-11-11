@@ -206,6 +206,7 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
                     Text("فعال‌سازی بیومتریک پس از ورود، از بخش پروفایل.",color=Muted,fontSize=12.sp)
                 }
             }
+            if (api.isPortal) PortalPrivacyLink()
             if(error.isNotBlank()&&view!="biometric")ErrorBanner(error){error=""}
         }
         }
