@@ -16,6 +16,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +47,7 @@ internal fun SettlementForm(
         onChange(refreshSettlementTotals(next, currentTotal))
     }
     fun set(key: String, v: Any) = patch { it.put(key, v) }
-    fun amountText(part: String): String = value.optLong("${part}_amount").takeIf { it > 0L }?.let { formatMoney(it) } ?: ""
+    fun amountText(part: String): String = value.optLong("${part}_amount").takeIf { it > 0L }?.toString() ?: ""
     fun setAmount(part: String, raw: String) {
         val digits = asciiDigits(raw).filter(Char::isDigit).take(15)
         val amount = digits.toLongOrNull() ?: 0L
@@ -205,7 +207,16 @@ private fun SplitMethodRow(
             Text(label, color = Ink, modifier = Modifier.weight(1f))
         }
         if (enabled) {
-            DesignField("$label — مبلغ (تومان)", amount, onAmount, "مبلغ به تومان", keyboardType = KeyboardType.Number)
+            DesignField(
+                "$label — مبلغ (تومان)",
+                amount,
+                onAmount,
+                "مبلغ به تومان",
+                keyboardType = KeyboardType.Number,
+                transformation = SettlementAmountTransformation,
+                textDirection = TextDirection.Ltr,
+                textAlign = TextAlign.Right,
+            )
         }
     }
 }

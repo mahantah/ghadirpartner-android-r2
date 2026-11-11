@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,7 +44,8 @@ internal fun DesignField(
     placeholder: String = "", icon: Int? = null, onIcon: (() -> Unit)? = null,
     keyboardType: KeyboardType = KeyboardType.Text,
     transformation: VisualTransformation = VisualTransformation.None,
-    enabled: Boolean = true, modifier: Modifier = Modifier, singleLine: Boolean = true
+    enabled: Boolean = true, modifier: Modifier = Modifier, singleLine: Boolean = true,
+    textDirection: TextDirection = TextDirection.Unspecified, textAlign: TextAlign = TextAlign.Start,
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if(label.isNotBlank()) Text(label, color=Muted, fontSize=12.sp, lineHeight=20.sp,
@@ -51,7 +53,7 @@ internal fun DesignField(
         BasicTextField(value=value, onValueChange=onChange, enabled=enabled,
             singleLine=singleLine, visualTransformation=transformation,
             keyboardOptions=KeyboardOptions(keyboardType=keyboardType),
-            textStyle=MaterialTheme.typography.bodyMedium.copy(color=Ink, fontSize=14.sp, lineHeight=23.sp, textAlign=TextAlign.Start),
+            textStyle=MaterialTheme.typography.bodyMedium.copy(color=Ink, fontSize=14.sp, lineHeight=23.sp, textAlign=textAlign, textDirection=textDirection),
             cursorBrush=SolidColor(Orange),
             modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).semantics { contentDescription=label },
             decorationBox={inner ->
