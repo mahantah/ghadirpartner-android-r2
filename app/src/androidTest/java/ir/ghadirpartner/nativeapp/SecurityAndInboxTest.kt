@@ -137,6 +137,7 @@ class SecurityAndInboxTest {
         val http=transport {r->
             check(r.method=="GET") // Legacy read flags are local; never POST an unsupported route.
             when(r.url.encodedPath.removePrefix("/partners")){
+                "/api/notifications/staff"->"{\"items\":[]}"
                 "/api/notifications"->"[]"
                 "/api/orders"->JSONObject().put("id",56001).put("number","GHP-56").put("status",status).put("created_at","2026-10-11").let{"["+it+"]"}
                 "/api/offers"->"[{\"id\":56002,\"title\":\"آفر حساب\",\"description\":\"شرایط حساب\",\"start_date\":\"2026-10-11\"}]"
@@ -167,16 +168,19 @@ class SecurityAndInboxTest {
 
     @Test fun modernMessageCenterMarksOnlyOwnedMessages() = runBlocking {
         var marked=0
+        var staffMarked=0
         val api=ApiClient(context,transport {r->
             when(r.url.encodedPath.removePrefix("/partners")){
+                "/api/notifications/staff"->"{\"items\":[{\"id\":\"staff:fixture\",\"title\":\"پیام مدیر\",\"read\":false}]}"
                 "/api/notifications"->"{\"items\":[{\"id\":\"owned-56\",\"title\":\"پیام\",\"read\":false}]}"
+                "/api/notifications/staff/read"->{staffMarked++; "{}"}
                 "/api/notifications/read"->{marked++; "{}"}
                 else->error("Unexpected fixture request")
             }
         })
         val inbox=PortalInboxState(api);inbox.refresh()
         inbox.markRead(listOf("unowned"));assertEquals(0,marked)
-        inbox.markRead(listOf("owned-56"));assertEquals(1,marked);assertEquals(0,inbox.unread)
+        inbox.markRead(listOf("owned-56", "staff:fixture"));assertEquals(1,marked);assertEquals(1,staffMarked);assertEquals(0,inbox.unread)
     }
 
     @Test fun passwordLoginRestoresOptInFields() {
