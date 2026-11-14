@@ -501,7 +501,20 @@ class DesignFlowTest {
             }
             waitText("سلام، علی رضایی")
             compose.onAllNodesWithText("پروفایل").onLast().performClick()
-            showText("پروفایل من");shot("design-profile-main-day.png")
+            showText("پروفایل من")
+            val privacyTitle = InstrumentationRegistry.getInstrumentation().targetContext
+                .getString(R.string.portal_privacy_title)
+            val privacyLink = compose.onNodeWithText(privacyTitle).assertIsDisplayed()
+            val footer = privacyLink.fetchSemanticsNode().boundsInRoot
+            val navigation = compose.onNodeWithContentDescription("ناوبری شناور")
+                .fetchSemanticsNode().boundsInRoot
+            val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
+            assertTrue("Privacy link must stay above the floating navigation", footer.bottom <= navigation.top)
+            assertTrue("Privacy link must be centered", kotlin.math.abs(footer.center.x - root.center.x) <= 2f)
+            privacyLink.performClick()
+            compose.onNodeWithText(InstrumentationRegistry.getInstrumentation().targetContext
+                .getString(R.string.portal_privacy_close)).performClick()
+            shot("design-profile-main-day.png")
             compose.onNodeWithContentDescription("حالت شب").performClick();shot("design-profile-main-night.png")
             compose.onNodeWithContentDescription("حالت روز").performClick()
             compose.onNodeWithText("پروفایل من").performClick()
