@@ -41,6 +41,7 @@ internal fun PortalMembership(api: ApiClient, initialMobile: String, onBack: () 
             retryAfter--
         }
     }
+    var nationalId by remember { mutableStateOf("") }
     var city by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -98,6 +99,10 @@ internal fun PortalMembership(api: ApiClient, initialMobile: String, onBack: () 
                     enabled = !busy, keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
                 )
             }
+            DesignField(
+                "کد ملی", nationalId, { nationalId = asciiDigits(it).filter { digit -> digit in '0'..'9' }.take(10) },
+                enabled = !busy, keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+            )
             DesignField("شهر", city, { city = it }, enabled = !busy)
             DesignField("نشانی", address, { address = it }, enabled = !busy, singleLine = false)
             OutlinedTextField(
@@ -114,7 +119,7 @@ internal fun PortalMembership(api: ApiClient, initialMobile: String, onBack: () 
                         try {
                             val request = JSONObject()
                                 .put("name", name.trim()).put("company", company.trim()).put("mobile", mobile)
-                                .put("otp", code).put("city", city.trim()).put("address", address.trim()).put("password", password)
+                                .put("otp", code).put("national_id", nationalId).put("city", city.trim()).put("address", address.trim()).put("password", password)
                             api.post("/api/native/membership/register", request)
                             password = ""
                             submitted = true
@@ -128,7 +133,7 @@ internal fun PortalMembership(api: ApiClient, initialMobile: String, onBack: () 
                     }
                 },
                 enabled = !busy && name.trim().length >= 3 && mobile.matches(Regex("09[0-9]{9}")) &&
-                    verifiedTarget == mobile && code.length == 6 && password.toByteArray().size in 8..72 && password.length >= 8,
+                    verifiedTarget == mobile && code.length == 6 && nationalId.length == 10 && password.toByteArray().size in 8..72 && password.length >= 8,
             )
         }
         PortalPrivacyLink()
