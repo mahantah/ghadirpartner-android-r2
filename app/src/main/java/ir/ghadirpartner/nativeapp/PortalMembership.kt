@@ -32,6 +32,15 @@ internal fun PortalMembership(api: ApiClient, initialMobile: String, onBack: () 
     var name by remember { mutableStateOf("") }
     var company by remember { mutableStateOf("") }
     var mobile by remember { mutableStateOf(asciiDigits(initialMobile).filter { it in '0'..'9' }.take(11)) }
+    var code by remember { mutableStateOf("") }
+    var verifiedTarget by remember { mutableStateOf("") }
+    var retryAfter by remember { mutableStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(retryAfter) {
+        if (retryAfter > 0) {
+            kotlinx.coroutines.delay(1000)
+            retryAfter--
+        }
+    }
     var city by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -53,9 +62,42 @@ internal fun PortalMembership(api: ApiClient, initialMobile: String, onBack: () 
             DesignField("نام و نام خانوادگی", name, { name = it }, enabled = !busy)
             DesignField("نام فروشگاه یا شرکت", company, { company = it }, enabled = !busy)
             DesignField(
-                "شماره همراه", mobile, { mobile = asciiDigits(it).filter { digit -> digit in '0'..'9' }.take(11) },
+                "شماره همراه", mobile, {
+                    mobile = asciiDigits(it).filter { digit -> digit in '0'..'9' }.take(11)
+                    code = ""
+                },
                 enabled = !busy, keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone,
             )
+            GhadirButton(
+                if (retryAfter > 0) "ارسال مجدد پس از ${faDigits(retryAfter.toString())} ثانیه" else "ارسال کد تأیید",
+                {
+                    if (!busy && retryAfter == 0) scope.launch {
+                        busy = true
+                        error = ""
+                        try {
+                            val response = api.post("/api/native/membership/code", JSONObject().put("mobile", mobile)) as JSONObject
+                            verifiedTarget = mobile
+                            code = ""
+                            retryAfter = response.optInt("retry_after", 60).coerceAtLeast(1)
+                        } catch (exception: CancellationException) {
+                            throw exception
+                        } catch (exception: Exception) {
+                            error = exception.message ?: "ارسال کد ناموفق بود."
+                        } finally {
+                            busy = false
+                        }
+                    }
+                },
+                enabled = !busy && retryAfter == 0 && mobile.matches(Regex("09[0-9]{9}")),
+                secondary = true,
+            )
+            if (verifiedTarget == mobile) {
+                DesignField(
+                    "کد شش‌رقمی پیامک", code,
+                    { code = asciiDigits(it).filter { digit -> digit in '0'..'9' }.take(6) },
+                    enabled = !busy, keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                )
+            }
             DesignField("شهر", city, { city = it }, enabled = !busy)
             DesignField("نشانی", address, { address = it }, enabled = !busy, singleLine = false)
             OutlinedTextField(
@@ -72,8 +114,8 @@ internal fun PortalMembership(api: ApiClient, initialMobile: String, onBack: () 
                         try {
                             val request = JSONObject()
                                 .put("name", name.trim()).put("company", company.trim()).put("mobile", mobile)
-                                .put("city", city.trim()).put("address", address.trim()).put("password", password)
-                            api.post("/api/register", request)
+                                .put("otp", code).put("city", city.trim()).put("address", address.trim()).put("password", password)
+                            api.post("/api/native/membership/register", request)
                             password = ""
                             submitted = true
                         } catch (exception: CancellationException) {
@@ -86,7 +128,7 @@ internal fun PortalMembership(api: ApiClient, initialMobile: String, onBack: () 
                     }
                 },
                 enabled = !busy && name.trim().length >= 3 && mobile.matches(Regex("09[0-9]{9}")) &&
-                    password.toByteArray().size in 8..72 && password.length >= 8,
+                    verifiedTarget == mobile && code.length == 6 && password.toByteArray().size in 8..72 && password.length >= 8,
             )
         }
         PortalPrivacyLink()
