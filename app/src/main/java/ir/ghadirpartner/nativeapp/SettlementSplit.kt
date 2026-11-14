@@ -2,11 +2,13 @@ package ir.ghadirpartner.nativeapp
 
 import org.json.JSONObject
 
+private val settlementParts = listOf("cash", "check", "credit")
+
 internal fun settlementInvoiceTotal(d: JSONObject, fallback: Long): Long =
     d.optLong("invoice_total").takeIf { it > 0L } ?: fallback
 
 internal fun settlementAllocated(d: JSONObject): Long =
-    listOf("cash", "check", "credit").sumOf { part ->
+    settlementParts.sumOf { part ->
         if (d.b("${part}_enabled") && d.optLong("${part}_amount") > 0L) d.optLong("${part}_amount") else 0L
     }
 
@@ -14,7 +16,7 @@ internal fun settlementRemaining(d: JSONObject, invoiceTotal: Long): Long =
     (invoiceTotal - settlementAllocated(d)).coerceAtLeast(0L)
 
 internal fun settlementPrimaryMethod(d: JSONObject): String {
-    val parts = listOf("cash", "check", "credit").filter { part ->
+    val parts = settlementParts.filter { part ->
         d.b("${part}_enabled") && d.optLong("${part}_amount") > 0L
     }
     return when {
@@ -38,8 +40,23 @@ internal fun defaultSplitSettlement(invoiceTotal: Long): JSONObject =
         .put("invoice_remaining", 0L)
         .put("company_invoice_remaining", 0L)
 
+/** Allocate the outstanding balance when selecting a payment method. */
+internal fun toggleSettlementPart(d: JSONObject, part: String, enabled: Boolean, invoiceTotal: Long) {
+    d.put("${part}_enabled", enabled)
+    d.put("${part}_amount", 0L)
+    val unallocatedPart = if (enabled) part else settlementParts.singleOrNull { d.b("${it}_enabled") }
+    if (unallocatedPart != null && d.optLong("${unallocatedPart}_amount") == 0L) {
+        d.put("${unallocatedPart}_amount", settlementRemaining(d, invoiceTotal))
+    }
+}
+
 internal fun refreshSettlementTotals(d: JSONObject, invoiceTotal: Long): JSONObject {
     val next = JSONObject(d.toString())
+    val previousTotal = next.optLong("invoice_total")
+    val solePart = settlementParts.singleOrNull { next.b("${it}_enabled") }
+    if (previousTotal != invoiceTotal && solePart != null && next.optLong("${solePart}_amount") == previousTotal) {
+        next.put("${solePart}_amount", invoiceTotal)
+    }
     next.put("invoice_total", invoiceTotal)
     val remaining = settlementRemaining(next, invoiceTotal)
     next.put("invoice_remaining", remaining)

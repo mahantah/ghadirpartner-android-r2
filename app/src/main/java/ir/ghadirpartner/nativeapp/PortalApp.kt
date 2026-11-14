@@ -108,19 +108,45 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
     var checkoutDraftSnapshot by remember {mutableStateOf<JSONObject?>(null)}
     var checkoutSessionKey by rememberSaveable {mutableIntStateOf(0)}
     var restoreCheckoutDraft by remember {mutableStateOf<JSONObject?>(null)}
+    val abandonedStore = remember(me.s("username")) {
+        AbandonedOrderService(
+            AbandonedOrderRepository(context, me.s("username")),
+            DailyDraftPolicy(CheckoutClock { System.currentTimeMillis() }, java.util.TimeZone.getTimeZone(BuildConfig.CHECKOUT_TIME_ZONE)),
+        )
+    }
     var abandonedRevision by remember {mutableIntStateOf(0)}
-    val abandonedOrder=remember(abandonedRevision) {AbandonedOrderStore.load(context)}
+    LaunchedEffect(abandonedStore) {
+        (context as FragmentActivity).lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                abandonedRevision++
+                delay(abandonedStore.millisUntilMidnight())
+            }
+        }
+    }
+    val abandonedOrder=remember(abandonedRevision) {abandonedStore.load()}
+    val activity = remember(api) { PortalActivityReporter(api) }
+    var activityCart by remember { mutableStateOf(abandonedOrder?.let(::cartFromDraft)) }
+    LaunchedEffect(activity) {
+        (context as FragmentActivity).lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) delay(activity.report())
+        }
+    }
+    LaunchedEffect(activity, activityCart) {
+        val lines = activityCart ?: return@LaunchedEffect
+        delay(500)
+        activity.report(lines)
+    }
     fun parkActiveCheckout() {
-        val snapshot=checkoutDraftSnapshot ?: AbandonedOrderStore.load(context)
+        val snapshot=checkoutDraftSnapshot ?: abandonedStore.load()
         if(snapshot!=null&&snapshot.optJSONArray("cart")?.length()?:0>0) {
-            AbandonedOrderStore.save(context,snapshot)
+            abandonedStore.save(snapshot)
             abandonedRevision++
         }
         checkoutDraftSnapshot=null
         checkoutSessionKey++
     }
     fun clearAbandonedDraft() {
-        AbandonedOrderStore.clear(context)
+        abandonedStore.clear()
         abandonedRevision++
         restoreCheckoutDraft=null
     }
@@ -194,17 +220,21 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                     )
                     "orders" -> PortalOrders(api,abandonedOrder=abandonedOrder,onContinueAbandoned={
                         restoreCheckoutDraft=it;checkoutSessionKey++;screen="new"
-                    },onDeleteAbandoned={clearAbandonedDraft()},onNavigate={screen=it}) { orderOrigin=screen; selectedOrder = it; screen = "order-detail" }
+                    },onDeleteAbandoned={clearAbandonedDraft();activityCart=emptyList()},onNavigate={screen=it}) { orderOrigin=screen; selectedOrder = it; screen = "order-detail" }
                     "new" -> PortalNewOrder(api, offerCode, catalogProduct, catalogGroup, restoreDraft=restoreCheckoutDraft,abandonedBanner=abandonedOrder,
                         onProductConsumed={catalogProduct=""},onBusyChanged={checkoutBusy=it},
                         onDraftSnapshot={snapshot->
+                            if (snapshot != null || checkoutDraftSnapshot != null) {
+                                activityCart = snapshot?.let(::cartFromDraft).orEmpty()
+                            }
                             checkoutDraftSnapshot=snapshot
                             // Persist during edits so immediate navigation cannot discard the last cart.
-                            if(snapshot!=null)AbandonedOrderStore.save(context,snapshot)
+                            if(snapshot!=null)abandonedStore.save(snapshot)
                         },onClearAbandoned={clearAbandonedDraft()},onRestoreConsumed={restoreCheckoutDraft=null},
                         onStageChanged={checkoutTitle=it},backRequest=checkoutBackRequest) { createdOrder ->
                         offerCode=""
                         clearAbandonedDraft()
+                        activityCart=emptyList()
                         orderOrigin="orders"
                         selectedOrder = createdOrder
                         screen = "success"
@@ -454,7 +484,7 @@ private fun PortalOrders(
         if(!deliveredOnly&&abandonedOrder!=null)item {
             GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 Text("سفارشات رها شده",color=Ink,fontWeight=FontWeight.Bold,fontSize=18.sp)
-                Text("یک سفارش تکمیل‌نشده ذخیره شده است.",color=Muted,fontSize=13.sp)
+                Text("یک سفارش تکمیل‌نشده ذخیره شده است؛ معتبر تا ساعت ۲۴ امروز به وقت تهران.",color=Muted,fontSize=13.sp)
                 val preview=cartFromDraft(abandonedOrder)
                 if(preview.isNotEmpty())Text(preview.joinToString(" • "){"${shortProductName(it.product)} × ${faNumber(it.qty)}"},color=Ink,fontSize=13.sp)
                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -1076,7 +1106,6 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
     val cameraFile=remember(me.i("id")){java.io.File(context.filesDir,"profile/camera-"+me.i("id")+".jpg").apply{parentFile?.mkdirs()}}
     val cameraUri=remember(cameraFile){androidx.core.content.FileProvider.getUriForFile(context,context.packageName+".files",cameraFile)}
     val camera=rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()){ok->if(ok)savePhoto(cameraUri.buildUpon().appendQueryParameter("v",System.currentTimeMillis().toString()).build().toString())}
-    val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){ok->if(ok)camera.launch(cameraUri) else error="برای گرفتن عکس، اجازهٔ دوربین لازم است."}
     fun parentView()=when(view){"edit","photo","deleted"->"services";"password","phone"->"settings";else->"profile"}
     LaunchedEffect(view){onSectionChanged(when(view){
         "services"->"پروفایل من";"settings"->"تنظیمات";"password"->"تغییر رمز ورود";"phone"->"تغییر شماره تماس"
@@ -1084,113 +1113,141 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
     var handledBackRequest by rememberSaveable {mutableIntStateOf(backRequest)}
     LaunchedEffect(backRequest){if(backRequest!=handledBackRequest&&!saving)view=parentView();handledBackRequest=backRequest}
     BackHandler(view!="profile"){if(!saving)view=parentView()}
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        if(error.isNotBlank())item {ErrorBanner(error){error=""}}
-        if(saved.isNotBlank()&&view in setOf("profile","services","settings"))item {DesignNotice(saved)}
-        when(view) {
-            "services"->{
-                item {Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Navy,Color(0xFF213E61)))).padding(18.dp)) {
-                    Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(14.dp)) {
-                        ProfilePhoto(photoUri,56.dp)
-                        Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                            Text(initial.s("name").ifBlank {me.s("username")},textAlign=TextAlign.Center,color=Color.White,fontSize=20.sp,fontWeight=FontWeight.Bold)
-                            Text("حساب همکاری • "+faDigits(initial.s("code")),color=Color.White.copy(alpha=.75f),fontSize=12.sp)
+    val isOverview = view == "profile"
+    val navigationPadding = LocalPortalBottomPadding.current
+    Column(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp),
+            contentPadding = PaddingValues(
+                top = 12.dp,
+                bottom = if (isOverview) 12.dp else 28.dp + navigationPadding,
+            ),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            if(error.isNotBlank())item {ErrorBanner(error){error=""}}
+            if(saved.isNotBlank()&&view in setOf("profile","services","settings"))item {DesignNotice(saved)}
+            when(view) {
+                "services"->{
+                    item {Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Navy,Color(0xFF213E61)))).padding(18.dp)) {
+                        Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(14.dp)) {
+                            ProfilePhoto(photoUri,56.dp)
+                            Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                                Text(initial.s("name").ifBlank {me.s("username")},textAlign=TextAlign.Center,color=Color.White,fontSize=20.sp,fontWeight=FontWeight.Bold)
+                                Text("حساب همکاری • "+faDigits(initial.s("code")),color=Color.White.copy(alpha=.75f),fontSize=12.sp)
+                            }
                         }
+                    }}
+                    item {ProfileServiceTile("ویرایش اطلاعات مشتری","مشخصات، فروشگاه و نشانی تحویل",Icons.Default.ManageAccounts,Modifier.fillMaxWidth(),wide=true){view="edit"}}
+                    item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                        ProfileServiceTile("آدرس‌های منتخب","نشانی‌های ذخیره‌شده",Icons.Default.LocationOn,Modifier.weight(1f)){onNavigate("addresses")}
+                        ProfileServiceTile("فاکتورهای من","مشاهده و دریافت PDF",Icons.Default.ReceiptLong,Modifier.weight(1f)){onProforma()}
+                    }}
+                    item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                        ProfileServiceTile("سریال‌های من","شناسهٔ دستگاه‌ها",Icons.Default.QrCode2,Modifier.weight(1f)){onNavigate("serials")}
+                        ProfileServiceTile("آفرهای من","طرح‌ها و پیشنهادها",Icons.Default.LocalOffer,Modifier.weight(1f)){onNavigate("offers")}
+                    }}
+                    item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                        ProfileServiceTile("تصویر پروفایل","انتخاب یا تغییر تصویر",Icons.Default.PhotoCamera,Modifier.weight(1f)){view="photo"}
+                        ProfileServiceTile("گزارش خرید","مرور سفارش‌های شما",Icons.Default.BarChart,Modifier.weight(1f)){onNavigate("summary")}
+                    }}
+                }
+                "settings"->{
+                    item {BiometricPreference(me.s("username"))}
+                    item {GhadirButton("تغییر رمز ورود",{view="password"},secondary=true)}
+                    item {GhadirButton("تغییر شماره تماس",{view="phone"},secondary=true)}
+                    item {Text("نسخه "+BuildConfig.VERSION_NAME,color=Muted,fontSize=12.sp)}
+                }
+                "password"->{item {AccountPasswordForm(api,me.s("username"),onChanged={saved="رمز ورود با موفقیت تغییر کرد.";view="settings"},onBusyChanged={saving=it})}}
+                "phone"->{item {AccountContactForm(api,me,onUpdated={result->onUpdated(result);saved="شماره تماس جایگزین ذخیره شد.";view="settings"},onBusyChanged={saving=it})}}
+                "edit"->{
+                    item {DesignField("نام و نام خانوادگی",name,{name=it;saved=""})}
+                    item {DesignField("نام شرکت / فروشگاه",company,{company=it;saved=""})}
+                    item {DesignField("شماره همراه",faDigits(me.s("username")),{},enabled=false)}
+                    item {DesignField("نشانی تحویل",address,{address=it;saved=""},singleLine=false)}
+                    item {DesignNotice("نام، شرکت و نشانی را پیش از ثبت تغییرات بررسی کنید.")}
+                    item {GhadirButton(if(saving)"در حال ذخیره…" else "ثبت تغییرات",{
+                        scope.launch {
+                            saving=true;error="";saved=""
+                            try {
+                                val body=JSONObject().put("name",name.trim()).put("company",company.trim()).put("province",province.trim())
+                                    .put("city",city.trim()).put("address",address.trim()).put("postal_code",postalCode).put("alternate_mobile",alternate)
+                                val result=api.post("/api/profile/update",body) as JSONObject
+                                onUpdated(result);view="services";saved="اطلاعات پروفایل با موفقیت به‌روزرسانی شد."
+                            }catch(e:kotlinx.coroutines.CancellationException){throw e}
+                            catch(e:Exception){error=e.message?:"ذخیره پروفایل ناموفق بود"}finally{saving=false}
+                        }
+                    },enabled=!saving&&name.trim().length>=3)}
+                    item {TextButton(onClick={extra=!extra}){Text("استان، شهر و کدپستی",color=Muted)}}
+                    if(extra) {
+                        item {DesignField("استان",province,{province=it})}
+                        item {DesignField("شهر",city,{city=it})}
+                        item {DesignField("کدپستی — اختیاری",postalCode,{postalCode=asciiDigits(it).filter(Char::isDigit).take(10)},keyboardType=androidx.compose.ui.text.input.KeyboardType.Number)}
                     }
-                }}
-                item {ProfileServiceTile("ویرایش اطلاعات مشتری","مشخصات، فروشگاه و نشانی تحویل",Icons.Default.ManageAccounts,Modifier.fillMaxWidth(),wide=true){view="edit"}}
-                item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                    ProfileServiceTile("آدرس‌های منتخب","نشانی‌های ذخیره‌شده",Icons.Default.LocationOn,Modifier.weight(1f)){onNavigate("addresses")}
-                    ProfileServiceTile("فاکتورهای من","مشاهده و دریافت PDF",Icons.Default.ReceiptLong,Modifier.weight(1f)){onProforma()}
-                }}
-                item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                    ProfileServiceTile("سریال‌های من","شناسهٔ دستگاه‌ها",Icons.Default.QrCode2,Modifier.weight(1f)){onNavigate("serials")}
-                    ProfileServiceTile("آفرهای من","طرح‌ها و پیشنهادها",Icons.Default.LocalOffer,Modifier.weight(1f)){onNavigate("offers")}
-                }}
-                item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                    ProfileServiceTile("تصویر پروفایل","انتخاب یا تغییر تصویر",Icons.Default.PhotoCamera,Modifier.weight(1f)){view="photo"}
-                    ProfileServiceTile("گزارش خرید","مرور سفارش‌های شما",Icons.Default.BarChart,Modifier.weight(1f)){onNavigate("summary")}
-                }}
-            }
-            "settings"->{
-                item {BiometricPreference(me.s("username"))}
-                item {GhadirButton("تغییر رمز ورود",{view="password"},secondary=true)}
-                item {GhadirButton("تغییر شماره تماس",{view="phone"},secondary=true)}
-                item {Text("نسخه "+BuildConfig.VERSION_NAME,color=Muted,fontSize=12.sp)}
-            }
-            "password"->{item {AccountPasswordForm(api,me.s("username"),onChanged={saved="رمز ورود با موفقیت تغییر کرد.";view="settings"},onBusyChanged={saving=it})}}
-            "phone"->{item {AccountContactForm(api,me,onUpdated={result->onUpdated(result);saved="شماره تماس جایگزین ذخیره شد.";view="settings"},onBusyChanged={saving=it})}}
-            "edit"->{
-                item {DesignField("نام و نام خانوادگی",name,{name=it;saved=""})}
-                item {DesignField("نام شرکت / فروشگاه",company,{company=it;saved=""})}
-                item {DesignField("شماره همراه",faDigits(me.s("username")),{},enabled=false)}
-                item {DesignField("نشانی تحویل",address,{address=it;saved=""},singleLine=false)}
-                item {DesignNotice("نام، شرکت و نشانی را پیش از ثبت تغییرات بررسی کنید.")}
-                item {GhadirButton(if(saving)"در حال ذخیره…" else "ثبت تغییرات",{
-                    scope.launch {
-                        saving=true;error="";saved=""
-                        try {
-                            val body=JSONObject().put("name",name.trim()).put("company",company.trim()).put("province",province.trim())
-                                .put("city",city.trim()).put("address",address.trim()).put("postal_code",postalCode).put("alternate_mobile",alternate)
-                            val result=api.post("/api/profile/update",body) as JSONObject
-                            onUpdated(result);view="services";saved="اطلاعات پروفایل با موفقیت به‌روزرسانی شد."
-                        }catch(e:kotlinx.coroutines.CancellationException){throw e}
-                        catch(e:Exception){error=e.message?:"ذخیره پروفایل ناموفق بود"}finally{saving=false}
+                }
+                "photo"->{
+                    item {Column(Modifier.fillMaxWidth().padding(top=28.dp,bottom=28.dp+LocalPortalBottomPadding.current),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)){
+                        ProfilePhoto(photoUri,112.dp);Text(name,color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold)
+                    }}
+                    item {DesignNotice("انتخاب تصویر\n\nاز دوربین یا گالری عکس انتخاب کنید. در صورت حذف، لوگوی اصلی شرکت نمایش داده می‌شود.")}
+                    item {GhadirButton("انتخاب از گالری",{gallery.launch(arrayOf("image/*"))})}
+                    item {
+                        GhadirButton("گرفتن عکس", {
+                            error = ""
+                            try {
+                                camera.launch(cameraUri)
+                            } catch (_: android.content.ActivityNotFoundException) {
+                                error = "برنامهٔ دوربین در دسترس نیست. می‌توانید از گالری عکس انتخاب کنید."
+                            }
+                        }, secondary = true)
                     }
-                },enabled=!saving&&name.trim().length>=3)}
-                item {TextButton(onClick={extra=!extra}){Text("استان، شهر و کدپستی",color=Muted)}}
-                if(extra) {
-                    item {DesignField("استان",province,{province=it})}
-                    item {DesignField("شهر",city,{city=it})}
-                    item {DesignField("کدپستی — اختیاری",postalCode,{postalCode=asciiDigits(it).filter(Char::isDigit).take(10)},keyboardType=androidx.compose.ui.text.input.KeyboardType.Number)}
+                    item {GhadirButton("حذف عکس و بازگشت به لوگو",{
+                        photoUri="";prefs.edit().remove(photoKey).apply();onPhotoUpdated("");view="deleted"
+                    },secondary=true,enabled=photoUri.isNotBlank())}
+                    item {GhadirButton("انصراف",{view="services"},secondary=true)}
+                }
+                "deleted"->{
+                    item {GlassSurface {Column(Modifier.fillMaxWidth().padding(40.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(20.dp)){
+                        ProfilePhoto("",112.dp);Text(name,color=Ink,fontSize=24.sp,fontWeight=FontWeight.Bold);Text(company,color=Muted,fontSize=13.sp)
+                    }}}
+                    item {Surface(color=if(AppAppearance.dark)Color(0xFF16382D) else Color(0xFFE9F6EF),shape=RoundedCornerShape(24.dp),border=BorderStroke(1.dp,Border)){
+                        Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+                            Text("عکس شخصی حذف شد",color=Ink,fontWeight=FontWeight.Bold)
+                            Text("تصویر پیش‌فرض حساب، لوگوی شرکت خواهد بود.",color=Ink,fontSize=12.sp)
+                        }
+                    }}
+                    item {GhadirButton("انتخاب عکس جدید",{view="photo"},secondary=true)}
+                    item {GhadirButton("بازگشت به پروفایل",{view="services"},secondary=true)}
+                }
+                else->{
+                    item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+                        Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(14.dp)){
+                            ProfilePhoto(photoUri)
+                            Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally){
+                                Text(initial.s("name").ifBlank {me.s("username")},textAlign=TextAlign.Center,color=Ink,fontSize=24.sp,lineHeight=40.sp,fontWeight=FontWeight.Bold)
+                                Text(initial.s("company")+" • کد همکار "+faDigits(initial.s("code")),textAlign=TextAlign.Center,color=Muted,fontSize=12.sp)
+                            }
+                        }
+                        HorizontalDivider(color=Border)
+                        Text("شماره همراه: "+faDigits(me.s("username")),color=Ink,textAlign=TextAlign.Center,modifier=Modifier.fillMaxWidth())
+                    }}}
+                    item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                        ProfileServiceTile("پروفایل من","اطلاعات و خدمات مشتری",Icons.Default.PersonOutline,Modifier.weight(1f)){view="services"}
+                        ProfileServiceTile("تنظیمات","امنیت و اطلاعات تماس",Icons.Default.Settings,Modifier.weight(1f)){view="settings"}
+                    }}
+                    item {ProfileServiceTile("تماس با پشتیبانی ۰۲۱۷۷۲۴۷۰۷۰","همراه شما در خرید و خدمات",Icons.Default.HeadsetMic,Modifier.fillMaxWidth(),wide=true) {
+                        try{context.startActivity(android.content.Intent(android.content.Intent.ACTION_DIAL,Uri.parse("tel:02177247070")))}
+                        catch(_:Exception){error="برنامه تماس روی این دستگاه در دسترس نیست"}
+                    }}
+                    item {ProfileServiceTile("خروج از حساب","پایان نشست فعلی",Icons.Default.Logout,Modifier.fillMaxWidth(),wide=true,onClick=onLogout)}
                 }
             }
-            "photo"->{
-                item {Column(Modifier.fillMaxWidth().padding(top=28.dp,bottom=28.dp+LocalPortalBottomPadding.current),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)){
-                    ProfilePhoto(photoUri,112.dp);Text(name,color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold)
-                }}
-                item {DesignNotice("انتخاب تصویر\n\nاز دوربین یا گالری عکس انتخاب کنید. در صورت حذف، لوگوی اصلی شرکت نمایش داده می‌شود.")}
-                item {GhadirButton("انتخاب از گالری",{gallery.launch(arrayOf("image/*"))})}
-                item {GhadirButton("گرفتن عکس",{permission.launch(android.Manifest.permission.CAMERA)},secondary=true)}
-                item {GhadirButton("حذف عکس و بازگشت به لوگو",{
-                    photoUri="";prefs.edit().remove(photoKey).apply();onPhotoUpdated("");view="deleted"
-                },secondary=true,enabled=photoUri.isNotBlank())}
-                item {GhadirButton("انصراف",{view="services"},secondary=true)}
-            }
-            "deleted"->{
-                item {GlassSurface {Column(Modifier.fillMaxWidth().padding(40.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(20.dp)){
-                    ProfilePhoto("",112.dp);Text(name,color=Ink,fontSize=24.sp,fontWeight=FontWeight.Bold);Text(company,color=Muted,fontSize=13.sp)
-                }}}
-                item {Surface(color=if(AppAppearance.dark)Color(0xFF16382D) else Color(0xFFE9F6EF),shape=RoundedCornerShape(24.dp),border=BorderStroke(1.dp,Border)){
-                    Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-                        Text("عکس شخصی حذف شد",color=Ink,fontWeight=FontWeight.Bold)
-                        Text("تصویر پیش‌فرض حساب، لوگوی شرکت خواهد بود.",color=Ink,fontSize=12.sp)
-                    }
-                }}
-                item {GhadirButton("انتخاب عکس جدید",{view="photo"},secondary=true)}
-                item {GhadirButton("بازگشت به پروفایل",{view="services"},secondary=true)}
-            }
-            else->{
-                item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-                    Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(14.dp)){
-                        ProfilePhoto(photoUri)
-                        Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally){
-                            Text(initial.s("name").ifBlank {me.s("username")},textAlign=TextAlign.Center,color=Ink,fontSize=24.sp,lineHeight=40.sp,fontWeight=FontWeight.Bold)
-                            Text(initial.s("company")+" • کد همکار "+faDigits(initial.s("code")),textAlign=TextAlign.Center,color=Muted,fontSize=12.sp)
-                        }
-                    }
-                    HorizontalDivider(color=Border)
-                    Text("شماره همراه: "+faDigits(me.s("username")),color=Ink,textAlign=TextAlign.Center,modifier=Modifier.fillMaxWidth())
-                }}}
-                item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                    ProfileServiceTile("پروفایل من","اطلاعات و خدمات مشتری",Icons.Default.PersonOutline,Modifier.weight(1f)){view="services"}
-                    ProfileServiceTile("تنظیمات","امنیت و اطلاعات تماس",Icons.Default.Settings,Modifier.weight(1f)){view="settings"}
-                }}
-                item {ProfileServiceTile("تماس با پشتیبانی ۰۲۱۷۷۲۴۷۰۷۰","همراه شما در خرید و خدمات",Icons.Default.HeadsetMic,Modifier.fillMaxWidth(),wide=true) {
-                    try{context.startActivity(android.content.Intent(android.content.Intent.ACTION_DIAL,Uri.parse("tel:02177247070")))}
-                    catch(_:Exception){error="برنامه تماس روی این دستگاه در دسترس نیست"}
-                }}
-                item {ProfileServiceTile("خروج از حساب","پایان نشست فعلی",Icons.Default.Logout,Modifier.fillMaxWidth(),wide=true,onClick=onLogout)}
+        }
+        if (isOverview) {
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(bottom = navigationPadding),
+                contentAlignment = Alignment.Center,
+            ) {
+                PortalPrivacyLink()
             }
         }
     }

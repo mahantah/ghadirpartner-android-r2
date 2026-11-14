@@ -16,6 +16,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -39,13 +41,15 @@ internal fun SettlementForm(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val currentTotal by rememberUpdatedState(invoiceTotal)
+    val currentValue by rememberUpdatedState(value)
+    val updateSettlement by rememberUpdatedState(onChange)
     fun patch(block: (JSONObject) -> Unit) {
-        val next = JSONObject(value.toString())
+        val next = JSONObject(currentValue.toString())
         block(next)
-        onChange(refreshSettlementTotals(next, currentTotal))
+        updateSettlement(refreshSettlementTotals(next, currentTotal))
     }
     fun set(key: String, v: Any) = patch { it.put(key, v) }
-    fun amountText(part: String): String = value.optLong("${part}_amount").takeIf { it > 0L }?.let { formatMoney(it) } ?: ""
+    fun amountText(part: String): String = value.optLong("${part}_amount").takeIf { it > 0L }?.toString() ?: ""
     fun setAmount(part: String, raw: String) {
         val digits = asciiDigits(raw).filter(Char::isDigit).take(15)
         val amount = digits.toLongOrNull() ?: 0L
@@ -82,9 +86,7 @@ internal fun SettlementForm(
         }
     }
     var imageTarget by remember { mutableStateOf("cash") }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val target = imageTarget
+    fun attachImage(uri: Uri, target: String, temporaryFile: java.io.File? = null) {
         scope.launch {
             busy = true
             error = ""
@@ -118,9 +120,20 @@ internal fun SettlementForm(
             } catch (e: Exception) {
                 error = e.message ?: "انتخاب تصویر ناموفق بود"
             } finally {
+                temporaryFile?.delete()
                 busy = false
             }
         }
+    }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) attachImage(uri, imageTarget)
+    }
+    val chequePhoto = remember(context) { java.io.File(context.cacheDir, "cheque-capture/cheque.jpg") }
+    val chequePhotoUri = remember(context, chequePhoto) {
+        androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".files", chequePhoto)
+    }
+    val chequeCamera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { captured ->
+        if (captured) attachImage(chequePhotoUri, "check", chequePhoto) else chequePhoto.delete()
     }
     val remaining = settlementRemaining(value, invoiceTotal)
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -131,14 +144,19 @@ internal fun SettlementForm(
             DesignNotice("فاکتور رسمی — فروشنده: هوشمند پرداز پویا تجارت قدیر — شناسه ملی ۱۴۰۱۰۳۶۶۳۹۵")
         }
         SplitMethodRow("نقد", value.b("cash_enabled"), amountText("cash"), { enabled ->
-            patch { it.put("cash_enabled", enabled); if (!enabled) it.put("cash_amount", 0L) }
+            patch { toggleSettlementPart(it, "cash", enabled, currentTotal) }
         }, { setAmount("cash", it) })
         SplitMethodRow("چک", value.b("check_enabled"), amountText("check"), { enabled ->
-            patch { it.put("check_enabled", enabled); if (!enabled) it.put("check_amount", 0L) }
+            patch { toggleSettlementPart(it, "check", enabled, currentTotal) }
         }, { setAmount("check", it) })
         SplitMethodRow("اعتباری", value.b("credit_enabled"), amountText("credit"), { enabled ->
-            patch { it.put("credit_enabled", enabled); if (!enabled) it.put("credit_amount", 0L) }
+            patch { toggleSettlementPart(it, "credit", enabled, currentTotal) }
         }, { setAmount("credit", it) })
+        if (value.b("cash_enabled") && invoiceType == "غیررسمی") {
+            DetailLine("صاحب حساب", BuildConfig.CHEQUE_INFORMAL_PAYEE)
+            DetailLine("شماره کارت", "\u2066${BuildConfig.INFORMAL_CASH_CARD}\u2069")
+            DetailLine("شماره شبا", "\u2066${BuildConfig.INFORMAL_CASH_IBAN}\u2069")
+        }
         if (value.b("cash_enabled") && value.optLong("cash_amount") > 0L) {
             DesignNotice("تسویه نقدی\n\nثبت رسید پرداخت برای بررسی واحد مالی.")
             DesignField("شماره پیگیری", value.s("tracking_number"), { set("tracking_number", asciiDigits(it).take(100)) }, "شماره پیگیری انتقال — در صورت پرداخت", enabled = !busy)
@@ -150,15 +168,24 @@ internal fun SettlementForm(
             )
         }
         if (value.b("check_enabled") && value.optLong("check_amount") > 0L) {
-            val payeeNote = if (invoiceType == "رسمی") {
-                "چک به نام سلمان بوربور فرون‌آباد — کد ملی ۰۴۹۳۳۹۱۷۶۲"
-            } else {
-                "اطلاعات چک برای بررسی واحد مالی ثبت می‌شود."
-            }
+            val payeeNote = ChequePayeePolicy().instructionsFor(invoiceType)
             DesignNotice("تسویه با چک\n\n$payeeNote")
             DesignField("شناسه صیادی", value.s("check_number"), { set("check_number", asciiDigits(it).filter(Char::isDigit).take(16)) }, "شناسه ۱۶ رقمی", keyboardType = KeyboardType.Number, enabled = !busy)
-            DesignField("بانک", value.s("bank_name"), { set("bank_name", it.take(80)) }, "نام بانک", enabled = !busy)
-            DesignField("سررسید", value.s("due_date"), { set("due_date", asciiDigits(it).take(30)) }, "تاریخ شمسی", R.drawable.design_calendar, enabled = !busy)
+            BankSelectionField(value.s("bank_name"), !busy) { set("bank_name", it) }
+            PersianDateSelectionField("سررسید", value.s("due_date"), !busy) { set("due_date", it) }
+            GhadirButton("گرفتن عکس چک", {
+                error = ""
+                val directory = chequePhoto.parentFile
+                if (directory == null || (!directory.isDirectory && !directory.mkdirs())) {
+                    error = "آماده‌سازی محل عکس ممکن نشد."
+                } else {
+                    try {
+                        chequeCamera.launch(chequePhotoUri)
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        error = "برنامهٔ دوربین در دسترس نیست. تصویر چک را از گالری انتخاب کنید."
+                    }
+                }
+            }, enabled = !busy, secondary = true)
             GhadirButton(
                 if (busy) "در حال آماده‌سازی تصویر…" else if (value.s("check_image_base64").isNotBlank() || value.s("image_base64").isNotBlank()) "تصویر چک انتخاب شد؛ تغییر" else "بارگذاری تصویر چک",
                 { imageTarget = "check"; picker.launch("image/*") },
@@ -209,7 +236,16 @@ private fun SplitMethodRow(
             Text(label, color = Ink, modifier = Modifier.weight(1f))
         }
         if (enabled) {
-            DesignField("$label — مبلغ (تومان)", amount, onAmount, "مبلغ به تومان", keyboardType = KeyboardType.Number)
+            DesignField(
+                "$label — مبلغ (تومان)",
+                amount,
+                onAmount,
+                "مبلغ به تومان",
+                keyboardType = KeyboardType.Number,
+                transformation = SettlementAmountTransformation,
+                textDirection = TextDirection.Ltr,
+                textAlign = TextAlign.Right,
+            )
         }
     }
 }

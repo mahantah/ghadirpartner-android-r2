@@ -67,7 +67,7 @@ class DesignFlowTest {
         val request=chain.request()
         check(request.url.host=="ghadirpartner.ir")
         val path=request.url.encodedPath.removePrefix("/partners")
-        if(request.method=="POST") {
+        if(request.method=="POST" && path!="/api/portal-activity") {
             val buffer=Buffer();request.body!!.writeTo(buffer)
             writes.add(path to JSONObject(buffer.readUtf8()))
         }
@@ -78,6 +78,8 @@ class DesignFlowTest {
             "/api/offers"->"""[{"id":3,"title":"قدیر میکس؛ خرید ترکیبی","description":"پیشنهاد ویژه برای همکاران؛ شرایط و مدل‌های مشمول را ببینید.","discount_type":"percent","discount_value":5,"promo_code":"MOCK5"}]"""
             "/api/catalog"->"""[{"name":"i90","manufacturer":"SZZT","available":true,"stock":$fixtureStock,"serial_required":true,"price_updated_at":"2026-10-04","prices":{"serial_1_50":11400000,"serial_51_200":11600000,"panel_cash":11000000,"panel_7d":11300000,"panel_1m":11900000,"sales_agent":11200000}}]"""
             "/api/addresses"->"""[{"id":"saved-A","title":"دفتر","province":"تهران","city":"تهران","address":"خیابان دفتر"}]"""
+            "/api/notifications/staff"->"{\"items\":[]}"
+            "/api/portal-activity"->"{\"ok\":true,\"heartbeat_seconds\":60}"
             "/api/notifications"->if(includeOrderMessage) """{"items":[{"id":"order:1024","kind":"order","order_id":1024,"title":"به‌روزرسانی سفارش","body":"سفارش آماده است","read":false}],"unread":1}""" else "{\"items\":[],\"unread\":0}"
             "/api/notifications/read"->"{\"ok\":true}"
             "/api/password"->"{\"ok\":true}"
@@ -193,7 +195,7 @@ class DesignFlowTest {
             shot("design-checkout-cash.png")
             showField("فعال‌سازی چک");compose.onNodeWithContentDescription("فعال‌سازی چک").performScrollTo().performClick()
             compose.onNodeWithContentDescription("فعال‌سازی نقد").performClick()
-            showField("چک — مبلغ (تومان)");compose.onNodeWithContentDescription("چک — مبلغ (تومان)").performTextInput("۲۲۴۰۰۰۰۰")
+            showField("چک — مبلغ (تومان)");compose.onNodeWithContentDescription("چک — مبلغ (تومان)").performTextReplacement("۲۲۴۰۰۰۰۰")
             hideKeyboard(scenario)
             compose.waitForIdle()
             showField("شناسه صیادی")
@@ -202,8 +204,11 @@ class DesignFlowTest {
             compose.onNodeWithText("شناسه صیادی باید ۱۶ رقم باشد").assertExists()
             assertTrue(writes.isEmpty())
             showField("شناسه صیادی");compose.onNodeWithContentDescription("شناسه صیادی").performTextInput("۱۲۳۴۵۶۷۸۹۰۱۲۳۴۵۶")
-            showField("بانک");compose.onNodeWithContentDescription("بانک").performTextInput("بانک نمونه")
-            showField("سررسید");compose.onNodeWithContentDescription("سررسید").performTextInput("۱۴۰۵/۰۷/۲۶")
+            showField("بانک");compose.onNodeWithContentDescription("بانک").performClick()
+            compose.onNodeWithText("ملی ایران").performClick()
+            showField("سررسید");compose.onNodeWithContentDescription("سررسید").performClick()
+            shot("design-checkout-calendar.png")
+            compose.onNodeWithText("تأیید تاریخ").performClick()
             hideKeyboard(scenario);shot("design-checkout-check.png")
             showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
             waitText("تأیید نهایی سفارش")
@@ -211,7 +216,7 @@ class DesignFlowTest {
             showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
             showField("فعال‌سازی اعتباری");compose.onNodeWithContentDescription("فعال‌سازی اعتباری").performScrollTo().performClick()
             compose.onNodeWithContentDescription("فعال‌سازی چک").performClick()
-            showField("اعتباری — مبلغ (تومان)");compose.onNodeWithContentDescription("اعتباری — مبلغ (تومان)").performTextInput("۲۲۴۰۰۰۰۰")
+            showField("اعتباری — مبلغ (تومان)");compose.onNodeWithContentDescription("اعتباری — مبلغ (تومان)").performTextReplacement("۲۲۴۰۰۰۰۰")
             hideKeyboard(scenario)
             showText("اعتبار حساب شما")
             showField("پذیرش تعهد اعتبار");clearFloatingBarOverlap(compose.onNodeWithContentDescription("پذیرش تعهد اعتبار"))
@@ -261,7 +266,7 @@ class DesignFlowTest {
             compose.onNodeWithText("دفتر • خیابان دفتر").performClick()
             compose.onAllNodesWithText("پروفایل").onLast().performClick()
             waitText("تنظیمات")
-            assertNotNull("Checkout draft must be stored before leaving the tab", AbandonedOrderStore.load(InstrumentationRegistry.getInstrumentation().targetContext))
+            assertNotNull("Checkout draft must be stored before leaving the tab", AbandonedOrderService(AbandonedOrderRepository(InstrumentationRegistry.getInstrumentation().targetContext, me.s("username")), DailyDraftPolicy(CheckoutClock { System.currentTimeMillis() }, java.util.TimeZone.getTimeZone(BuildConfig.CHECKOUT_TIME_ZONE))).load())
             compose.onAllNodesWithText("سفارش‌ها").onLast().performClick()
             waitText("سفارشات رها شده")
             showText("ادامه سفارش");compose.onNodeWithText("ادامه سفارش").performClick()
@@ -498,7 +503,20 @@ class DesignFlowTest {
             }
             waitText("سلام، علی رضایی")
             compose.onAllNodesWithText("پروفایل").onLast().performClick()
-            showText("پروفایل من");shot("design-profile-main-day.png")
+            showText("پروفایل من")
+            val privacyTitle = InstrumentationRegistry.getInstrumentation().targetContext
+                .getString(R.string.portal_privacy_title)
+            val privacyLink = compose.onNodeWithText(privacyTitle).assertIsDisplayed()
+            val footer = privacyLink.fetchSemanticsNode().boundsInRoot
+            val navigation = compose.onNodeWithContentDescription("ناوبری شناور")
+                .fetchSemanticsNode().boundsInRoot
+            val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
+            assertTrue("Privacy link must stay above the floating navigation", footer.bottom <= navigation.top)
+            assertTrue("Privacy link must be centered", kotlin.math.abs(footer.center.x - root.center.x) <= 2f)
+            privacyLink.performClick()
+            compose.onNodeWithText(InstrumentationRegistry.getInstrumentation().targetContext
+                .getString(R.string.portal_privacy_close)).performClick()
+            shot("design-profile-main-day.png")
             compose.onNodeWithContentDescription("حالت شب").performClick();shot("design-profile-main-night.png")
             compose.onNodeWithContentDescription("حالت روز").performClick()
             compose.onNodeWithText("پروفایل من").performClick()

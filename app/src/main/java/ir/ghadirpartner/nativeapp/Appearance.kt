@@ -11,7 +11,7 @@ object AppAppearance {
     fun restore(context: Context) { dark = context.getSharedPreferences("appearance", 0).getBoolean("dark", false) }
     fun toggle(context: Context) { dark = !dark; context.getSharedPreferences("appearance", 0).edit().putBoolean("dark", dark).apply() }
 }
-val AppBackground get() = if(AppAppearance.dark) Color(0xFF10161F) else Color(0xFFFFF8F2)
+val AppBackground get() = Color(android.graphics.Color.parseColor(if(AppAppearance.dark) BuildConfig.BACKGROUND_DARK else BuildConfig.BACKGROUND_LIGHT))
 /** Keep text opaque while portal section fills reveal the existing artwork. */
 private val sectionOpacity get() = if(BuildConfig.APP_MODE != "portal") 1f else if(AppAppearance.dark) BuildConfig.SECTION_OPACITY_DARK else BuildConfig.SECTION_OPACITY_LIGHT
 val AppSurface get() = (if(AppAppearance.dark) Color(0xFF1B2430) else Color.White).copy(alpha=sectionOpacity)

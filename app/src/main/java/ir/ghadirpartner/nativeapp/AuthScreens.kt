@@ -128,6 +128,10 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
             catch(e:Exception){error=e.message?:"ارسال کد ناموفق بود"}finally{loading=false}
         }
     }
+    if (view == "membership") {
+        PortalMembership(api, identity) { view = "login"; error = "" }
+        return
+    }
     if(view=="reset") {
         PasswordResetScreen(api,identity){
             val saved=loginStore.load()?.takeIf{it.identity==canonicalPortalIdentity(identity)}
@@ -199,6 +203,9 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
                             catch(e:Exception){error=e.message?:"ورود ناموفق بود"}finally{loading=false}}
                     },enabled=!loading&&identity.isNotBlank()&&password.isNotBlank())
                     if(api.isPortal) {
+                        TextButton(onClick = { view = "membership"; error = "" }, enabled = !loading) {
+                            Text("درخواست عضویت", color = Ink)
+                        }
                         TextButton(onClick={requestOtp()},enabled=!loading&&countdown==0&&identity.matches(Regex("09[0-9]{9}"))) {Text("ورود با کد یک‌بارمصرف",color=Ink)}
                         if(biometricEnabled(context,canonicalPortalIdentity(identity))) TextButton(onClick={view="biometric";biometricFailed=false;error=""},enabled=!loading) {Text("ورود با اثر انگشت",color=Ink)}
                     }
@@ -206,6 +213,7 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
                     Text("فعال‌سازی بیومتریک پس از ورود، از بخش پروفایل.",color=Muted,fontSize=12.sp)
                 }
             }
+            if (api.isPortal) PortalPrivacyLink()
             if(error.isNotBlank()&&view!="biometric")ErrorBanner(error){error=""}
         }
         }
