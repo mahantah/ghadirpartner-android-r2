@@ -28,11 +28,13 @@ if (!(visualPolicy instanceof Map) || visualPolicy.keySet() != (['section_opacit
 }
 
 def checkoutPolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/checkout-policy.yaml').text)
-def cacheKeys = ['catalog_cache_ms', 'offers_cache_ms', 'orders_cache_ms', 'profile_cache_ms', 'addresses_cache_ms', 'summary_cache_ms']
-def checkoutKeys = (cacheKeys + ['time_zone', 'formal_payee', 'informal_payee', 'informal_national_id', 'banks']) as Set
+def cacheKeys = ['catalog_cache_ms', 'offers_cache_ms', 'orders_cache_ms', 'profile_cache_ms', 'addresses_cache_ms', 'summary_cache_ms', 'portal_heartbeat_retry_ms']
+def checkoutKeys = (cacheKeys + ['time_zone', 'formal_payee', 'informal_payee', 'informal_national_id', 'informal_cash_card', 'informal_cash_iban', 'banks']) as Set
 if (!(checkoutPolicy instanceof Map) || checkoutPolicy.keySet() != checkoutKeys ||
     !['time_zone', 'formal_payee', 'informal_payee'].every { checkoutPolicy[it] instanceof String && !checkoutPolicy[it].trim().isEmpty() } ||
     !(checkoutPolicy.informal_national_id instanceof String) || !(checkoutPolicy.informal_national_id ==~ /[0-9]{10}/) ||
+    !(checkoutPolicy.informal_cash_card instanceof String) || !(checkoutPolicy.informal_cash_card ==~ /[0-9]{4}(-[0-9]{4}){3}/) ||
+    !(checkoutPolicy.informal_cash_iban instanceof String) || !(checkoutPolicy.informal_cash_iban ==~ /IR[0-9]{24}/) ||
     !java.util.TimeZone.availableIDs.contains(checkoutPolicy.time_zone) ||
     !cacheKeys.every { checkoutPolicy[it] instanceof Integer && checkoutPolicy[it] in 1..300000 } ||
     !(checkoutPolicy.banks instanceof List) || checkoutPolicy.banks.isEmpty() ||
@@ -55,12 +57,15 @@ android {
         buildConfigField 'String', 'CHEQUE_FORMAL_PAYEE', groovy.json.JsonOutput.toJson(checkoutPolicy.formal_payee)
         buildConfigField 'String', 'CHEQUE_INFORMAL_PAYEE', groovy.json.JsonOutput.toJson(checkoutPolicy.informal_payee)
         buildConfigField 'String', 'CHEQUE_INFORMAL_NATIONAL_ID', groovy.json.JsonOutput.toJson(checkoutPolicy.informal_national_id)
+        buildConfigField 'String', 'INFORMAL_CASH_CARD', groovy.json.JsonOutput.toJson(checkoutPolicy.informal_cash_card)
+        buildConfigField 'String', 'INFORMAL_CASH_IBAN', groovy.json.JsonOutput.toJson(checkoutPolicy.informal_cash_iban)
         buildConfigField 'String', 'CHEQUE_BANKS', groovy.json.JsonOutput.toJson(checkoutPolicy.banks.join('\n'))
         buildConfigField 'long', 'CATALOG_CACHE_MS', checkoutPolicy.catalog_cache_ms.toString() + 'L'
         buildConfigField 'long', 'OFFERS_CACHE_MS', checkoutPolicy.offers_cache_ms.toString() + 'L'
         buildConfigField 'long', 'ORDERS_CACHE_MS', checkoutPolicy.orders_cache_ms.toString() + 'L'
         buildConfigField 'long', 'PROFILE_CACHE_MS', checkoutPolicy.profile_cache_ms.toString() + 'L'
         buildConfigField 'long', 'ADDRESSES_CACHE_MS', checkoutPolicy.addresses_cache_ms.toString() + 'L'
+        buildConfigField 'long', 'PORTAL_HEARTBEAT_RETRY_MS', checkoutPolicy.portal_heartbeat_retry_ms.toString() + 'L'
         buildConfigField 'long', 'SUMMARY_CACHE_MS', checkoutPolicy.summary_cache_ms.toString() + 'L'
         buildConfigField 'float', 'SECTION_OPACITY_LIGHT', visualPolicy.section_opacity_light.toString() + 'f'
         buildConfigField 'float', 'SECTION_OPACITY_DARK', visualPolicy.section_opacity_dark.toString() + 'f'
