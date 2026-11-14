@@ -56,7 +56,13 @@ class PortalInboxState(private val api:ApiClient,context:android.content.Context
                 }
                 else->throw IllegalStateException("پاسخ مرکز پیام معتبر نیست.")
             }
-            items=next.filter{it.s("id").isNotBlank()}.distinctBy{it.s("id")}.map {
+            val staff = try {
+                (api.get("/api/notifications/staff") as JSONObject).arr("items").objects()
+            } catch (error: ApiException) {
+                if (error.status !in setOf(404, 405, 501)) throw error
+                emptyList()
+            }
+            items=(next + staff).filter{it.s("id").isNotBlank()}.distinctBy{it.s("id")}.map {
                 JSONObject(it.toString()).apply {if(s("id") in locallyRead)put("read",true)}
             }.sortedByDescending{it.s("created_at")}
             error=""
@@ -91,8 +97,13 @@ class PortalInboxState(private val api:ApiClient,context:android.content.Context
         val owned=ids.filter{id->items.any{it.s("id")==id}}.distinct()
         if(owned.isEmpty())return@withLock
         try {
-            if(!localMode)try {
-                api.post("/api/notifications/read",JSONObject().put("ids",JSONArray(owned)))
+            val staff = owned.filter { it.startsWith("staff:") }
+            if (staff.isNotEmpty()) {
+                api.post("/api/notifications/staff/read", JSONObject().put("ids", JSONArray(staff)))
+            }
+            val activity = owned - staff.toSet()
+            if(!localMode && activity.isNotEmpty())try {
+                api.post("/api/notifications/read",JSONObject().put("ids",JSONArray(activity)))
             }catch(e:ApiException){if(e.status !in setOf(404,405,501))throw e}
             locallyRead=(locallyRead+owned).takeLastSet(1000)
             prefs?.edit()?.putStringSet(readKey,locallyRead)?.apply()
