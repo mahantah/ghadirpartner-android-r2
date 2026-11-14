@@ -67,7 +67,7 @@ class DesignFlowTest {
         val request=chain.request()
         check(request.url.host=="ghadirpartner.ir")
         val path=request.url.encodedPath.removePrefix("/partners")
-        if(request.method=="POST") {
+        if(request.method=="POST" && path!="/api/portal-activity") {
             val buffer=Buffer();request.body!!.writeTo(buffer)
             writes.add(path to JSONObject(buffer.readUtf8()))
         }
@@ -79,6 +79,7 @@ class DesignFlowTest {
             "/api/catalog"->"""[{"name":"i90","manufacturer":"SZZT","available":true,"stock":$fixtureStock,"serial_required":true,"price_updated_at":"2026-10-04","prices":{"serial_1_50":11400000,"serial_51_200":11600000,"panel_cash":11000000,"panel_7d":11300000,"panel_1m":11900000,"sales_agent":11200000}}]"""
             "/api/addresses"->"""[{"id":"saved-A","title":"دفتر","province":"تهران","city":"تهران","address":"خیابان دفتر"}]"""
             "/api/notifications/staff"->"{\"items\":[]}"
+            "/api/portal-activity"->"{\"ok\":true,\"heartbeat_seconds\":60}"
             "/api/notifications"->if(includeOrderMessage) """{"items":[{"id":"order:1024","kind":"order","order_id":1024,"title":"به‌روزرسانی سفارش","body":"سفارش آماده است","read":false}],"unread":1}""" else "{\"items\":[],\"unread\":0}"
             "/api/notifications/read"->"{\"ok\":true}"
             "/api/password"->"{\"ok\":true}"
