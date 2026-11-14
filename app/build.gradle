@@ -28,7 +28,7 @@ if (!(visualPolicy instanceof Map) || visualPolicy.keySet() != (['section_opacit
 }
 
 def checkoutPolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/checkout-policy.yaml').text)
-def cacheKeys = ['catalog_cache_ms', 'offers_cache_ms', 'orders_cache_ms', 'profile_cache_ms', 'addresses_cache_ms', 'summary_cache_ms']
+def cacheKeys = ['catalog_cache_ms', 'offers_cache_ms', 'orders_cache_ms', 'profile_cache_ms', 'addresses_cache_ms', 'summary_cache_ms', 'portal_heartbeat_retry_ms']
 def checkoutKeys = (cacheKeys + ['time_zone', 'formal_payee', 'informal_payee', 'informal_national_id', 'informal_cash_card', 'informal_cash_iban', 'banks']) as Set
 if (!(checkoutPolicy instanceof Map) || checkoutPolicy.keySet() != checkoutKeys ||
     !['time_zone', 'formal_payee', 'informal_payee'].every { checkoutPolicy[it] instanceof String && !checkoutPolicy[it].trim().isEmpty() } ||
@@ -65,6 +65,7 @@ android {
         buildConfigField 'long', 'ORDERS_CACHE_MS', checkoutPolicy.orders_cache_ms.toString() + 'L'
         buildConfigField 'long', 'PROFILE_CACHE_MS', checkoutPolicy.profile_cache_ms.toString() + 'L'
         buildConfigField 'long', 'ADDRESSES_CACHE_MS', checkoutPolicy.addresses_cache_ms.toString() + 'L'
+        buildConfigField 'long', 'PORTAL_HEARTBEAT_RETRY_MS', checkoutPolicy.portal_heartbeat_retry_ms.toString() + 'L'
         buildConfigField 'long', 'SUMMARY_CACHE_MS', checkoutPolicy.summary_cache_ms.toString() + 'L'
         buildConfigField 'float', 'SECTION_OPACITY_LIGHT', visualPolicy.section_opacity_light.toString() + 'f'
         buildConfigField 'float', 'SECTION_OPACITY_DARK', visualPolicy.section_opacity_dark.toString() + 'f'

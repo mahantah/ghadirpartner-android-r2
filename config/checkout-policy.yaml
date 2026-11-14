@@ -51,3 +51,4 @@ banks:
   - توسعه
   - کاسپین
   - ثامن
+portal_heartbeat_retry_ms: 60000

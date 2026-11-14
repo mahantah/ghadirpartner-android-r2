@@ -124,6 +124,18 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
         }
     }
     val abandonedOrder=remember(abandonedRevision) {abandonedStore.load()}
+    val activity = remember(api) { PortalActivityReporter(api) }
+    var activityCart by remember { mutableStateOf(abandonedOrder?.let(::cartFromDraft)) }
+    LaunchedEffect(activity) {
+        (context as FragmentActivity).lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) delay(activity.report())
+        }
+    }
+    LaunchedEffect(activity, activityCart) {
+        val lines = activityCart ?: return@LaunchedEffect
+        delay(500)
+        activity.report(lines)
+    }
     fun parkActiveCheckout() {
         val snapshot=checkoutDraftSnapshot ?: abandonedStore.load()
         if(snapshot!=null&&snapshot.optJSONArray("cart")?.length()?:0>0) {
@@ -208,10 +220,13 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                     )
                     "orders" -> PortalOrders(api,abandonedOrder=abandonedOrder,onContinueAbandoned={
                         restoreCheckoutDraft=it;checkoutSessionKey++;screen="new"
-                    },onDeleteAbandoned={clearAbandonedDraft()},onNavigate={screen=it}) { orderOrigin=screen; selectedOrder = it; screen = "order-detail" }
+                    },onDeleteAbandoned={clearAbandonedDraft();activityCart=emptyList()},onNavigate={screen=it}) { orderOrigin=screen; selectedOrder = it; screen = "order-detail" }
                     "new" -> PortalNewOrder(api, offerCode, catalogProduct, catalogGroup, restoreDraft=restoreCheckoutDraft,abandonedBanner=abandonedOrder,
                         onProductConsumed={catalogProduct=""},onBusyChanged={checkoutBusy=it},
                         onDraftSnapshot={snapshot->
+                            if (snapshot != null || checkoutDraftSnapshot != null) {
+                                activityCart = snapshot?.let(::cartFromDraft).orEmpty()
+                            }
                             checkoutDraftSnapshot=snapshot
                             // Persist during edits so immediate navigation cannot discard the last cart.
                             if(snapshot!=null)abandonedStore.save(snapshot)
@@ -219,6 +234,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                         onStageChanged={checkoutTitle=it},backRequest=checkoutBackRequest) { createdOrder ->
                         offerCode=""
                         clearAbandonedDraft()
+                        activityCart=emptyList()
                         orderOrigin="orders"
                         selectedOrder = createdOrder
                         screen = "success"
