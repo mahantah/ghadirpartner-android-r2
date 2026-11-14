@@ -2,6 +2,8 @@ time_zone: Asia/Tehran
 formal_payee: هوشمند پرداز پویا تجارت قدیر
 informal_payee: سلمان بور بور
 informal_national_id: "0493391762"
+informal_cash_card: "5041-7212-5310-7552"
+informal_cash_iban: "IR190700010001114409402001"
 catalog_cache_ms: 60000
 offers_cache_ms: 30000
 orders_cache_ms: 15000
