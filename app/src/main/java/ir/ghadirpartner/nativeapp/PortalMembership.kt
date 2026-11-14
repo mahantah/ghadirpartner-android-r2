@@ -31,7 +31,7 @@ internal fun PortalMembership(api: ApiClient, initialMobile: String, onBack: () 
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf("") }
     var company by remember { mutableStateOf("") }
-    var mobile by remember { mutableStateOf(canonicalPortalIdentity(initialMobile)) }
+    var mobile by remember { mutableStateOf(asciiDigits(initialMobile).filter { it in '0'..'9' }.take(11)) }
     var city by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
