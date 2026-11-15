@@ -33,7 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun BrandHeader(title: String, subtitle: String = "", avatarUri: String = "") {
+fun BrandHeader(title: String, subtitle: String = "", avatarUri: String = "", actions: @Composable (() -> Unit)? = null) {
     val context = LocalContext.current
     val avatarBitmap = remember(avatarUri) {
         if (avatarUri.isBlank()) null else try {
@@ -52,6 +52,7 @@ fun BrandHeader(title: String, subtitle: String = "", avatarUri: String = "") {
             } else {
                 Image(painterResource(R.drawable.brand_logo), null, modifier=Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)))
             }
+            actions?.invoke()
         }
     }
 }

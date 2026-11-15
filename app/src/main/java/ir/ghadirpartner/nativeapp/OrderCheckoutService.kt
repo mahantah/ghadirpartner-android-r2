@@ -12,6 +12,8 @@ internal data class OrderCheckout(
     val settlement: JSONObject,
     val notes: String,
     val promoCode: String,
+    val revisionOrderId: Int = 0,
+    val revisionVersion: Int = 0,
 )
 
 /** Translates checkout data to the existing authenticated orders API. */
@@ -45,6 +47,9 @@ internal class OrderRepository(
                 .put("settlement_details", settlement)
                 .put("notes", checkout.notes)
                 .put("promo_code", checkout.promoCode)
+        if (checkout.revisionOrderId > 0) {
+            body.put("revision_order_id", checkout.revisionOrderId).put("revision_version", checkout.revisionVersion)
+        }
         return api.post("/api/orders/add", body) as JSONObject
     }
 }

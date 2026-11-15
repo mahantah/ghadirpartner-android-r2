@@ -159,6 +159,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
     fun goBack() {
         if(checkoutBusy||profileBusy)return
         when (screen) {
+            "revision" -> if (checkoutTitle != "ثبت سفارش") checkoutBackRequest++ else screen="order-detail"
             "new" -> if (checkoutTitle != "ثبت سفارش") checkoutBackRequest++ else {parkActiveCheckout();screen="home"}
             "profile" -> if (profileTitle != "پروفایل") profileBackRequest++ else screen="home"
             "order-detail" -> if(cancelView) orderBackRequest++ else screen=orderOrigin
@@ -177,7 +178,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
         if(screen=="new"&&destination!="new")parkActiveCheckout()
         selectedOffer=null;screen=destination
     }
-    val navScreen=when(screen){"serials","serial-detail","order-detail","success"->"orders";"documents","proforma","addresses","summary"->"profile";"inbox","offers"->"home";else->screen}
+    val navScreen=when(screen){"serials","serial-detail","order-detail","success","revision"->"orders";"documents","proforma","addresses","summary"->"profile";"inbox","offers"->"home";else->screen}
     val wideNavigation=androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp>=600
     val backdrop=rememberGraphicsLayer()
     val blurBackdrop=android.os.Build.VERSION.SDK_INT>=31&&!wideNavigation
@@ -188,8 +189,8 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
     Box(Modifier.fillMaxSize().portalBackdrop()) { Scaffold(
         containerColor = Color.Transparent,
         topBar = {
-            val backScreen=screen in setOf("order-detail","documents","proforma","success","addresses","serial-detail") || (screen=="offers"&&selectedOffer!=null) || (screen=="new"&&checkoutTitle!="ثبت سفارش") || (screen=="profile"&&profileTitle!="پروفایل")
-            val title=if(screen=="serial-detail")"سریال دستگاه‌ها" else if(screen=="order-detail"&&cancelView)"لغو سفارش" else if(screen=="profile")profileTitle else if(screen=="new")checkoutTitle else if(screen=="offers"&&selectedOffer!=null)"جزئیات آفر" else titles[screen]?:"قدیر پارتنر"
+            val backScreen=screen in setOf("order-detail","documents","proforma","success","addresses","serial-detail","revision") || (screen=="offers"&&selectedOffer!=null) || (screen=="new"&&checkoutTitle!="ثبت سفارش") || (screen=="profile"&&profileTitle!="پروفایل")
+            val title=if(screen=="serial-detail")"سریال دستگاه‌ها" else if(screen=="order-detail"&&cancelView)"لغو سفارش" else if(screen=="profile")profileTitle else if(screen=="revision"&&checkoutTitle=="ثبت سفارش")"اصلاح سفارش" else if(screen in setOf("new","revision"))checkoutTitle else if(screen=="offers"&&selectedOffer!=null)"جزئیات آفر" else titles[screen]?:"قدیر پارتنر"
             if(backScreen) PortalBackHeader(title) {
                 goBack()
             } else PortalGlassHeader(title,screen=="home",inbox.unread,onOffers={if(!checkoutBusy&&!profileBusy){if(screen=="new")parkActiveCheckout();offersOrigin=screen;selectedOffer=null;screen="offers"}}) {
@@ -267,9 +268,23 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                             } catch(e: Exception){Toast.makeText(context,"دریافت سفارش ناموفق بود؛ دوباره تلاش کنید",Toast.LENGTH_LONG).show()}
                         }
                     }, onOffer={ id -> offersOrigin="inbox";selectedOffer=id;screen="offers" })
+                    "revision" -> selectedOrder?.let { order ->
+                        val version = order.obj("customer_correction").i("version")
+                        val revisionDraft = remember(order.i("id"), version) { draftFromReturnedOrder(order) }
+                        key(order.i("id"), version) {
+                            PortalNewOrder(
+                                api, restoreDraft = revisionDraft, revisionOrder = order,
+                                onBusyChanged = { checkoutBusy = it }, onStageChanged = { checkoutTitle = it },
+                                backRequest = checkoutBackRequest,
+                            ) { updated ->
+                                selectedOrder = updated
+                                screen = "order-detail"
+                            }
+                        }
+                    }
                     "order-detail" -> selectedOrder?.let { order ->
                         PortalOrderDetails(api, order, onBack = { screen = orderOrigin }, onProforma={proformaOrigin="order-detail";screen="proforma"},me=currentMe,
-                            onSerials={screen="serial-detail"},onOrderUpdated={selectedOrder=it},onSectionChanged={cancelView=it},backRequest=orderBackRequest)
+                            onSerials={screen="serial-detail"},onRevise={selectedOrder=it;checkoutTitle="ثبت سفارش";screen="revision"},onOrderUpdated={selectedOrder=it},onSectionChanged={cancelView=it},backRequest=orderBackRequest)
                     } ?: PortalOrders(api,onNavigate={screen=it}) { orderOrigin=screen; selectedOrder = it; screen = "order-detail" }
                     "serial-detail" -> selectedOrder?.let {order->PortalSerials(api,order,currentMe){screen="order-detail"}}
                     else -> PortalProfile(
@@ -514,7 +529,7 @@ private fun PortalOrders(
     }
 }
 @Composable
-private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->Unit,onProforma:()->Unit,me:JSONObject=JSONObject(),onSerials:()->Unit={},onSectionChanged:(Boolean)->Unit={},backRequest:Int=0,onOrderUpdated:(JSONObject)->Unit={}) {
+private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->Unit,onProforma:()->Unit,me:JSONObject=JSONObject(),onSerials:()->Unit={},onSectionChanged:(Boolean)->Unit={},backRequest:Int=0,onOrderUpdated:(JSONObject)->Unit={},onRevise:(JSONObject)->Unit={}) {
     var order by remember(initialOrder.i("id")) {mutableStateOf(initialOrder)}
     var refreshing by remember {mutableStateOf(false)}
     val orderService = remember(api) {OrderCheckoutService(OrderRepository(api))}
@@ -572,7 +587,23 @@ private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->
                 DetailLine("اقلام",orderItemsDescription(order))
                 DetailLine("مبلغ کل",formatMoney(total)+" تومان")
             }}}
-            item { OrderProofActions(api, order) }
+            val correction = order.obj("customer_correction")
+            if (correction.s("status") == "requested") {
+                item { DesignNotice("درخواست اصلاح سفارش\n\n" + correction.s("reason")) }
+                item { GhadirButton("اصلاح و ارسال دوباره", { onRevise(order) }) }
+                val proofs = order.obj("native_settlement").arr("proofs").objects()
+                if (proofs.isNotEmpty()) item {
+                    val repository = remember(api) { OrderFollowupRepository(api) }
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("مدارک قبلی سفارش", color = Ink)
+                        proofs.forEachIndexed { index, proof -> StoredOrderProof(repository, order.i("id"), proof, index + 1) }
+                    }
+                }
+            } else if (correction.s("status") == "resubmitted") {
+                item { DesignNotice("سفارش اصلاح‌شده برای بررسی شرکت فرستاده شد.") }
+            }
+            if (correction.s("status") != "requested") item { OrderProofActions(api, order) { refreshOrder() } }
+            item { CustomerCreditRepayment(api, order) }
             item {OrderDeliveryTimeline(order.s("status"),order.s("approval_status"))}
             item {GhadirButton(if(refreshing)"در حال به‌روزرسانی…" else "به‌روزرسانی وضعیت",{refreshOrder()},enabled=!refreshing,secondary=true)}
             if(order.s("rejection_reason").isNotBlank())item {DesignNotice("علت عدم تأیید شرکت\n\n"+order.s("rejection_reason"))}
@@ -667,6 +698,7 @@ private fun PortalNewOrder(
     initialGroup:String="serial",
     restoreDraft:JSONObject?=null,
     abandonedBanner:JSONObject?=null,
+    revisionOrder:JSONObject?=null,
     onProductConsumed:()->Unit={},
     onBusyChanged:(Boolean)->Unit={},
     onDraftSnapshot:(JSONObject?)->Unit={},
@@ -751,7 +783,9 @@ private fun PortalNewOrder(
         try {
             coroutineScope {
                 val catalog=async{(api.get("/api/catalog") as JSONArray).objects().filter{catalogInStock(it)}}
-                val plans=async{(api.get("/api/offers") as JSONArray).objects().filterNot{it.b("used_by_customer")}}
+                val plans=async{(api.get("/api/offers") as JSONArray).objects().filter {
+                    !it.b("used_by_customer") || it.s("promo_code") == revisionOrder?.s("promo_code")
+                }}
                 val account=async{api.me().obj("customer")}
                 val saved=async{try{(api.get("/api/addresses") as JSONArray).objects()}catch(e:kotlinx.coroutines.CancellationException){throw e}catch(e:ApiException){if(e.status==404)emptyList() else throw e}}
                 products=catalog.await();offers=plans.await();customer=account.await();addresses=saved.await()
@@ -766,22 +800,25 @@ private fun PortalNewOrder(
     val discount=discountForOfferNative(appliedOffer,cart)
     val total=(subtotal-discount).coerceAtLeast(0L)
     LaunchedEffect(cart,step,selectedAddressId,invoiceType,settlement,notes,promoCode,appliedOffer,total) {
-        onDraftSnapshot(if(cart.isEmpty())null else checkoutDraftFromState(cart,step,selectedAddressId,invoiceType,settlement,notes,promoCode,appliedOffer))
+        if (revisionOrder == null) onDraftSnapshot(if(cart.isEmpty())null else checkoutDraftFromState(cart,step,selectedAddressId,invoiceType,settlement,notes,promoCode,appliedOffer))
     }
     LaunchedEffect(total) {
         settlement=if(!settlement.b("split"))defaultSplitSettlement(total) else refreshSettlementTotals(settlement,total)
     }
     LaunchedEffect(restoreDraft,products,loading) {
         val draft=restoreDraft ?: return@LaunchedEffect
-        if(restoreApplied||loading||products.isEmpty())return@LaunchedEffect
+        if(restoreApplied||loading||(products.isEmpty()&&revisionOrder==null))return@LaunchedEffect
         restoreApplied=true
-        cart=cartFromDraft(draft)
+        cart = cartFromDraft(draft).map { line ->
+            val currentPrice = products.firstOrNull { it.s("name") == line.product }?.obj("prices")?.l(line.priceKey)
+            if (revisionOrder == null || currentPrice == null || currentPrice <= 0) line else line.copy(unit = currentPrice)
+        }
         step=draft.optInt("step").coerceIn(0,2)
         selectedAddressId=draft.s("selectedAddressId")
         invoiceType=draft.s("invoiceType")
         notes=draft.s("notes")
         promoCode=draft.s("promoCode")
-        val restoredTotal=cartFromDraft(draft).sumOf{it.unit*it.qty}.coerceAtLeast(0L)
+        val restoredTotal=cart.sumOf{it.unit*it.qty}.coerceAtLeast(0L)
         settlement=refreshSettlementTotals(draft.obj("settlement"),restoredTotal)
         val offerRaw=draft.s("appliedOffer")
         appliedOffer=if(offerRaw.isNotBlank())runCatching{JSONObject(offerRaw)}.getOrNull() else null
@@ -802,7 +839,8 @@ private fun PortalNewOrder(
         promoMessage=if(amount>0)offerDiscountTextNative(match!!)+" اعمال شد." else "این کد برای کالاهای فعلی سفارش معتبر یا فعال نیست."
     }
     LaunchedEffect(initialOfferCode,offers,cart) {
-        if(initialOfferCode.isNotBlank()&&promoNorm(promoCode)==promoNorm(initialOfferCode))applyPromo()
+        val original = revisionOrder?.s("promo_code") ?: initialOfferCode
+        if (original.isNotBlank() && promoNorm(promoCode) == promoNorm(original) && cart.isNotEmpty()) applyPromo()
     }
     fun catalogEntry(product: JSONObject): OrderCatalogEntry = OrderCatalogEntry(
         product.s("name"), product.i("stock"),
@@ -810,7 +848,8 @@ private fun PortalNewOrder(
     )
     fun checkout(): OrderCheckout {
         val refreshed=refreshSettlementTotals(settlement,total)
-        return OrderCheckout(cart,selectedAddressId,invoiceType,settlementPrimaryMethod(refreshed),refreshed,notes,appliedOffer?.s("promo_code")?:"")
+        return OrderCheckout(cart,selectedAddressId,invoiceType,settlementPrimaryMethod(refreshed),refreshed,notes,appliedOffer?.s("promo_code")?:"",
+            revisionOrderId = revisionOrder?.i("id") ?: 0, revisionVersion = revisionOrder?.obj("customer_correction")?.i("version") ?: 0)
     }
     fun changeQuantity(line:CartLine, next:Int) {
         val product=products.firstOrNull {it.s("name")==line.product} ?: return
@@ -843,6 +882,7 @@ private fun PortalNewOrder(
     if(loading){LoadingPane();return}
     LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),state=listState,contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(error.isNotBlank())item {ErrorBanner(error){error=""};if(products.isEmpty())GhadirButton("تلاش دوباره",{retry++})}
+        if (revisionOrder != null) item { DesignNotice(revisionOrder.obj("customer_correction").s("reason")) }
         if(abandonedBanner!=null&&cart.isEmpty()&&restoreDraft==null)item {
             GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 DesignNotice("سفارش تکمیل نشده دارید. می‌توانید همان سفارش را ادامه دهید.")
@@ -916,10 +956,10 @@ private fun PortalNewOrder(
                             onIncrease = { changeQuantity(line, (line.qty.toLong() + 1).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()) },
                             onDecrease = { changeQuantity(line, line.qty - 1) },
                             onRemove = {
-                                products.firstOrNull { it.s("name") == line.product }?.let { product ->
-                                    cart = cartService.remove(cart, line, catalogEntry(product))
-                                    settlement = defaultSplitSettlement(total)
-                                }
+                                val product = products.firstOrNull { it.s("name") == line.product }
+                                cart = if (product != null) cartService.remove(cart, line, catalogEntry(product))
+                                    else cart.filterNot { it.stableKey == line.stableKey }
+                                settlement = defaultSplitSettlement(total)
                             },
                         )
                     }
@@ -968,7 +1008,21 @@ private fun PortalNewOrder(
                 Text("گیرنده: "+receiver,color=Ink,fontSize=14.sp)
                 Text(addressText,color=Ink,fontSize=14.sp)
             }}}
-            item {GhadirButton(if(submitting)"در حال ثبت…" else "تأیید و ثبت نهایی",{submit()},enabled=!submitting&&cart.isNotEmpty())}
+            PaymentProofSelection.active(settlement, settlementPrimaryMethod(settlement)).forEach { (kind, files) ->
+                item(key = "review-$kind") {
+                    SelectedProofReview(
+                        if (kind == "cash") "رسید" else "چک", files,
+                        onNote = { index, note -> settlement = PaymentProofSelection.note(settlement, kind, index, note) },
+                        onRemove = { index ->
+                            settlement = JSONObject(settlement.toString()).also { next ->
+                                PaymentProofSelection.set(next, kind, files.filterIndexed { i, _ -> i != index }.map { it.data })
+                            }
+                        },
+                        enabled = !submitting,
+                    )
+                }
+            }
+            item {GhadirButton(if(submitting)"در حال ثبت…" else if(revisionOrder!=null)"ارسال سفارش اصلاح‌شده" else "تأیید و ثبت نهایی",{submit()},enabled=!submitting&&cart.isNotEmpty())}
             item {GhadirButton("بازگشت و ویرایش",{step=0},secondary=true,enabled=!submitting)}
         }
     }
