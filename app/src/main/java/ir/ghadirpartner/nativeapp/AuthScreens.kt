@@ -203,9 +203,7 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
                             catch(e:Exception){error=e.message?:"ورود ناموفق بود"}finally{loading=false}}
                     },enabled=!loading&&identity.isNotBlank()&&password.isNotBlank())
                     if(api.isPortal) {
-                        TextButton(onClick = { view = "membership"; error = "" }, enabled = !loading) {
-                            Text("درخواست عضویت", color = Ink)
-                        }
+                        WebLoginButton("درخواست عضویت", { view = "membership"; error = "" }, enabled = !loading, secondary = true)
                         TextButton(onClick={requestOtp()},enabled=!loading&&countdown==0&&identity.matches(Regex("09[0-9]{9}"))) {Text("ورود با کد یک‌بارمصرف",color=Ink)}
                         if(biometricEnabled(context,canonicalPortalIdentity(identity))) TextButton(onClick={view="biometric";biometricFailed=false;error=""},enabled=!loading) {Text("ورود با اثر انگشت",color=Ink)}
                     }

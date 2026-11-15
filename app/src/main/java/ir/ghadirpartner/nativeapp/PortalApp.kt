@@ -877,7 +877,7 @@ private fun PortalNewOrder(
                     } catch(e:IllegalArgumentException) { error=e.message?:"افزودن کالا ناموفق بود" }
                 },enabled=selected!=null&&unit>0&&qty>0&&qty<=(selected?.i("stock")?:0),secondary=true)
             }}}
-            item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            item {GlassSurface(color = CartSurface) {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 Text("سبد سفارش",color=Ink,fontWeight=FontWeight.Bold)
                 if(cart.isEmpty())Text("هنوز کالایی به سبد اضافه نشده است.",color=Muted,fontSize=12.sp)
                 cart.forEach { line ->
