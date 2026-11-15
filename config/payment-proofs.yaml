@@ -3,3 +3,5 @@ max_raw_file_bytes: 1000000
 max_encoded_batch_bytes: 5700000
 image_dimension: 1600
 jpeg_quality: 80
+max_note_chars: 500
+staff_alert_refresh_ms: 30000

@@ -22,6 +22,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -37,17 +39,73 @@ private val automationNav = listOf(
 @Composable
 fun AutomationApp(api: ApiClient, me: JSONObject, onLogout: () -> Unit) {
     var screen by rememberSaveable { mutableStateOf("home") }
+    var targetOrder by rememberSaveable { mutableIntStateOf(0) }
+    var alertVersion by remember { mutableIntStateOf(0) }
+    var notifications by rememberSaveable { mutableStateOf(false) }
+    val roles = me.arr("roles").strings().toSet()
+    val canReview = roles.any { it in setOf("admin", "finance", "sales") }
+    val repository = remember(api) { OrderFollowupRepository(api) }
+    var alerts by remember { mutableStateOf(JSONObject()) }
+    var alertError by remember { mutableStateOf("") }
+    LaunchedEffect(api, canReview, alertVersion, notifications) {
+        if (!canReview) return@LaunchedEffect
+        while (true) {
+            try {
+                alerts = repository.alerts()
+                alertError = ""
+            } catch (failure: CancellationException) {
+                throw failure
+            } catch (failure: Exception) {
+                alertError = failure.message ?: "اعلان‌ها دریافت نشدند."
+            }
+            delay(BuildConfig.PROOF_STAFF_ALERT_REFRESH_MS.toLong())
+        }
+    }
+    if (notifications) AlertDialog(
+        onDismissRequest = { notifications = false },
+        title = { Text("اعلان‌های سفارش") },
+        text = {
+            LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (alertError.isNotBlank()) item { Text(alertError, color = Danger) }
+                val entries = alerts.arr("items").objects()
+                if (entries.isEmpty() && alertError.isBlank()) item { Text("اعلان تازه‌ای وجود ندارد.") }
+                items(entries) { item ->
+                    val label = if (item.s("kind") == "credit_proof") "فیش واریز اعتباری" else "سفارش اصلاح‌شده"
+                    GhadirButton("$label · ${faDigits(item.s("number"))}", {
+                        targetOrder = item.i("order_id")
+                        screen = "orders"
+                        notifications = false
+                    }, secondary = true)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { notifications = false }) { Text("بستن") } },
+    )
     Scaffold(
         modifier=Modifier.portalBackdrop(),
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
-        topBar = { BrandHeader("قدیر پارتنر", "اتوماسیون • ${me.s("username")}") },
+        topBar = {
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl,
+            ) {
+                BrandHeader("قدیر پارتنر", "اتوماسیون • ${me.s("username")}", actions = {
+                    if (canReview) IconButton(onClick = { notifications = true }) {
+                        BadgedBox(badge = {
+                            if (alerts.i("count") > 0) Badge { Text(faNumber(alerts.i("count"))) }
+                        }) {
+                            Icon(Icons.Default.Notifications, contentDescription = "اعلان‌های سفارش", tint = Color.White)
+                        }
+                    }
+                })
+            }
+        },
         bottomBar = { BottomBar(automationNav, screen) { screen = it } }
     ) { pad ->
         Box(Modifier.fillMaxSize().padding(pad).consumeWindowInsets(pad).imePadding()) {
             Crossfade(screen, label = "automation-nav") { target ->
                 when (target) {
                     "home" -> AutomationDashboard(api, me, navigate = { screen = it }, onLogout = onLogout)
-                    "orders" -> AutomationOrders(api)
+                    "orders" -> AutomationOrders(api, roles, targetOrder, { targetOrder = 0 }, { alertVersion++ })
                     "customers" -> AutomationCustomers(api)
                     "warehouse" -> AutomationWarehouse(api)
                     else -> AutomationReports(api)
@@ -175,7 +233,7 @@ private fun MiniAdminAction(title: String, icon: androidx.compose.ui.graphics.ve
 }
 
 @Composable
-private fun AutomationOrders(api: ApiClient) {
+private fun AutomationOrders(api: ApiClient, roles: Set<String>, targetOrder: Int, onTargetOpened: () -> Unit, onFollowup: () -> Unit) {
     val scope = rememberCoroutineScope()
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
@@ -185,6 +243,14 @@ private fun AutomationOrders(api: ApiClient) {
     var orders by remember { mutableStateOf(emptyList<JSONObject>()) }
     var selected by remember { mutableStateOf<JSONObject?>(null) }
 
+    LaunchedEffect(targetOrder, orders) {
+        if (targetOrder <= 0) return@LaunchedEffect
+        val match = orders.firstOrNull { it.i("id") == targetOrder }
+        if (match != null) {
+            selected = match
+            onTargetOpened()
+        }
+    }
     fun refresh() {
         scope.launch {
             loading = true; error = ""
@@ -226,7 +292,7 @@ private fun AutomationOrders(api: ApiClient) {
         }
     }
     selected?.let { order ->
-        AutomationOrderDialog(api, order, onDismiss = { selected = null }, onChanged = { selected = null; refresh() })
+        AutomationOrderDialog(api, order, roles, onFollowup, onDismiss = { selected = null }, onChanged = { selected = null; refresh() })
     }
 }
 
@@ -244,7 +310,7 @@ private fun FilterChipMenu(title: String, value: String, options: List<String>, 
 }
 
 @Composable
-private fun AutomationOrderDialog(api: ApiClient, order: JSONObject, onDismiss: () -> Unit, onChanged: () -> Unit) {
+private fun AutomationOrderDialog(api: ApiClient, order: JSONObject, roles: Set<String>, onFollowup: () -> Unit, onDismiss: () -> Unit, onChanged: () -> Unit) {
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf(order.s("status")) }
     var payment by remember { mutableStateOf(order.s("payment_status")) }
@@ -262,6 +328,7 @@ private fun AutomationOrderDialog(api: ApiClient, order: JSONObject, onDismiss: 
         text = {
             LazyColumn(modifier = Modifier.heightIn(max = 560.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { ErrorBanner(error) { error = "" } }
+                item { StaffOrderFollowup(api, order, roles, onFollowup) }
                 item { SimpleDropdown("وضعیت سفارش", status, statusOptions) { status = it } }
                 item { SimpleDropdown("وضعیت تسویه", payment, payOptions) { payment = it } }
                 if (status == "ارسال شد") {

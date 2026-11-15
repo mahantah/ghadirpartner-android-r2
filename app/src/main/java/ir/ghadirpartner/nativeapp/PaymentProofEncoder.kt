@@ -67,11 +67,18 @@ internal class PaymentProofEncoder(private val resolver: ContentResolver) {
     }
 }
 
+/** One evidence file with the customer's optional explanation. */
+internal data class SelectedProof(val data: String, val note: String = "") {
+    /** Encode the file and its explanation together for the server. */
+    fun payload(): JSONObject = JSONObject().put("data", data).put("note", note)
+}
+
 /** Keep checkout selections and request limits in one place. */
 internal object PaymentProofSelection {
     val mimeTypes: Array<String> get() = arrayOf("image/*", "application/pdf")
     val kinds: List<String> = listOf("cash", "check")
     const val field = "payment_files"
+    private const val notesField = "payment_file_notes"
     private val legacyFields = listOf("cash_image_base64", "check_image_base64", "image_base64")
 
     /** Read selected files for a payment kind, including drafts from the previous app. */
@@ -85,27 +92,48 @@ internal object PaymentProofSelection {
         return listOf(value).filter(String::isNotBlank)
     }
 
+    /** Join each attachment with its explanation in its selection order. */
+    fun documents(settlement: JSONObject, kind: String): List<SelectedProof> {
+        val notes = settlement.optJSONObject(notesField)?.optJSONArray(kind)
+        return read(settlement, kind).mapIndexed { index, data -> SelectedProof(data, notes?.optString(index).orEmpty()) }
+    }
+
+    /** Set a note without changing the original bytes or other selections. */
+    fun note(settlement: JSONObject, kind: String, index: Int, note: String): JSONObject {
+        val next = JSONObject(settlement.toString())
+        val notes = next.optJSONObject(notesField) ?: JSONObject()
+        val revised = documents(next, kind).mapIndexed { i, file -> if (i == index) note else file.note }
+        notes.put(kind, JSONArray(revised))
+        return next.put(notesField, notes)
+    }
+
+    /** Return the selected evidence that belongs to the final payment method. */
+    fun active(settlement: JSONObject, method: String): List<Pair<String, List<SelectedProof>>> =
+        if (settlement.b("upload_proof_later")) emptyList() else kinds.mapNotNull { kind ->
+            val enabled = method == kind || (method == "mixed" && settlement.l("${kind}_amount") > 0)
+            val files = documents(settlement, kind)
+            if (enabled && files.isNotEmpty()) kind to files else null
+        }
+
     /** Update one kind without losing the selection for the other. */
     fun set(settlement: JSONObject, kind: String, files: List<String>) {
         val selection = settlement.optJSONObject(field) ?: JSONObject().put(
             "cash", JSONArray(read(settlement, "cash"))
         ).put("check", JSONArray(read(settlement, "check")))
+        val priorNotes = documents(settlement, kind).associate { it.data to it.note }
+        val notes = settlement.optJSONObject(notesField) ?: JSONObject()
+        notes.put(kind, JSONArray(files.map { priorNotes[it].orEmpty() }))
         selection.put(kind, JSONArray(files))
         requireBatchSize(kinds.flatMap { read(JSONObject().put(field, selection), it) })
-        settlement.put(field, selection)
+        settlement.put(field, selection).put(notesField, notes)
         legacyFields.forEach { settlement.remove(it) }
     }
 
     /** Include documents for the payment methods submitted with the order. */
     fun prepare(settlement: JSONObject, method: String) {
         val selection = JSONObject()
-        if (!settlement.b("upload_proof_later")) {
-            for (kind in kinds) {
-                val files = read(settlement, kind)
-                if (files.isNotEmpty() && (method == kind || (method == "mixed" && settlement.l("${kind}_amount") > 0))) {
-                    selection.put(kind, JSONArray(files))
-                }
-            }
+        active(settlement, method).forEach { (kind, files) ->
+            selection.put(kind, JSONArray(files.map(SelectedProof::payload)))
         }
         clear(settlement)
         if (selection.length() > 0) settlement.put(field, selection)
@@ -115,6 +143,7 @@ internal object PaymentProofSelection {
     fun clear(settlement: JSONObject) {
         legacyFields.forEach { settlement.remove(it) }
         settlement.remove(field)
+        settlement.remove(notesField)
     }
 
     /** Reject oversized selections before creating a network request. */

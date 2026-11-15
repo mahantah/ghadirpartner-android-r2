@@ -22,7 +22,7 @@ if (!(orderPolicy instanceof Map) || orderPolicy.keySet() != policyKeys ||
 
 def proofPolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/payment-proofs.yaml').text)
 def proofLimits = [max_files_per_kind: 10, max_raw_file_bytes: 1100000,
-    max_encoded_batch_bytes: 6000000, image_dimension: 5000, jpeg_quality: 100]
+    max_encoded_batch_bytes: 6000000, image_dimension: 5000, jpeg_quality: 100, max_note_chars: 500, staff_alert_refresh_ms: 120000]
 if (!(proofPolicy instanceof Map) || proofPolicy.keySet() != proofLimits.keySet() ||
     !proofLimits.every { key, limit -> proofPolicy[key] instanceof Integer && proofPolicy[key] in 1..limit } ||
     proofPolicy.max_encoded_batch_bytes < 4 * ((proofPolicy.max_raw_file_bytes + 2).intdiv(3))) {

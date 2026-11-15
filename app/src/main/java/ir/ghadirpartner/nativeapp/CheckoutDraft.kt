@@ -54,3 +54,27 @@ internal fun settlementSummaryLabel(settlement: JSONObject): String {
     val tail = if (remaining > 0L) " • مانده ${formatMoney(remaining)}" else ""
     return (if (parts.isEmpty()) "—" else parts.joinToString(" • ")) + tail
 }
+
+
+/** Seed the normal checkout with a returned order, omitting server-only proof tokens. */
+internal fun draftFromReturnedOrder(order: JSONObject): JSONObject {
+    val rows = order.arr("purchase_items").objects().ifEmpty { order.arr("items").objects() }
+    val lines = rows.map { row ->
+        CartLine(row.s("product"), row.i("qty"), row.s("price_key"), row.s("price_label"), row.l("unit_price"), row.s("panel_switch"))
+    }
+    val fallback = order.l("estimated_total")
+    val previous = order.obj("native_settlement")
+    val method = order.s("requested_payment_method")
+    val settlement = defaultSplitSettlement(fallback)
+    for (part in listOf("cash", "check", "credit")) {
+        val amount = previous.l("${part}_amount").takeIf { it > 0L } ?: if (method == part) fallback else 0L
+        settlement.put("${part}_amount", amount).put("${part}_enabled", amount > 0L)
+    }
+    for (field in listOf("check_number", "tracking_number", "bank_name", "due_date")) {
+        settlement.put(field, previous.s(field))
+    }
+    return checkoutDraftFromState(
+        lines, 0, order.s("address_id").ifBlank { order.obj("delivery_address").s("id") },
+        order.s("invoice_type"), settlement, order.s("notes"), order.s("promo_code"), null,
+    )
+}
