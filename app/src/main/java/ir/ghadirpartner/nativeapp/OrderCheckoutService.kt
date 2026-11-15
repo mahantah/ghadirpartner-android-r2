@@ -31,13 +31,18 @@ internal class OrderRepository(
         checkout.lines.forEach { line ->
             items.put(JSONObject().put("product", line.product).put("qty", line.qty).put("price_key", line.priceKey))
         }
+        val settlement = JSONObject(checkout.settlement.toString())
+        if (settlement.b("upload_proof_later")) {
+            for (key in listOf("cash_image_base64", "check_image_base64", "image_base64")) settlement.remove(key)
+        }
+        settlement.remove("upload_proof_later")
         val body: JSONObject =
             JSONObject()
                 .put("items", items)
                 .put("address_id", checkout.addressId)
                 .put("invoice_type", checkout.invoiceType)
                 .put("requested_payment_method", checkout.paymentMethod)
-                .put("settlement_details", checkout.settlement)
+                .put("settlement_details", settlement)
                 .put("notes", checkout.notes)
                 .put("promo_code", checkout.promoCode)
         return api.post("/api/orders/add", body) as JSONObject

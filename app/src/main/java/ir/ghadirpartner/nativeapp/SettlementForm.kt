@@ -1,9 +1,6 @@
 package ir.ghadirpartner.nativeapp
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
-import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -20,11 +17,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import java.io.ByteArrayOutputStream
 
 internal fun asciiDigits(value: String): String =
     value.map { if (it.isDigit()) Character.digit(it, 10).toString() else it.toString() }.joinToString("")
@@ -91,26 +85,7 @@ internal fun SettlementForm(
             busy = true
             error = ""
             try {
-                val encoded = withContext(Dispatchers.IO) {
-                    val resolver = context.contentResolver
-                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-                    require(bounds.outWidth > 0 && bounds.outHeight > 0) { "تصویر معتبر نیست" }
-                    val options = BitmapFactory.Options().apply {
-                        inSampleSize = 1
-                        while (bounds.outWidth / inSampleSize > 1600 || bounds.outHeight / inSampleSize > 1600) inSampleSize *= 2
-                    }
-                    val bitmap = resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
-                        ?: throw IllegalArgumentException("تصویر خوانده نشد")
-                    try {
-                        val stream = ByteArrayOutputStream()
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, stream)
-                        require(stream.size() < 1_000_000) { "حجم تصویر زیاد است؛ تصویر کوچک‌تری انتخاب کنید" }
-                        Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
-                    } finally {
-                        bitmap.recycle()
-                    }
-                }
+                val encoded = PaymentProofEncoder(context.contentResolver).encode(uri)
                 patch {
                     if (target == "check") it.put("check_image_base64", encoded).put("image_base64", encoded)
                     else it.put("cash_image_base64", encoded)
@@ -135,6 +110,7 @@ internal fun SettlementForm(
     val chequeCamera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { captured ->
         if (captured) attachImage(chequePhotoUri, "check", chequePhoto) else chequePhoto.delete()
     }
+    val deferProof = value.b("upload_proof_later")
     val remaining = settlementRemaining(value, invoiceTotal)
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         DesignNotice("روش تسویه را می‌توانید ترکیب کنید. مبلغ هر بخش را جداگانه وارد کنید.")
@@ -163,7 +139,7 @@ internal fun SettlementForm(
             GhadirButton(
                 if (busy) "در حال آماده‌سازی تصویر…" else if (value.s("cash_image_base64").isNotBlank()) "رسید انتخاب شد؛ تغییر تصویر" else "بارگذاری رسید پرداخت",
                 { imageTarget = "cash"; picker.launch("image/*") },
-                enabled = !busy,
+                enabled = !busy && !deferProof,
                 secondary = true,
             )
         }
@@ -185,13 +161,24 @@ internal fun SettlementForm(
                         error = "برنامهٔ دوربین در دسترس نیست. تصویر چک را از گالری انتخاب کنید."
                     }
                 }
-            }, enabled = !busy, secondary = true)
+            }, enabled = !busy && !deferProof, secondary = true)
             GhadirButton(
                 if (busy) "در حال آماده‌سازی تصویر…" else if (value.s("check_image_base64").isNotBlank() || value.s("image_base64").isNotBlank()) "تصویر چک انتخاب شد؛ تغییر" else "بارگذاری تصویر چک",
                 { imageTarget = "check"; picker.launch("image/*") },
-                enabled = !busy,
+                enabled = !busy && !deferProof,
                 secondary = true,
             )
+        }
+        if (listOf("cash", "check").any { value.b("${it}_enabled") && value.optLong("${it}_amount") > 0L }) {
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Checkbox(
+                    checked = deferProof,
+                    onCheckedChange = { checked -> set("upload_proof_later", checked) },
+                    enabled = !busy,
+                    modifier = Modifier.semantics { contentDescription = "ارسال تصویر بعداً" },
+                )
+                Text("عکس‌ها را بعداً در جزئیات سفارش ثبت می‌کنم.")
+            }
         }
         if (creditActive) {
             GlassSurface {
