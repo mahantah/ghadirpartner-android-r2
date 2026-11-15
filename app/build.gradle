@@ -21,9 +21,11 @@ if (!(orderPolicy instanceof Map) || orderPolicy.keySet() != policyKeys ||
 }
 
 def visualPolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/portal-visuals.yaml').text)
-if (!(visualPolicy instanceof Map) || visualPolicy.keySet() != (['section_opacity_light', 'section_opacity_dark', 'background_light', 'background_dark'] as Set) ||
-    !['section_opacity_light', 'section_opacity_dark'].every { visualPolicy[it] instanceof Number && visualPolicy[it] > 0 && visualPolicy[it] <= 1 } ||
-    !['background_light', 'background_dark'].every { visualPolicy[it] instanceof String && visualPolicy[it] ==~ /#[0-9A-F]{8}/ }) {
+def visualColorKeys = ['background_light', 'background_dark', 'cart_surface_light', 'cart_surface_dark']
+def visualOpacityKeys = ['section_opacity_light', 'section_opacity_dark']
+if (!(visualPolicy instanceof Map) || visualPolicy.keySet() != ((visualColorKeys + visualOpacityKeys) as Set) ||
+    !visualOpacityKeys.every { visualPolicy[it] instanceof Number && visualPolicy[it] > 0 && visualPolicy[it] <= 1 } ||
+    !visualColorKeys.every { visualPolicy[it] instanceof String && visualPolicy[it] ==~ /#[0-9A-F]{8}/ }) {
     throw new GradleException('Invalid config/portal-visuals.yaml')
 }
 
@@ -53,6 +55,8 @@ android {
     defaultConfig {
         buildConfigField 'String', 'BACKGROUND_LIGHT', groovy.json.JsonOutput.toJson(visualPolicy.background_light)
         buildConfigField 'String', 'BACKGROUND_DARK', groovy.json.JsonOutput.toJson(visualPolicy.background_dark)
+        buildConfigField 'String', 'CART_SURFACE_LIGHT', groovy.json.JsonOutput.toJson(visualPolicy.cart_surface_light)
+        buildConfigField 'String', 'CART_SURFACE_DARK', groovy.json.JsonOutput.toJson(visualPolicy.cart_surface_dark)
         buildConfigField 'String', 'CHECKOUT_TIME_ZONE', groovy.json.JsonOutput.toJson(checkoutPolicy.time_zone)
         buildConfigField 'String', 'CHEQUE_FORMAL_PAYEE', groovy.json.JsonOutput.toJson(checkoutPolicy.formal_payee)
         buildConfigField 'String', 'CHEQUE_INFORMAL_PAYEE', groovy.json.JsonOutput.toJson(checkoutPolicy.informal_payee)
