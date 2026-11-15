@@ -7,10 +7,11 @@ internal data class CartLine(
     val priceKey: String,
     val priceLabel: String,
     val unit: Long,
+    val panelSwitch: String = "",
 ) {
     /** Keep row identity independent of quantity and the free-serial price tier. */
     val stableKey: String
-        get() = "${product.length}:$product:${if (priceKey.startsWith("serial_")) "serial" else priceKey}"
+        get() = "${product.length}:$product:${if (priceKey.startsWith("serial_")) "serial" else priceKey}:$panelSwitch"
 }
 
 /** The server-authorized prices and shared stock for one model. */
@@ -41,6 +42,7 @@ internal class OrderCartService(
         product: OrderCatalogEntry,
         quantity: Int,
         priceKey: String,
+        panelSwitch: String = "",
     ): List<CartLine> {
         require(quantity in 1..policy.maximumQuantity) { "تعداد معتبر وارد کنید" }
         val requested: Long = lines.filter { it.product == product.product }.sumOf { it.qty.toLong() } + quantity
@@ -52,11 +54,12 @@ internal class OrderCartService(
         val serial: Boolean = priceKey.startsWith("serial_")
         val existing: CartLine? =
             lines.firstOrNull {
-                it.product == product.product && (it.priceKey == priceKey || (serial && it.priceKey.startsWith("serial_")))
+                it.product == product.product && it.panelSwitch == panelSwitch &&
+                    (it.priceKey == priceKey || (serial && it.priceKey.startsWith("serial_")))
             }
         val updated: List<CartLine> =
             if (existing == null) {
-                lines + CartLine(product.product, quantity, priceKey, label(priceKey), unit)
+                lines + CartLine(product.product, quantity, priceKey, label(priceKey), unit, panelSwitch)
             } else {
                 lines.map { if (it == existing) it.copy(qty = it.qty + quantity) else it }
             }
@@ -65,7 +68,7 @@ internal class OrderCartService(
 
     /** Change one option while retaining the other options and their shared stock constraint. */
     fun changeQuantity(lines: List<CartLine>, line: CartLine, product: OrderCatalogEntry, quantity: Int): List<CartLine> {
-        val index: Int = lines.indexOfFirst { it.product == line.product && it.priceKey == line.priceKey }
+        val index: Int = lines.indexOfFirst { it.stableKey == line.stableKey }
         require(index >= 0) { "ردیف سفارش پیدا نشد" }
         require(product.product == line.product) { "مدل ردیف سفارش مطابقت ندارد" }
         require(quantity in 1..policy.maximumQuantity) { "تعداد معتبر وارد کنید" }
@@ -86,7 +89,7 @@ internal class OrderCartService(
         lines: List<CartLine>,
         line: CartLine,
         product: OrderCatalogEntry,
-    ): List<CartLine> = reprice(lines.filterNot { it.product == line.product && it.priceKey == line.priceKey }, product)
+    ): List<CartLine> = reprice(lines.filterNot { it.stableKey == line.stableKey }, product)
 
     /** Resolve a server-defined price key without inventing payment-specific serial prices. */
     fun priceKey(

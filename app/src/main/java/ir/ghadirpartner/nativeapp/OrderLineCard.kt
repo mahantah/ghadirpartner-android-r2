@@ -40,6 +40,7 @@ internal fun OrderLineCard(
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(line.priceLabel, color = Ink, fontSize = 13.sp, lineHeight = 22.sp)
+            if (line.panelSwitch.isNotBlank()) DetailLine("سوئیچ", line.panelSwitch)
             HorizontalDivider(color = Border)
             Text("تعداد", color = Muted, style = MaterialTheme.typography.labelMedium)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

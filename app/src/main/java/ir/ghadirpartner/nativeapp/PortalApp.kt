@@ -595,6 +595,7 @@ private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->
                     Text(shortProductName(line.s("product")),color=Ink,fontWeight=FontWeight.Bold)
                     DetailLine("تعداد",faNumber(line.i("qty")))
                     if(line.s("price_label").isNotBlank())DetailLine("نوع قیمت",line.s("price_label"))
+                    if(line.s("panel_switch").isNotBlank())DetailLine("سوئیچ",line.s("panel_switch"))
                     if(line.l("unit_price")>0)DetailLine("قیمت واحد",formatMoney(line.l("unit_price"))+" تومان")
                     if(line.l("line_total")>0)DetailLine("جمع",formatMoney(line.l("line_total"))+" تومان")
                 }}}
@@ -636,9 +637,9 @@ internal val JsonSaver = Saver<JSONObject, String>(save={it.toString()}, restore
 private val CartSaver = Saver<List<CartLine>, String>(
     save = { lines -> JSONArray().apply { lines.forEach { line ->
         put(JSONObject().put("product",line.product).put("qty",line.qty).put("priceKey",line.priceKey)
-            .put("priceLabel",line.priceLabel).put("unit",line.unit))
+            .put("priceLabel",line.priceLabel).put("unit",line.unit).put("panelSwitch",line.panelSwitch))
     } }.toString() },
-    restore = { JSONArray(it).objects().map { row -> CartLine(row.s("product"),row.i("qty"),row.s("priceKey"),row.s("priceLabel"),row.l("unit")) } }
+    restore = { JSONArray(it).objects().map { row -> CartLine(row.s("product"),row.i("qty"),row.s("priceKey"),row.s("priceLabel"),row.l("unit"),row.s("panelSwitch")) } }
 )
 
 
@@ -692,6 +693,24 @@ private fun PortalNewOrder(
     var selected by rememberSaveable(stateSaver=NullableJsonSaver) {mutableStateOf<JSONObject?>(null)}
     var group by rememberSaveable {mutableStateOf("serial")}
     var panelTier by rememberSaveable {mutableStateOf("panel_cash")}
+    var panelSwitch by rememberSaveable { mutableStateOf("") }
+    var panelSwitches by remember { mutableStateOf(emptyList<String>()) }
+    var switchLoadFailed by remember { mutableStateOf(false) }
+    var switchRetry by remember { mutableIntStateOf(0) }
+    LaunchedEffect(api, group, switchRetry) {
+        if (group != "panel" || panelSwitches.isNotEmpty()) return@LaunchedEffect
+        switchLoadFailed = false
+        try {
+            val response = api.get("/api/native/panel-switches") as JSONObject
+            val options = response.arr("options")
+            panelSwitches = List(options.length()) { options.optString(it) }.filter(String::isNotBlank)
+            switchLoadFailed = panelSwitches.isEmpty()
+        } catch (failure: kotlinx.coroutines.CancellationException) {
+            throw failure
+        } catch (_: Exception) {
+            switchLoadFailed = true
+        }
+    }
     var qtyText by rememberSaveable {mutableStateOf("1")}
     var selectedAddressId by rememberSaveable {mutableStateOf("")}
     val context=LocalContext.current
@@ -849,14 +868,23 @@ private fun PortalNewOrder(
         if(step==0) {
             item {Text("۱. انتخاب کالا",color=Ink,fontSize=18.sp,fontWeight=FontWeight.Bold)}
             item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                DropdownField("مدل دستگاه",selected?.let {shortProductName(it.s("name"))+" • "+it.s("manufacturer")}?:"انتخاب دستگاه",products,{shortProductName(it.s("name"))+" • "+it.s("manufacturer")}) {selected=it}
+                DropdownField("مدل دستگاه",selected?.let {shortProductName(it.s("name"))+" • "+it.s("manufacturer")}?:"انتخاب دستگاه",products,{shortProductName(it.s("name"))+" • "+it.s("manufacturer")}) {selected=it;panelSwitch=""}
                 selected?.let { product ->
                     Text(product.s("name"), color=Ink, fontWeight=FontWeight.Bold, fontSize=16.sp, lineHeight=26.sp)
                     if(product.s("manufacturer").isNotBlank())Text("سازنده: "+product.s("manufacturer"), color=Muted, fontSize=12.sp, lineHeight=20.sp)
                 }
                 Text("نوع قیمت",color=Muted,fontSize=12.sp)
                 DesignChoices(listOf("agent" to "عامل فروش","panel" to "ثبت در پنل","serial" to "سریال آزاد"),group,{group=it})
-                if(group=="panel")DropdownField("نوع خرید پنل",catalogPriceRows("panel").first {it.first==panelTier}.second,catalogPriceRows("panel"),{it.second}){panelTier=it.first}
+                if (group == "panel") {
+                    DropdownField("نوع خرید پنل",catalogPriceRows("panel").first {it.first==panelTier}.second,catalogPriceRows("panel"),{it.second}){panelTier=it.first}
+                    if (switchLoadFailed) {
+                        GhadirButton("دریافت دوبارهٔ سوئیچ‌ها", { switchRetry++ }, secondary = true)
+                    } else if (panelSwitches.isEmpty()) {
+                        Text("در حال دریافت سوئیچ‌ها…", color = Muted)
+                    } else {
+                        DropdownField("مدل سوئیچ", panelSwitch.takeIf { it in panelSwitches } ?: "انتخاب سوئیچ", panelSwitches, { it }) { panelSwitch = it }
+                    }
+                }
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                     Text("تعداد",color=Muted,fontSize=12.sp,modifier=Modifier.weight(1f))
                     TextButton(onClick={qtyText=(qty.toLong()+1).coerceAtMost((selected?.i("stock")?:0).toLong()).toString()},enabled=selected!=null&&qty<(selected?.i("stock")?:0)) {Text("+",color=Ink)}
@@ -872,10 +900,11 @@ private fun PortalNewOrder(
                 GhadirButton("افزودن کالا",{
                     val product=selected?:return@GhadirButton
                     try {
-                        cart=cartService.add(cart,catalogEntry(product),qty,priceKey)
+                        cart=cartService.add(cart,catalogEntry(product),qty,priceKey,if(group=="panel")panelSwitch else "")
+                        panelSwitch=""
                         settlement=defaultSplitSettlement(total);error=""
                     } catch(e:IllegalArgumentException) { error=e.message?:"افزودن کالا ناموفق بود" }
-                },enabled=selected!=null&&unit>0&&qty>0&&qty<=(selected?.i("stock")?:0),secondary=true)
+                },enabled=selected!=null&&unit>0&&qty>0&&qty<=(selected?.i("stock")?:0)&&(group!="panel"||panelSwitch in panelSwitches),secondary=true)
             }}}
             item {GlassSurface(color = CartSurface) {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 Text("سبد سفارش",color=Ink,fontWeight=FontWeight.Bold)

@@ -80,6 +80,7 @@ class DesignFlowTest {
             "/api/addresses"->"""[{"id":"saved-A","title":"دفتر","province":"تهران","city":"تهران","address":"خیابان دفتر"}]"""
             "/api/notifications/staff"->"{\"items\":[]}"
             "/api/portal-activity"->"{\"ok\":true,\"heartbeat_seconds\":60}"
+            "/api/native/panel-switches"->"""{"options":["پرداخت نوین","ایرانکیش","سپهر","فن اوا","پاسارگاد"]}"""
             "/api/notifications"->if(includeOrderMessage) """{"items":[{"id":"order:1024","kind":"order","order_id":1024,"title":"به‌روزرسانی سفارش","body":"سفارش آماده است","read":false}],"unread":1}""" else "{\"items\":[],\"unread\":0}"
             "/api/notifications/read"->"{\"ok\":true}"
             "/api/password"->"{\"ok\":true}"
@@ -183,6 +184,8 @@ class DesignFlowTest {
             compose.onNodeWithText("i90 • SZZT").performClick()
             showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").performClick()
             showText("ثبت در پنل");compose.onNodeWithText("ثبت در پنل").performClick()
+            showField("مدل سوئیچ");compose.onNodeWithContentDescription("مدل سوئیچ").performClick()
+            compose.onNodeWithText("ایرانکیش").performClick()
             showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").performClick()
             shot("design-checkout-cart.png")
             showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
@@ -240,6 +243,7 @@ class DesignFlowTest {
             assertEquals(1,body.arr("items").getJSONObject(0).i("qty"))
             assertEquals(2,body.arr("items").length())
             assertEquals("panel_cash",body.arr("items").getJSONObject(1).s("price_key"))
+            assertEquals("ایرانکیش",body.arr("items").getJSONObject(1).s("panel_switch"))
             assertEquals(1,body.arr("items").getJSONObject(1).i("qty"))
             compose.onAllNodesWithText("سفارش‌ها").onLast().performClick()
             waitText("جزئیات سفارش");shot("design-orders.png")

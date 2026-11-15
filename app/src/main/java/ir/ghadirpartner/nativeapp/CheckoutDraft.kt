@@ -21,6 +21,7 @@ internal fun checkoutDraftFromState(
                 .put("qty", line.qty)
                 .put("priceKey", line.priceKey)
                 .put("priceLabel", line.priceLabel)
+                .put("panelSwitch", line.panelSwitch)
                 .put("unit", line.unit),
         )
     }
@@ -40,7 +41,7 @@ internal fun checkoutDraftFromState(
 
 internal fun cartFromDraft(draft: JSONObject): List<CartLine> =
     draft.optJSONArray("cart")?.objects()?.map { row ->
-        CartLine(row.s("product"), row.i("qty"), row.s("priceKey"), row.s("priceLabel"), row.l("unit"))
+        CartLine(row.s("product"), row.i("qty"), row.s("priceKey"), row.s("priceLabel"), row.l("unit"), row.s("panelSwitch"))
     } ?: emptyList()
 
 internal fun settlementSummaryLabel(settlement: JSONObject): String {

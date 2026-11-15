@@ -29,7 +29,9 @@ internal class OrderRepository(
     suspend fun create(checkout: OrderCheckout): JSONObject {
         val items: JSONArray = JSONArray()
         checkout.lines.forEach { line ->
-            items.put(JSONObject().put("product", line.product).put("qty", line.qty).put("price_key", line.priceKey))
+            val item = JSONObject().put("product", line.product).put("qty", line.qty).put("price_key", line.priceKey)
+            if (line.panelSwitch.isNotBlank()) item.put("panel_switch", line.panelSwitch)
+            items.put(item)
         }
         val settlement = JSONObject(checkout.settlement.toString())
         if (settlement.b("upload_proof_later")) {
