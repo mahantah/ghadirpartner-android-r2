@@ -572,6 +572,7 @@ private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->
                 DetailLine("اقلام",orderItemsDescription(order))
                 DetailLine("مبلغ کل",formatMoney(total)+" تومان")
             }}}
+            item { OrderProofActions(api, order) }
             item {OrderDeliveryTimeline(order.s("status"),order.s("approval_status"))}
             item {GhadirButton(if(refreshing)"در حال به‌روزرسانی…" else "به‌روزرسانی وضعیت",{refreshOrder()},enabled=!refreshing,secondary=true)}
             if(order.s("rejection_reason").isNotBlank())item {DesignNotice("علت عدم تأیید شرکت\n\n"+order.s("rejection_reason"))}
