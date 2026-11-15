@@ -104,6 +104,7 @@ internal fun SelectedProofReview(
     onNote: (Int, String) -> Unit,
     onRemove: ((Int) -> Unit)? = null,
     enabled: Boolean = true,
+    details: (@Composable (Int) -> Unit)? = null,
 ) {
     if (files.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -114,6 +115,7 @@ internal fun SelectedProofReview(
                         val title = "$label ${faNumber(index + 1)}"
                         Text(title, color = Ink)
                         ProofThumbnail(file.data, title)
+                        details?.invoke(index)
                         DesignField(
                             "توضیح $title", file.note,
                             { onNote(index, it.take(BuildConfig.PROOF_MAX_NOTE_CHARS)) },
