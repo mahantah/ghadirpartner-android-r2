@@ -34,9 +34,7 @@ internal class OrderRepository(
             items.put(item)
         }
         val settlement = JSONObject(checkout.settlement.toString())
-        if (settlement.b("upload_proof_later")) {
-            for (key in listOf("cash_image_base64", "check_image_base64", "image_base64")) settlement.remove(key)
-        }
+        PaymentProofSelection.prepare(settlement, checkout.paymentMethod)
         settlement.remove("upload_proof_later")
         val body: JSONObject =
             JSONObject()

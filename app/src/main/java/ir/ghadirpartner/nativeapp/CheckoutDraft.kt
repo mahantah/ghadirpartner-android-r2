@@ -26,7 +26,7 @@ internal fun checkoutDraftFromState(
         )
     }
     val settlementCopy = JSONObject(settlement.toString())
-    listOf("image_base64", "cash_image_base64", "check_image_base64").forEach { settlementCopy.remove(it) }
+    PaymentProofSelection.clear(settlementCopy)
     return JSONObject()
         .put("cart", items)
         .put("step", step)

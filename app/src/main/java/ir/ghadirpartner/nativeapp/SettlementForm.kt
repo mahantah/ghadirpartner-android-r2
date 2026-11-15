@@ -79,17 +79,17 @@ internal fun SettlementForm(
             creditLoading = false
         }
     }
-    var imageTarget by remember { mutableStateOf("cash") }
-    fun attachImage(uri: Uri, target: String, temporaryFile: java.io.File? = null) {
+    var imageTarget by rememberSaveable { mutableStateOf("cash") }
+    fun attachFiles(uris: List<Uri>, target: String, temporaryFile: java.io.File? = null) {
         scope.launch {
             busy = true
             error = ""
             try {
-                val encoded = PaymentProofEncoder(context.contentResolver).encode(uri)
-                patch {
-                    if (target == "check") it.put("check_image_base64", encoded).put("image_base64", encoded)
-                    else it.put("cash_image_base64", encoded)
-                }
+                val existing = PaymentProofSelection.read(currentValue, target)
+                val encoded = PaymentProofEncoder(context.contentResolver).encode(
+                    uris, BuildConfig.PROOF_MAX_FILES_PER_KIND - existing.size,
+                )
+                patch { PaymentProofSelection.set(it, target, (existing + encoded).distinct()) }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -100,16 +100,18 @@ internal fun SettlementForm(
             }
         }
     }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) attachImage(uri, imageTarget)
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) attachFiles(uris, imageTarget)
     }
     val chequePhoto = remember(context) { java.io.File(context.cacheDir, "cheque-capture/cheque.jpg") }
     val chequePhotoUri = remember(context, chequePhoto) {
         androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".files", chequePhoto)
     }
     val chequeCamera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { captured ->
-        if (captured) attachImage(chequePhotoUri, "check", chequePhoto) else chequePhoto.delete()
+        if (captured) attachFiles(listOf(chequePhotoUri), "check", chequePhoto) else chequePhoto.delete()
     }
+    val cashFiles = PaymentProofSelection.read(value, "cash").size
+    val checkFiles = PaymentProofSelection.read(value, "check").size
     val deferProof = value.b("upload_proof_later")
     val remaining = settlementRemaining(value, invoiceTotal)
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -137,10 +139,15 @@ internal fun SettlementForm(
             DesignNotice("تسویه نقدی\n\nثبت رسید پرداخت برای بررسی واحد مالی.")
             DesignField("شماره پیگیری", value.s("tracking_number"), { set("tracking_number", asciiDigits(it).take(100)) }, "شماره پیگیری انتقال — در صورت پرداخت", enabled = !busy)
             GhadirButton(
-                if (busy) "در حال آماده‌سازی تصویر…" else if (value.s("cash_image_base64").isNotBlank()) "رسید انتخاب شد؛ تغییر تصویر" else "بارگذاری رسید پرداخت",
-                { imageTarget = "cash"; picker.launch("image/*") },
-                enabled = !busy && !deferProof,
+                if (busy) "در حال آماده‌سازی فایل‌ها…" else "افزودن عکس یا PDF رسید",
+                { imageTarget = "cash"; picker.launch(PaymentProofSelection.mimeTypes) },
+                enabled = !busy && !deferProof && cashFiles < BuildConfig.PROOF_MAX_FILES_PER_KIND,
                 secondary = true,
+            )
+            if (cashFiles > 0) GhadirButton(
+                "${faNumber(cashFiles)} فایل رسید انتخاب شد · پاک کردن انتخاب",
+                { patch { PaymentProofSelection.set(it, "cash", emptyList()) } },
+                enabled = !busy, secondary = true,
             )
         }
         if (value.b("check_enabled") && value.optLong("check_amount") > 0L) {
@@ -161,12 +168,17 @@ internal fun SettlementForm(
                         error = "برنامهٔ دوربین در دسترس نیست. تصویر چک را از گالری انتخاب کنید."
                     }
                 }
-            }, enabled = !busy && !deferProof, secondary = true)
+            }, enabled = !busy && !deferProof && checkFiles < BuildConfig.PROOF_MAX_FILES_PER_KIND, secondary = true)
             GhadirButton(
-                if (busy) "در حال آماده‌سازی تصویر…" else if (value.s("check_image_base64").isNotBlank() || value.s("image_base64").isNotBlank()) "تصویر چک انتخاب شد؛ تغییر" else "بارگذاری تصویر چک",
-                { imageTarget = "check"; picker.launch("image/*") },
-                enabled = !busy && !deferProof,
+                if (busy) "در حال آماده‌سازی فایل‌ها…" else "افزودن عکس یا PDF چک",
+                { imageTarget = "check"; picker.launch(PaymentProofSelection.mimeTypes) },
+                enabled = !busy && !deferProof && checkFiles < BuildConfig.PROOF_MAX_FILES_PER_KIND,
                 secondary = true,
+            )
+            if (checkFiles > 0) GhadirButton(
+                "${faNumber(checkFiles)} فایل چک انتخاب شد · پاک کردن انتخاب",
+                { patch { PaymentProofSelection.set(it, "check", emptyList()) } },
+                enabled = !busy, secondary = true,
             )
         }
         if (listOf("cash", "check").any { value.b("${it}_enabled") && value.optLong("${it}_amount") > 0L }) {
