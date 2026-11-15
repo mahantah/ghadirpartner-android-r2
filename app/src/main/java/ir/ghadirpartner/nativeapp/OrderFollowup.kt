@@ -90,7 +90,7 @@ internal fun CustomerCreditRepayment(api: ApiClient, order: JSONObject) {
     var summary by remember(id) { mutableStateOf<JSONObject?>(null) }
     var error by remember(id) { mutableStateOf("") }
     var busy by remember(id) { mutableStateOf(false) }
-    var amount by rememberSaveable(id) { mutableStateOf("") }
+    var amounts by remember(id) { mutableStateOf(emptyMap<String, String>()) }
     var key by rememberSaveable(id) { mutableStateOf("") }
     var files by remember(id) { mutableStateOf(emptyList<SelectedProof>()) }
     suspend fun load() {
@@ -136,10 +136,15 @@ internal fun CustomerCreditRepayment(api: ApiClient, order: JSONObject) {
             }
             DetailLine("ماندهٔ اعتباری", formatMoney(data.l("outstanding")) + " تومان")
             val payments = data.arr("repayments").objects()
+            val pending = data.l("pending_amount")
+            val remaining = if (data.has("submittable_amount")) data.l("submittable_amount") else data.l("outstanding")
+            if (pending > 0) {
+                DetailLine("در انتظار بررسی", formatMoney(pending) + " تومان")
+            }
             for (payment in payments.reversed()) {
                 val status = payment.s("status")
                 val label = when (status) {
-                    "approved" -> "تأییدشده"
+                    "approved" -> "تأییدشده و قفل‌شده"
                     "rejected" -> "ردشده"
                     else -> "در انتظار بررسی"
                 }
@@ -147,25 +152,45 @@ internal fun CustomerCreditRepayment(api: ApiClient, order: JSONObject) {
                 if (payment.s("review_note").isNotBlank()) Text(payment.s("review_note"), color = Muted)
                 payment.arr("proofs").objects().forEachIndexed { i, proof -> StoredOrderProof(repository, id, proof, i + 1) }
             }
-            if (data.b("can_submit") && payments.none { it.s("status") == "pending" }) {
-                DesignField("مبلغ واریز به تومان", amount, { amount = asciiDigits(it).filter { digit -> digit in '0'..'9' }.take(13) },
-                    "", keyboardType = KeyboardType.Number, transformation = SettlementAmountTransformation, enabled = !busy)
+            if (data.b("can_submit")) {
+                var expanded by rememberSaveable(id) { mutableStateOf(false) }
+                if (!expanded) {
+                    GhadirButton("تسویه اعتبار", { expanded = true }, enabled = !busy)
+                    return@Column
+                }
+                DetailLine("مبلغ قابل ثبت", formatMoney(remaining) + " تومان")
                 GhadirButton("انتخاب عکس یا PDF فیش", { picker.launch(PaymentProofSelection.mimeTypes) },
                     enabled = !busy && files.size < BuildConfig.PROOF_MAX_FILES_PER_KIND, secondary = true)
                 SelectedProofReview("فیش", files, { index, note ->
                     files = files.mapIndexed { i, file -> if (i == index) file.copy(note = note) else file }
-                }, onRemove = { index -> files = files.filterIndexed { i, _ -> i != index } }, enabled = !busy)
-                GhadirButton(if (busy) "در حال ارسال…" else "ارسال فیش برای تأیید", {
+                }, onRemove = { index ->
+                    amounts = amounts - files[index].data
+                    files = files.filterIndexed { i, _ -> i != index }
+                }, enabled = !busy, details = { index ->
+                    val document = files[index].data
+                    DesignField("مبلغ این فیش (تومان)", amounts[document].orEmpty(), { value ->
+                        val digits = asciiDigits(value).filter { it in '0'..'9' }.take(13)
+                        amounts = amounts + (document to digits)
+                    }, keyboardType = KeyboardType.Number, transformation = SettlementAmountTransformation, enabled = !busy)
+                })
+                val submittedAmounts = files.map { amounts[it.data]?.toLongOrNull() ?: 0L }
+                val total = submittedAmounts.sum()
+                if (files.isNotEmpty()) DetailLine("جمع فیش‌های انتخاب‌شده", formatMoney(total) + " تومان")
+                if (total > remaining) Text("جمع فیش‌ها از مبلغ قابل ثبت بیشتر است.", color = Danger)
+                GhadirButton(if (busy) "در حال ارسال…" else "ارسال فیش‌ها برای بررسی", {
+                    if (busy) return@GhadirButton
+                    busy = true
                     scope.launch {
                         if (key.isEmpty()) key = OrderFollowupRepository.newId()
-                        busy = true
                         error = ""
                         try {
+                            val documents = files.mapIndexed { index, file ->
+                                file.payload().put("amount", submittedAmounts[index])
+                            }
                             summary = repository.send(id, "submit", JSONObject().put("request_id", key)
-                                .put("amount", amount.toLongOrNull() ?: 0L)
-                                .put("files", JSONArray(files.map(SelectedProof::payload))))
+                                .put("files", JSONArray(documents)))
                             key = ""
-                            amount = ""
+                            amounts = emptyMap()
                             files = emptyList()
                         } catch (failure: CancellationException) {
                             throw failure
@@ -175,7 +200,7 @@ internal fun CustomerCreditRepayment(api: ApiClient, order: JSONObject) {
                             busy = false
                         }
                     }
-                }, enabled = !busy && files.isNotEmpty() && (amount.toLongOrNull() ?: 0L) in 1L..data.l("outstanding"))
+                }, enabled = !busy && files.isNotEmpty() && submittedAmounts.all { it > 0L } && total <= remaining)
                 Text("مبلغ پس از تأیید واحد مالی به اعتبار قابل استفاده برمی‌گردد.", color = Muted)
             }
         }
