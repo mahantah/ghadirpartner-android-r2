@@ -21,30 +21,32 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
 
-/** Submit one missing payment image to the customer-owned order. */
+/** Submit payment documents to the customer-owned order. */
 internal class OrderProofRepository(api: ApiClient, resolver: ContentResolver) {
     private val transport = api
     private val encoder = PaymentProofEncoder(resolver)
 
-    /** Upload an image and require a successful persistence response. */
-    suspend fun upload(orderId: Int, kind: String, uri: Uri) {
+    /** Upload a selection and return the server count for this payment kind. */
+    suspend fun upload(orderId: Int, kind: String, uris: List<Uri>, remaining: Int): Int {
         val result = transport.post("/api/native/order-proof", JSONObject()
             .put("order_id", orderId)
             .put("kind", kind)
-            .put("image_base64", encoder.encode(uri))) as JSONObject
-        check(result.b("ok")) { "ثبت تصویر انجام نشد." }
+            .put("files", JSONArray(encoder.encode(uris, remaining)))) as JSONObject
+        check(result.b("ok") && result.i("count") > 0) { "ثبت فایل‌ها انجام نشد." }
+        return result.i("count")
     }
 }
 
-/** Display missing payment proofs and upload them directly from order details. */
+/** Show recorded payment proofs and allow customers to add another selection. */
 @Composable
 internal fun OrderProofActions(api: ApiClient, order: JSONObject) {
     val id = order.i("id")
     val method = order.s("requested_payment_method")
     val settlement = order.obj("native_settlement")
-    val kinds = listOf("cash" to "رسید پرداخت", "check" to "تصویر چک").filter { (kind, _) ->
+    val kinds = listOf("cash" to "رسید پرداخت", "check" to "چک").filter { (kind, _) ->
         method == kind || (method == "mixed" && settlement.l("${kind}_amount") > 0)
     }
     if (id < 1 || kinds.isEmpty() ||
@@ -56,23 +58,31 @@ internal fun OrderProofActions(api: ApiClient, order: JSONObject) {
     val repository = remember(api, resolver) { OrderProofRepository(api, resolver) }
     val scope = rememberCoroutineScope()
     var target by rememberSaveable(id) { mutableStateOf("") }
-    var uploaded by rememberSaveable(id) { mutableStateOf("") }
+    var cashUploaded by rememberSaveable(id) { mutableStateOf(0) }
+    var checkUploaded by rememberSaveable(id) { mutableStateOf(0) }
+
+    fun count(kind: String): Int {
+        val legacyProof = recorded.isEmpty() && settlement.s("proof_token").isNotBlank() &&
+            kind == settlement.s("kind").ifBlank { if (method == "check") "check" else "cash" }
+        val stored = if (legacyProof) 1 else recorded.count { it.s("kind") == kind }
+        return maxOf(stored, if (kind == "cash") cashUploaded else checkUploaded)
+    }
     var busy by remember(id) { mutableStateOf(false) }
     var error by remember(id) { mutableStateOf("") }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         val kind = target
         target = ""
-        if (uri != null && kind.isNotBlank()) {
+        if (uris.isNotEmpty() && kind.isNotBlank()) {
             busy = true
             error = ""
             scope.launch {
                 try {
-                    repository.upload(id, kind, uri)
-                    uploaded = (uploaded.split(",") + kind).joinToString(",")
+                    val total = repository.upload(id, kind, uris, BuildConfig.PROOF_MAX_FILES_PER_KIND - count(kind))
+                    if (kind == "cash") cashUploaded = total else checkUploaded = total
                 } catch (failure: CancellationException) {
                     throw failure
                 } catch (failure: Exception) {
-                    error = failure.message ?: "ثبت تصویر انجام نشد. دوباره تلاش کنید."
+                    error = failure.message ?: "ثبت فایل‌ها انجام نشد. دوباره تلاش کنید."
                 } finally {
                     busy = false
                 }
@@ -83,14 +93,12 @@ internal fun OrderProofActions(api: ApiClient, order: JSONObject) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("مدارک پرداخت")
             for ((kind, label) in kinds) {
-                val legacyProof = recorded.isEmpty() && settlement.s("proof_token").isNotBlank() &&
-                    kind == settlement.s("kind").ifBlank { if (method == "check") "check" else "cash" }
-                if (kind in uploaded.split(",") || legacyProof || recorded.any { it.s("kind") == kind }) {
-                    Text("$label ثبت شد و در پروندهٔ سفارش موجود است.")
-                } else {
+                val stored = count(kind)
+                if (stored > 0) Text("$label · ${faNumber(stored)} فایل ثبت شد")
+                if (stored < BuildConfig.PROOF_MAX_FILES_PER_KIND) {
                     GhadirButton(
-                        if (busy) "در حال ثبت تصویر…" else "بارگذاری $label",
-                        { target = kind; picker.launch("image/*") },
+                        if (busy) "در حال ثبت فایل‌ها…" else "افزودن عکس یا PDF $label",
+                        { target = kind; picker.launch(PaymentProofSelection.mimeTypes) },
                         enabled = !busy && target.isEmpty(),
                         secondary = true,
                     )

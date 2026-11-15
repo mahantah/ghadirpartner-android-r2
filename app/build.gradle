@@ -20,6 +20,15 @@ if (!(orderPolicy instanceof Map) || orderPolicy.keySet() != policyKeys ||
     throw new GradleException('Invalid config/order-flow.yaml')
 }
 
+def proofPolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/payment-proofs.yaml').text)
+def proofLimits = [max_files_per_kind: 10, max_raw_file_bytes: 1100000,
+    max_encoded_batch_bytes: 6000000, image_dimension: 5000, jpeg_quality: 100]
+if (!(proofPolicy instanceof Map) || proofPolicy.keySet() != proofLimits.keySet() ||
+    !proofLimits.every { key, limit -> proofPolicy[key] instanceof Integer && proofPolicy[key] in 1..limit } ||
+    proofPolicy.max_encoded_batch_bytes < 4 * ((proofPolicy.max_raw_file_bytes + 2).intdiv(3))) {
+    throw new GradleException('Invalid config/payment-proofs.yaml')
+}
+
 def visualPolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/portal-visuals.yaml').text)
 def visualColorKeys = ['background_light', 'background_dark', 'cart_surface_light', 'cart_surface_dark']
 def visualOpacityKeys = ['section_opacity_light', 'section_opacity_dark']
@@ -79,6 +88,9 @@ android {
         versionCode orderPolicy.version_code
         versionName orderPolicy.version_name
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        proofLimits.keySet().each { key ->
+            buildConfigField 'int', 'PROOF_' + key.toUpperCase(Locale.ROOT), proofPolicy[key].toString()
+        }
         buildConfigField 'int', 'ORDER_MAXIMUM_QUANTITY', orderPolicy.maximum_quantity.toString()
         buildConfigField 'int', 'ORDER_SERIAL_TIER_THRESHOLD', orderPolicy.serial_tier_threshold.toString()
         buildConfigField 'String', 'ORDER_CREDIT_COMMITMENT', groovy.json.JsonOutput.toJson(orderPolicy.credit_commitment)
