@@ -241,6 +241,7 @@ private fun AutomationOrders(api: ApiClient, roles: Set<String>, targetOrder: In
     var statusFilter by remember { mutableStateOf("همه") }
     var paymentFilter by remember { mutableStateOf("همه") }
     var orders by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var followupChanged by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<JSONObject?>(null) }
 
     LaunchedEffect(targetOrder, orders) {
@@ -292,7 +293,18 @@ private fun AutomationOrders(api: ApiClient, roles: Set<String>, targetOrder: In
         }
     }
     selected?.let { order ->
-        AutomationOrderDialog(api, order, roles, onFollowup, onDismiss = { selected = null }, onChanged = { selected = null; refresh() })
+        AutomationOrderDialog(api, order, roles, onFollowup = {
+            followupChanged = true
+            onFollowup()
+        }, onDismiss = {
+            selected = null
+            if (followupChanged) refresh()
+            followupChanged = false
+        }, onChanged = {
+            followupChanged = false
+            selected = null
+            refresh()
+        })
     }
 }
 

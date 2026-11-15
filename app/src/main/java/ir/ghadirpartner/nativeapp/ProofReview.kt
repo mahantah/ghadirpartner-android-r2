@@ -28,8 +28,20 @@ internal class ProofPreviewReader(private val context: Context) {
         runCatching {
             val bytes = Base64.decode(data, Base64.DEFAULT)
             val pdf = bytes.take(5).toByteArray().decodeToString() == "%PDF-"
-            if (pdf) readPdf(bytes) else BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            if (pdf) readPdf(bytes) else readPhoto(bytes)
         }.getOrNull()
+    }
+
+    private fun readPhoto(bytes: ByteArray): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        val dimension = maxOf(bounds.outWidth, bounds.outHeight)
+        if (dimension < 1) return null
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = 1
+            while (dimension / inSampleSize > BuildConfig.PROOF_IMAGE_DIMENSION) inSampleSize *= 2
+        }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     }
 
     private fun readPdf(bytes: ByteArray): Bitmap? {

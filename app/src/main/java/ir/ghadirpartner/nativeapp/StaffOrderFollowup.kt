@@ -128,8 +128,8 @@ private fun StaffRepaymentEntry(
                 }
             }
             if (status == "rejected") return@Column
-            DesignField("مبلغ تومان", faDigits(amount), { amount = asciiDigits(it).filter(Char::isDigit).take(13) },
-                "", keyboardType = KeyboardType.Number, enabled = !busy)
+            DesignField("مبلغ تومان", amount, { amount = asciiDigits(it).filter { digit -> digit in '0'..'9' }.take(13) },
+                "", keyboardType = KeyboardType.Number, transformation = SettlementAmountTransformation, enabled = !busy)
             DesignField("توضیحات بررسی", note, { note = it.take(BuildConfig.PROOF_MAX_NOTE_CHARS) }, "",
                 singleLine = false, enabled = !busy)
             val valid = !busy && (amount.toLongOrNull() ?: 0L) > 0L

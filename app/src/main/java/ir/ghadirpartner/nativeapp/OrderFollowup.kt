@@ -148,8 +148,8 @@ internal fun CustomerCreditRepayment(api: ApiClient, order: JSONObject) {
                 payment.arr("proofs").objects().forEachIndexed { i, proof -> StoredOrderProof(repository, id, proof, i + 1) }
             }
             if (data.b("can_submit") && payments.none { it.s("status") == "pending" }) {
-                DesignField("مبلغ واریز به تومان", faDigits(amount), { amount = asciiDigits(it).filter(Char::isDigit).take(13) },
-                    "", keyboardType = KeyboardType.Number, enabled = !busy)
+                DesignField("مبلغ واریز به تومان", amount, { amount = asciiDigits(it).filter { digit -> digit in '0'..'9' }.take(13) },
+                    "", keyboardType = KeyboardType.Number, transformation = SettlementAmountTransformation, enabled = !busy)
                 GhadirButton("انتخاب عکس یا PDF فیش", { picker.launch(PaymentProofSelection.mimeTypes) },
                     enabled = !busy && files.size < BuildConfig.PROOF_MAX_FILES_PER_KIND, secondary = true)
                 SelectedProofReview("فیش", files, { index, note ->

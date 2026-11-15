@@ -591,6 +591,14 @@ private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->
             if (correction.s("status") == "requested") {
                 item { DesignNotice("درخواست اصلاح سفارش\n\n" + correction.s("reason")) }
                 item { GhadirButton("اصلاح و ارسال دوباره", { onRevise(order) }) }
+                val proofs = order.obj("native_settlement").arr("proofs").objects()
+                if (proofs.isNotEmpty()) item {
+                    val repository = remember(api) { OrderFollowupRepository(api) }
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("مدارک قبلی سفارش", color = Ink)
+                        proofs.forEachIndexed { index, proof -> StoredOrderProof(repository, order.i("id"), proof, index + 1) }
+                    }
+                }
             } else if (correction.s("status") == "resubmitted") {
                 item { DesignNotice("سفارش اصلاح‌شده برای بررسی شرکت فرستاده شد.") }
             }
