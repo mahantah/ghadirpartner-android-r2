@@ -2,26 +2,33 @@ package ir.ghadirpartner.nativeapp
 
 import org.json.JSONObject
 
-private val settlementParts = listOf("cash", "check", "credit")
+private val settlementParts = listOf("cash", "check", "credit", "wallet")
 
-internal fun settlementInvoiceTotal(d: JSONObject, fallback: Long): Long =
-    d.optLong("invoice_total").takeIf { it > 0L } ?: fallback
+internal fun settlementInvoiceTotal(
+    d: JSONObject,
+    fallback: Long,
+): Long = d.optLong("invoice_total").takeIf { it > 0L } ?: fallback
 
 internal fun settlementAllocated(d: JSONObject): Long =
     settlementParts.sumOf { part ->
         if (d.b("${part}_enabled") && d.optLong("${part}_amount") > 0L) d.optLong("${part}_amount") else 0L
     }
 
-internal fun settlementRemaining(d: JSONObject, invoiceTotal: Long): Long =
-    (invoiceTotal - settlementAllocated(d)).coerceAtLeast(0L)
+internal fun settlementRemaining(
+    d: JSONObject,
+    invoiceTotal: Long,
+): Long = (invoiceTotal - settlementAllocated(d)).coerceAtLeast(0L)
 
 internal fun settlementPrimaryMethod(d: JSONObject): String {
-    val parts = settlementParts.filter { part ->
-        d.b("${part}_enabled") && d.optLong("${part}_amount") > 0L
-    }
+    val parts =
+        settlementParts.filter { part ->
+            if (part == "wallet") return@filter false
+            d.b("${part}_enabled") && d.optLong("${part}_amount") > 0L
+        }
     return when {
         parts.size > 1 -> "mixed"
         parts.size == 1 -> parts.single()
+        d.l("wallet_amount") > 0L -> "cash"
         d.s("payment_method").isNotBlank() -> d.s("payment_method")
         else -> "cash"
     }
@@ -41,7 +48,12 @@ internal fun defaultSplitSettlement(invoiceTotal: Long): JSONObject =
         .put("company_invoice_remaining", 0L)
 
 /** Allocate the outstanding balance when selecting a payment method. */
-internal fun toggleSettlementPart(d: JSONObject, part: String, enabled: Boolean, invoiceTotal: Long) {
+internal fun toggleSettlementPart(
+    d: JSONObject,
+    part: String,
+    enabled: Boolean,
+    invoiceTotal: Long,
+) {
     d.put("${part}_enabled", enabled)
     d.put("${part}_amount", 0L)
     val unallocatedPart = if (enabled) part else settlementParts.singleOrNull { d.b("${it}_enabled") }
@@ -50,7 +62,10 @@ internal fun toggleSettlementPart(d: JSONObject, part: String, enabled: Boolean,
     }
 }
 
-internal fun refreshSettlementTotals(d: JSONObject, invoiceTotal: Long): JSONObject {
+internal fun refreshSettlementTotals(
+    d: JSONObject,
+    invoiceTotal: Long,
+): JSONObject {
     val next = JSONObject(d.toString())
     val previousTotal = next.optLong("invoice_total")
     val solePart = settlementParts.singleOrNull { next.b("${it}_enabled") }
@@ -64,10 +79,18 @@ internal fun refreshSettlementTotals(d: JSONObject, invoiceTotal: Long): JSONObj
     return next
 }
 
-internal fun settlementError(method: String, d: JSONObject, invoiceTotal: Long = settlementInvoiceTotal(d, 0L)): String {
+internal fun settlementError(
+    method: String,
+    d: JSONObject,
+    invoiceTotal: Long = settlementInvoiceTotal(d, 0L),
+): String {
     if (!d.b("split")) return legacySettlementError(method, d)
     val allocated = settlementAllocated(d)
     if (allocated <= 0L) return "حداقل یک روش تسویه با مبلغ بیشتر از صفر انتخاب کنید"
+    if (d.l("wallet_amount") > 0L && d.l("check_amount") > 0L) return "پرداخت با کیف پول فقط با نقد و اعتبار ترکیب می‌شود"
+    if ((d.l("wallet_amount") > 0L || d.l("credit_amount") > 0L) && d.l("check_amount") == 0L && allocated != invoiceTotal) {
+        return "جمع مبلغ‌های تسویه باید برابر مبلغ فاکتور باشد"
+    }
     if (allocated > invoiceTotal) return "جمع مبالغ تسویه از مبلغ فاکتور بیشتر است"
     if (d.b("check_enabled") && d.optLong("check_amount") > 0L) {
         if (!d.s("check_number").matches(Regex("[0-9]{16}"))) return "شناسه صیادی باید ۱۶ رقم باشد"
@@ -79,9 +102,13 @@ internal fun settlementError(method: String, d: JSONObject, invoiceTotal: Long =
     return ""
 }
 
-private fun legacySettlementError(method: String, d: JSONObject): String = when {
-    method == "check" && !d.s("check_number").matches(Regex("[0-9]{16}")) -> "شناسه صیادی باید ۱۶ رقم باشد"
-    method == "check" && (d.s("bank_name").isBlank() || d.s("due_date").isBlank()) -> "بانک و سررسید چک را وارد کنید"
-    method == "credit" && !d.b("terms_accepted") -> "شرایط درخواست اعتبار را بپذیرید"
-    else -> ""
-}
+private fun legacySettlementError(
+    method: String,
+    d: JSONObject,
+): String =
+    when {
+        method == "check" && !d.s("check_number").matches(Regex("[0-9]{16}")) -> "شناسه صیادی باید ۱۶ رقم باشد"
+        method == "check" && (d.s("bank_name").isBlank() || d.s("due_date").isBlank()) -> "بانک و سررسید چک را وارد کنید"
+        method == "credit" && !d.b("terms_accepted") -> "شرایط درخواست اعتبار را بپذیرید"
+        else -> ""
+    }

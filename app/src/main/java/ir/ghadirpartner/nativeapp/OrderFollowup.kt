@@ -3,7 +3,9 @@ package ir.ghadirpartner.nativeapp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
@@ -76,12 +78,12 @@ internal fun StoredOrderProof(repository: OrderFollowupRepository, orderId: Int,
     if (message.isNotBlank()) Text(message, color = Danger)
 }
 
-/** Let the customer send photographed repayment evidence after delivery. */
+/** Let the customer review initial payment and settle the approved invoice. */
 @Composable
 internal fun CustomerCreditRepayment(api: ApiClient, order: JSONObject) {
     val id = order.i("id")
     val relevant = order.s("requested_payment_method") in listOf("credit", "mixed") ||
-        order.s("payment_method") == "credit" || order.s("payment_status") == "اعتباری"
+        order.s("payment_method") == "credit" || order.s("payment_status") == "اعتباری" || order.has("credit_checkout")
     if (!relevant || id < 1) return
     val repository = remember(api) { OrderFollowupRepository(api) }
     val scope = rememberCoroutineScope()
@@ -92,6 +94,8 @@ internal fun CustomerCreditRepayment(api: ApiClient, order: JSONObject) {
     var busy by remember(id) { mutableStateOf(false) }
     var amounts by remember(id) { mutableStateOf(emptyMap<String, String>()) }
     var key by rememberSaveable(id) { mutableStateOf("") }
+    var walletAmount by rememberSaveable(id) { mutableStateOf("") }
+    var cancelDestination by rememberSaveable(id) { mutableStateOf("") }
     var files by remember(id) { mutableStateOf(emptyList<SelectedProof>()) }
     suspend fun load() {
         try {
@@ -134,6 +138,54 @@ internal fun CustomerCreditRepayment(api: ApiClient, order: JSONObject) {
                 else Text("در حال دریافت وضعیت تسویه…", color = Muted)
                 return@Column
             }
+            val initial = data.optJSONObject("initial_payment")
+            if (initial != null && initial.l("cash_required") > 0L) {
+                DetailLine("واریز اولیه تأییدشده", formatMoney(initial.l("cash_confirmed")) + " تومان")
+                DetailLine("ماندهٔ واریز اولیه", formatMoney(initial.l("cash_remaining")) + " تومان")
+            }
+            val cancellation = data.optJSONObject("cancellation")
+            if (cancellation != null) {
+                val status = when (cancellation.s("destination")) {
+                    "wallet" -> "وجه به کیف پول منتقل شد"
+                    "refund" -> if (cancellation.s("status") == "pending") "بازگشت وجه در انتظار مالی" else "وجه واریز شد"
+                    else -> "سفارش لغو شد"
+                }
+                DetailLine(status, formatMoney(cancellation.l("amount")) + " تومان")
+            }
+            if (data.b("can_cancel")) {
+                if ((initial?.l("cash_confirmed") ?: 0L) > 0L) {
+                    GhadirButton("لغو سفارش و انتقال وجه به کیف پول", { cancelDestination = "wallet" }, enabled = !busy, secondary = true)
+                    GhadirButton("لغو سفارش و درخواست بازگشت وجه", { cancelDestination = "refund" }, enabled = !busy, secondary = true)
+                } else {
+                    GhadirButton("لغو سفارش", { cancelDestination = "none" }, enabled = !busy, secondary = true)
+                }
+            }
+            if (cancelDestination.isNotEmpty()) {
+                AlertDialog(
+                    onDismissRequest = { cancelDestination = "" },
+                    title = { Text("لغو سفارش") },
+                    text = { Text("لغو سفارش و آزادسازی مبالغ رزروشده را تأیید می‌کنید؟") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val choice = cancelDestination
+                            cancelDestination = ""
+                            busy = true
+                            scope.launch {
+                                try {
+                                    summary = repository.send(id, "cancel_credit_order", JSONObject().put("destination", choice))
+                                } catch (failure: CancellationException) {
+                                    throw failure
+                                } catch (failure: Exception) {
+                                    error = failure.message ?: "لغو سفارش انجام نشد."
+                                } finally {
+                                    busy = false
+                                }
+                            }
+                        }) { Text("تأیید لغو") }
+                    },
+                    dismissButton = { TextButton(onClick = { cancelDestination = "" }) { Text("انصراف") } },
+                )
+            }
             DetailLine("ماندهٔ اعتباری", formatMoney(data.l("outstanding")) + " تومان")
             val payments = data.arr("repayments").objects()
             val pending = data.l("pending_amount")
@@ -173,11 +225,22 @@ internal fun CustomerCreditRepayment(api: ApiClient, order: JSONObject) {
                         amounts = amounts + (document to digits)
                     }, keyboardType = KeyboardType.Number, transformation = SettlementAmountTransformation, enabled = !busy)
                 })
+                val availableWallet = data.obj("wallet").l("available")
+                val suggestedWallet = minOf(availableWallet, remaining)
+                if (suggestedWallet > 0L) {
+                    GhadirButton("پیشنهاد کیف پول: ${formatMoney(suggestedWallet)} تومان", {
+                        walletAmount = suggestedWallet.toString()
+                    }, enabled = !busy, secondary = true)
+                    DesignField("پرداخت از کیف پول (تومان)", walletAmount, {
+                        walletAmount = asciiDigits(it).filter { digit -> digit in '0'..'9' }.take(13)
+                    }, keyboardType = KeyboardType.Number, transformation = SettlementAmountTransformation, enabled = !busy)
+                }
+                val walletPayment = walletAmount.toLongOrNull() ?: 0L
                 val submittedAmounts = files.map { amounts[it.data]?.toLongOrNull() ?: 0L }
                 val total = submittedAmounts.sum()
                 if (files.isNotEmpty()) DetailLine("جمع فیش‌های انتخاب‌شده", formatMoney(total) + " تومان")
-                if (total > remaining) Text("جمع فیش‌ها از مبلغ قابل ثبت بیشتر است.", color = Danger)
-                GhadirButton(if (busy) "در حال ارسال…" else "ارسال فیش‌ها برای بررسی", {
+                if (total + walletPayment > remaining || walletPayment > availableWallet) Text("جمع فیش‌ها از مبلغ قابل ثبت بیشتر است.", color = Danger)
+                GhadirButton(if (busy) "در حال ارسال…" else if (walletPayment > 0L) "تأیید پرداخت از کیف پول" else "ارسال فیش‌ها برای بررسی", {
                     if (busy) return@GhadirButton
                     busy = true
                     scope.launch {
@@ -187,8 +250,10 @@ internal fun CustomerCreditRepayment(api: ApiClient, order: JSONObject) {
                             val documents = files.mapIndexed { index, file ->
                                 file.payload().put("amount", submittedAmounts[index])
                             }
-                            summary = repository.send(id, "submit", JSONObject().put("request_id", key)
-                                .put("files", JSONArray(documents)))
+                            val fields = JSONObject().put("request_id", key).put("files", JSONArray(documents))
+                            if (walletPayment > 0L) fields.put("wallet_amount", walletPayment)
+                            summary = repository.send(id, "submit", fields)
+                            walletAmount = ""
                             key = ""
                             amounts = emptyMap()
                             files = emptyList()
@@ -200,7 +265,8 @@ internal fun CustomerCreditRepayment(api: ApiClient, order: JSONObject) {
                             busy = false
                         }
                     }
-                }, enabled = !busy && files.isNotEmpty() && submittedAmounts.all { it > 0L } && total <= remaining)
+                }, enabled = !busy && (files.isNotEmpty() || walletPayment > 0L) && submittedAmounts.all { it > 0L } &&
+                    walletPayment <= availableWallet && total + walletPayment <= remaining)
                 Text("مبلغ پس از تأیید واحد مالی به اعتبار قابل استفاده برمی‌گردد.", color = Muted)
             }
         }
