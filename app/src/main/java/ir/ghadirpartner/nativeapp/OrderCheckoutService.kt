@@ -12,6 +12,8 @@ internal data class OrderCheckout(
     val settlement: JSONObject,
     val notes: String,
     val promoCode: String,
+    val revisionOrderId: Int = 0,
+    val revisionVersion: Int = 0,
 )
 
 /** Translates checkout data to the existing authenticated orders API. */
@@ -29,17 +31,25 @@ internal class OrderRepository(
     suspend fun create(checkout: OrderCheckout): JSONObject {
         val items: JSONArray = JSONArray()
         checkout.lines.forEach { line ->
-            items.put(JSONObject().put("product", line.product).put("qty", line.qty).put("price_key", line.priceKey))
+            val item = JSONObject().put("product", line.product).put("qty", line.qty).put("price_key", line.priceKey)
+            if (line.panelSwitch.isNotBlank()) item.put("panel_switch", line.panelSwitch)
+            items.put(item)
         }
+        val settlement = JSONObject(checkout.settlement.toString())
+        PaymentProofSelection.prepare(settlement, checkout.paymentMethod)
+        settlement.remove("upload_proof_later")
         val body: JSONObject =
             JSONObject()
                 .put("items", items)
                 .put("address_id", checkout.addressId)
                 .put("invoice_type", checkout.invoiceType)
                 .put("requested_payment_method", checkout.paymentMethod)
-                .put("settlement_details", checkout.settlement)
+                .put("settlement_details", settlement)
                 .put("notes", checkout.notes)
                 .put("promo_code", checkout.promoCode)
+        if (checkout.revisionOrderId > 0) {
+            body.put("revision_order_id", checkout.revisionOrderId).put("revision_version", checkout.revisionVersion)
+        }
         return api.post("/api/orders/add", body) as JSONObject
     }
 }

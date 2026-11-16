@@ -43,6 +43,7 @@ class FigmaFlowTest {
                 "/api/me"->me.toString()
                 "/api/orders"->"[$order]"
                 "/api/offers"->"[]"
+                "/api/notifications/staff"->"{\"items\":[]}"
                 "/api/notifications"->"{\"items\":[],\"unread\":0}"
                 "/api/purchased-devices"->"{\"qty\":2}"
                 "/api/catalog"->"[]"
