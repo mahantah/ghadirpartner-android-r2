@@ -45,7 +45,7 @@ internal fun cartFromDraft(draft: JSONObject): List<CartLine> =
     } ?: emptyList()
 
 internal fun settlementSummaryLabel(settlement: JSONObject): String {
-    val parts = listOf("cash" to "نقد", "check" to "چک", "credit" to "اعتباری").mapNotNull { (key, label) ->
+    val parts = listOf("cash" to "نقد", "check" to "چک", "credit" to "اعتباری", "wallet" to "کیف پول").mapNotNull { (key, label) ->
         if (settlement.b("${key}_enabled") && settlement.optLong("${key}_amount") > 0L) {
             "$label ${formatMoney(settlement.optLong("${key}_amount"))}"
         } else null
@@ -66,8 +66,14 @@ internal fun draftFromReturnedOrder(order: JSONObject): JSONObject {
     val previous = order.obj("native_settlement")
     val method = order.s("requested_payment_method")
     val settlement = defaultSplitSettlement(fallback)
+    val walletAmount = order.obj("credit_checkout").l("wallet_reserved")
+    if (walletAmount > 0L) settlement.put("wallet_enabled", true).put("wallet_amount", walletAmount)
     for (part in listOf("cash", "check", "credit")) {
-        val amount = previous.l("${part}_amount").takeIf { it > 0L } ?: if (method == part) fallback else 0L
+        val amount = if (part == "cash" && order.has("credit_checkout")) {
+            order.obj("credit_checkout").l("cash_required")
+        } else {
+            previous.l("${part}_amount").takeIf { it > 0L } ?: if (method == part) fallback else 0L
+        }
         settlement.put("${part}_amount", amount).put("${part}_enabled", amount > 0L)
     }
     for (field in listOf("check_number", "tracking_number", "bank_name", "due_date")) {

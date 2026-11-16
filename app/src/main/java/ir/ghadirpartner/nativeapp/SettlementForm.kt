@@ -60,9 +60,8 @@ internal fun SettlementForm(
     val creditActive = value.b("credit_enabled") && value.optLong("credit_amount") > 0L
     LaunchedEffect(busy, creditLoading) { onBusyChanged(busy || creditLoading) }
     DisposableEffect(Unit) { onDispose { onBusyChanged(false) } }
-    LaunchedEffect(creditActive, retry) {
+    LaunchedEffect(retry) {
         error = ""
-        if (!creditActive) return@LaunchedEffect
         if (creditLoaded && loadedRetry == retry && System.currentTimeMillis() - creditLoadedAt in 0L..60000L) return@LaunchedEffect
         creditLoading = true
         creditLoaded = false
@@ -110,6 +109,10 @@ internal fun SettlementForm(
     val chequeCamera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { captured ->
         if (captured) attachFiles(listOf(chequePhotoUri), "check", chequePhoto) else chequePhoto.delete()
     }
+    val walletAvailable = credit.obj("wallet").l("available")
+    val suggestedWallet = minOf(invoiceTotal, walletAvailable)
+    val suggestedCredit = minOf(invoiceTotal - suggestedWallet, credit.l("available"))
+    val suggestedCash = invoiceTotal - suggestedWallet - suggestedCredit
     val cashFiles = PaymentProofSelection.read(value, "cash").size
     val checkFiles = PaymentProofSelection.read(value, "check").size
     val deferProof = value.b("upload_proof_later")
@@ -130,6 +133,24 @@ internal fun SettlementForm(
         SplitMethodRow("اعتباری", value.b("credit_enabled"), amountText("credit"), { enabled ->
             patch { toggleSettlementPart(it, "credit", enabled, currentTotal) }
         }, { setAmount("credit", it) })
+        if (creditLoaded && (walletAvailable > 0L || value.b("wallet_enabled"))) {
+            DetailLine("موجودی قابل استفاده کیف پول", formatMoney(walletAvailable) + " تومان")
+            SplitMethodRow("کیف پول", value.b("wallet_enabled"), amountText("wallet"), { enabled ->
+                patch { toggleSettlementPart(it, "wallet", enabled, currentTotal) }
+            }, { setAmount("wallet", it) })
+        }
+        if (invoiceTotal > 0L && (suggestedWallet > 0L || suggestedCredit > 0L)) {
+            val suggestion = listOf("کیف پول" to suggestedWallet, "اعتبار" to suggestedCredit, "واریز" to suggestedCash)
+                .filter { it.second > 0L }.joinToString(" • ") { (label, amount) -> "$label ${formatMoney(amount)} تومان" }
+            GhadirButton("انتخاب پیشنهاد تسویه", {
+                patch { next ->
+                    for ((part, amount) in listOf("wallet" to suggestedWallet, "credit" to suggestedCredit, "cash" to suggestedCash, "check" to 0L)) {
+                        next.put("${part}_enabled", amount > 0L).put("${part}_amount", amount)
+                    }
+                }
+            }, secondary = true)
+            Text(suggestion, color = Muted)
+        }
         if (value.b("cash_enabled") && invoiceType == "غیررسمی") {
             DetailLine("صاحب حساب", BuildConfig.CHEQUE_INFORMAL_PAYEE)
             DetailLine("شماره کارت", "\u2066${BuildConfig.INFORMAL_CASH_CARD}\u2069")

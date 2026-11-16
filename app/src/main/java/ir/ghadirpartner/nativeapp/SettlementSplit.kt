@@ -2,7 +2,7 @@ package ir.ghadirpartner.nativeapp
 
 import org.json.JSONObject
 
-private val settlementParts = listOf("cash", "check", "credit")
+private val settlementParts = listOf("cash", "check", "credit", "wallet")
 
 internal fun settlementInvoiceTotal(d: JSONObject, fallback: Long): Long =
     d.optLong("invoice_total").takeIf { it > 0L } ?: fallback
@@ -17,11 +17,13 @@ internal fun settlementRemaining(d: JSONObject, invoiceTotal: Long): Long =
 
 internal fun settlementPrimaryMethod(d: JSONObject): String {
     val parts = settlementParts.filter { part ->
+        if (part == "wallet") return@filter false
         d.b("${part}_enabled") && d.optLong("${part}_amount") > 0L
     }
     return when {
         parts.size > 1 -> "mixed"
         parts.size == 1 -> parts.single()
+        d.l("wallet_amount") > 0L -> "cash"
         d.s("payment_method").isNotBlank() -> d.s("payment_method")
         else -> "cash"
     }
@@ -68,6 +70,10 @@ internal fun settlementError(method: String, d: JSONObject, invoiceTotal: Long =
     if (!d.b("split")) return legacySettlementError(method, d)
     val allocated = settlementAllocated(d)
     if (allocated <= 0L) return "حداقل یک روش تسویه با مبلغ بیشتر از صفر انتخاب کنید"
+    if (d.l("wallet_amount") > 0L && d.l("check_amount") > 0L) return "پرداخت با کیف پول فقط با نقد و اعتبار ترکیب می‌شود"
+    if ((d.l("wallet_amount") > 0L || d.l("credit_amount") > 0L) && d.l("check_amount") == 0L && allocated != invoiceTotal) {
+        return "جمع مبلغ‌های تسویه باید برابر مبلغ فاکتور باشد"
+    }
     if (allocated > invoiceTotal) return "جمع مبالغ تسویه از مبلغ فاکتور بیشتر است"
     if (d.b("check_enabled") && d.optLong("check_amount") > 0L) {
         if (!d.s("check_number").matches(Regex("[0-9]{16}"))) return "شناسه صیادی باید ۱۶ رقم باشد"
