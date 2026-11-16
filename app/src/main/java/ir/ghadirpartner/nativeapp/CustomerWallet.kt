@@ -73,7 +73,7 @@ internal fun CustomerWallet(api: ApiClient) {
                 DetailLine("موجودی قابل استفاده کیف پول", formatMoney(wallet.l("available")) + " تومان")
                 DetailLine("موجودی رزروشده کیف پول", formatMoney(wallet.l("reserved")) + " تومان")
                 if (onlineTopUp) {
-                    GhadirButton("شارژ آنلاین با ایران‌کیش", {
+                    GhadirButton("شارژ کیف پول با ایران‌کیش", {
                         val portal = Uri.parse("${api.base}/#gpIranKishWallet")
                         val intent = Intent(Intent.ACTION_VIEW, portal).addCategory(Intent.CATEGORY_BROWSABLE)
                         try {
