@@ -90,6 +90,7 @@ class DesignFlowTest {
             }
             "/api/purchased-devices"->"{\"qty\":2}"
             "/api/reports/customer-summary"->"{\"month\":{\"amount\":34200000,\"orders\":3}}"
+            "/api/orders/irankish"->"{\"enabled\":false}"
             "/api/native/credit"->"{\"configured\":true,\"available\":30000000,\"due_date\":\"1405/07/26\"}"
             "/api/native/login-otp/request"->"{\"ok\":true,\"retry_after\":60}"
             "/api/native/login-otp/confirm"->"{\"ok\":true}"
