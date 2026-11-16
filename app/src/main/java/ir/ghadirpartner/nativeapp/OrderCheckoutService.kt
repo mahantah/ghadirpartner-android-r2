@@ -38,6 +38,7 @@ internal class OrderRepository(
         val settlement = JSONObject(checkout.settlement.toString())
         PaymentProofSelection.prepare(settlement, checkout.paymentMethod)
         settlement.remove("upload_proof_later")
+        if (!settlement.b("cash_enabled") || settlement.l("cash_amount") <= 0L) settlement.remove("cash_online")
         val body: JSONObject =
             JSONObject()
                 .put("items", items)

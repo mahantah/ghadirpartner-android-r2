@@ -251,6 +251,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                                 DetailLine("اقلام",orderItemsDescription(order))
                             }}
                             DesignNotice("سفارش برای بررسی شرکت ثبت شد. نتیجهٔ تأیید یا عدم تأیید را در مراحل سفارش می‌بینید.")
+                            IranKishOrderPaymentActions(api, order, autoOpen = true) { screen = "order-detail" }
                             GhadirButton("مشاهده سفارش",{screen="order-detail"})
                             GhadirButton("دریافت پیش‌فاکتور",{proformaOrigin="success";screen="proforma"},secondary=true)
                         }
@@ -602,6 +603,7 @@ private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->
             } else if (correction.s("status") == "resubmitted") {
                 item { DesignNotice("سفارش اصلاح‌شده برای بررسی شرکت فرستاده شد.") }
             }
+            item { IranKishOrderPaymentActions(api, order, onConfirmed = { refreshOrder() }) }
             if (correction.s("status") != "requested") item { OrderProofActions(api, order) { refreshOrder() } }
             item { CustomerCreditRepayment(api, order) }
             item {OrderDeliveryTimeline(order.s("status"),order.s("approval_status"))}
@@ -1022,7 +1024,7 @@ private fun PortalNewOrder(
                     )
                 }
             }
-            item {GhadirButton(if(submitting)"در حال ثبت…" else if(revisionOrder!=null)"ارسال سفارش اصلاح‌شده" else "تأیید و ثبت نهایی",{submit()},enabled=!submitting&&cart.isNotEmpty())}
+            item {GhadirButton(if(submitting)"در حال ثبت…" else if(revisionOrder!=null)"ارسال سفارش اصلاح‌شده" else if(settlement.b("cash_online") && settlement.b("cash_enabled")) "ثبت سفارش و ادامه به پرداخت" else "تأیید و ثبت نهایی",{submit()},enabled=!submitting&&cart.isNotEmpty())}
             item {GhadirButton("بازگشت و ویرایش",{step=0},secondary=true,enabled=!submitting)}
         }
     }
