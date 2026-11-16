@@ -128,9 +128,6 @@ internal fun SettlementForm(
         if (captured) attachFiles(listOf(chequePhotoUri), "check", chequePhoto) else chequePhoto.delete()
     }
     val walletAvailable = credit.obj("wallet").l("available")
-    val suggestedWallet = minOf(invoiceTotal, walletAvailable)
-    val suggestedCredit = minOf(invoiceTotal - suggestedWallet, credit.l("available"))
-    val suggestedCash = invoiceTotal - suggestedWallet - suggestedCredit
     val cashFiles = PaymentProofSelection.read(value, "cash").size
     val checkFiles = PaymentProofSelection.read(value, "check").size
     val deferProof = value.b("upload_proof_later")
@@ -155,18 +152,6 @@ internal fun SettlementForm(
             SplitMethodRow("کیف پول", value.b("wallet_enabled"), amountText("wallet"), { enabled ->
                 patch { toggleSettlementPart(it, "wallet", enabled, currentTotal) }
             }, { setAmount("wallet", it) })
-        }
-        if (invoiceTotal > 0L && (suggestedWallet > 0L || suggestedCredit > 0L)) {
-            val suggestion = listOf("کیف پول" to suggestedWallet, "اعتبار" to suggestedCredit, "واریز" to suggestedCash)
-                .filter { it.second > 0L }.joinToString(" • ") { (label, amount) -> "$label ${formatMoney(amount)} تومان" }
-            GhadirButton("انتخاب پیشنهاد تسویه", {
-                patch { next ->
-                    for ((part, amount) in listOf("wallet" to suggestedWallet, "credit" to suggestedCredit, "cash" to suggestedCash, "check" to 0L)) {
-                        next.put("${part}_enabled", amount > 0L).put("${part}_amount", amount)
-                    }
-                }
-            }, secondary = true)
-            Text(suggestion, color = Muted)
         }
         if (value.b("cash_enabled")) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
