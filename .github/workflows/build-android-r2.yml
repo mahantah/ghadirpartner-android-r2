@@ -1,119 +1,122 @@
-name: Build Ghadir Partner Android R5.13
+name: Build exact Ghadir Partner r5.36 source
 on:
-  push:
-    branches: [main, codex/compact-r5, codex/integrate-r54, codex/figma-100-573, codex/r56-login-security, feature/customer-order-review, feature/authorized-partial-delivery]
   pull_request:
     branches: [main]
-  workflow_dispatch:
 permissions:
   contents: read
 jobs:
   portal:
+    name: Android API ${{ matrix.api }}
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [29, 35, 36]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: '165bcc6fed4f47208d85d8b4b5617ce270321bbd'
+          persist-credentials: false
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
-      - name: Check formatting of the new typed order components
-        run: |
-          curl -fsSL --retry 2 https://github.com/pinterest/ktlint/releases/download/1.5.0/ktlint -o "$RUNNER_TEMP/ktlint"
-          echo 'a16be01dcc480aab2f55f444b620142152f66e31564b3b9376506d624c28a2ad  '"$RUNNER_TEMP/ktlint" | sha256sum -c -
-          java -jar "$RUNNER_TEMP/ktlint" \
-            app/src/main/java/ir/ghadirpartner/nativeapp/OrderCartService.kt \
-            app/src/main/java/ir/ghadirpartner/nativeapp/OrderCheckoutService.kt \
-            app/src/main/java/ir/ghadirpartner/nativeapp/CompanyOrderReviewService.kt \
-            app/src/test/java/ir/ghadirpartner/nativeapp/OrderCartServiceTest.kt \
-            app/src/main/java/ir/ghadirpartner/nativeapp/PartialDeliveryService.kt \
-            app/src/main/java/ir/ghadirpartner/nativeapp/PartialDeliveryForm.kt \
-            app/src/test/java/ir/ghadirpartner/nativeapp/PartialDeliveryPolicyTest.kt \
-            app/src/androidTest/java/ir/ghadirpartner/nativeapp/PartialDeliveryFlowTest.kt \
-            app/src/androidTest/java/ir/ghadirpartner/nativeapp/CompanyOrderReviewTest.kt
+          gradle-version: '8.11.1'
       - name: Install Android platform
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           test -x "$SDKMANAGER"
-          "$SDKMANAGER" 'platforms;android-35' 'build-tools;35.0.0'
+          "$SDKMANAGER" 'platforms;android-36' 'build-tools;35.0.0'
       - uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
           key: ghadir-portal-r4-debug-signing-v1
       - name: Build and lint portal and automation apps
         run: gradle --no-daemon --console=plain :app:testPortalDebugUnitTest :app:assemblePortalDebug :app:assemblePortalDebugAndroidTest :app:lintPortalDebug :app:assembleAutomationDebug :app:lintAutomationDebug
-      - name: Build signed updates when the existing release secrets are configured
-        id: release
-        if: github.event_name != 'pull_request'
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$ANDROID_KEYSTORE_BASE64" || -z "$ANDROID_KEYSTORE_PASSWORD" || -z "$ANDROID_KEY_ALIAS" || -z "$ANDROID_KEY_PASSWORD" ]]; then
-            echo '::notice::Release signing secret references are incomplete; debug artifacts only.'
-            echo 'signed=false' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/ghadir-release.jks"
-          trap 'rm -f "$ANDROID_KEYSTORE_FILE"' EXIT
-          python3 - <<'PYKEY'
-          import base64, os
-          from pathlib import Path
-          path = Path(os.environ['ANDROID_KEYSTORE_FILE'])
-          path.write_bytes(base64.b64decode(os.environ['ANDROID_KEYSTORE_BASE64'], validate=True))
-          path.chmod(0o600)
-          PYKEY
-          gradle --no-daemon --console=plain :app:assemblePortalRelease :app:bundlePortalRelease :app:assembleAutomationRelease :app:bundleAutomationRelease
-          signer="$ANDROID_HOME/build-tools/35.0.0/apksigner"
-          for flavor in portal automation; do
-            if [[ "$flavor" == portal ]]; then
-              previous=GhadirPartner-5.4.3.3-r5.11-portal-release.apk
-            else
-              previous=GhadirAutomation-5.4.3.3-r5.11-release.apk
-            fi
-            curl -fsSL --retry 2 "https://raw.githubusercontent.com/mahantah/curser/d751ed866014c3b300c673a41751637826e53efb/download/android/5.4.3.3-r5.11/$previous" -o "$RUNNER_TEMP/$previous"
-            "$signer" verify --print-certs "$RUNNER_TEMP/$previous" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' > "$RUNNER_TEMP/old-cert"
-            "$signer" verify --print-certs "app/build/outputs/apk/$flavor/release/app-$flavor-release.apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' > "$RUNNER_TEMP/new-cert"
-            test -s "$RUNNER_TEMP/old-cert"
-            cmp "$RUNNER_TEMP/old-cert" "$RUNNER_TEMP/new-cert"
-          done
-          echo 'signed=true' >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
-        if: steps.release.outputs.signed == 'true'
-        with:
-          name: GhadirPartner-R5.13-Signed-Updates
-          path: |
-            app/build/outputs/apk/*/release/*.apk
-            app/build/outputs/bundle/*Release/*.aab
-          if-no-files-found: error
       - name: Enable emulator acceleration
         run: |
           sudo chmod a+rw /dev/kvm
       - name: Verify cold start and resume on Android
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 29
+          api-level: ${{ matrix.api }}
           arch: x86_64
           disable-animations: true
           script: bash validation/run-emulator-tests.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: GhadirPartner-5.4.3.3-R5.12-Debug-APK
+          name: GhadirPartner-UI-Update-Debug-APK-API${{ matrix.api }}
           path: app/build/outputs/apk/portal/debug/*.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: GhadirAutomation-5.4.3.3-R5.12-Debug-APK
+          name: GhadirAutomation-UI-Update-Debug-APK-API${{ matrix.api }}
           path: app/build/outputs/apk/automation/debug/*.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: R5-Build-Reports
+          name: UI-Build-Reports-API${{ matrix.api }}
+          path: app/build/reports/
+
+  release:
+    name: Minified release build and Android 16 smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: '165bcc6fed4f47208d85d8b4b5617ce270321bbd'
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Install Android platform
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0"'
+      - name: Build and lint release APKs and bundles
+        run: gradle --no-daemon --console=plain :app:assemblePortalRelease :app:bundlePortalRelease :app:lintPortalRelease :app:assembleAutomationRelease :app:bundleAutomationRelease :app:lintAutomationRelease
+      - name: Enable emulator acceleration
+        run: sudo chmod a+rw /dev/kvm
+      - name: Verify native 16 KB alignment
+        run: |
+          mkdir -p app/build/reports/native-alignment
+          for mode in portal automation; do
+            apk="app/build/outputs/apk/$mode/release/app-$mode-release-unsigned.apk"
+            python validation/check-native-alignment.py "$apk" > "app/build/reports/native-alignment/$mode-elf.txt"
+            "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 -v 4 "$apk" > "app/build/reports/native-alignment/$mode-zip.txt"
+          done
+      - name: Exercise minified release apps
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          arch: x86_64
+          disable-animations: true
+          script: bash validation/run-release-smoke.sh
+      - name: Collect unsigned release inputs for private signing
+        run: |
+          mkdir -p release-inputs
+          cp app/build/outputs/apk/portal/release/*-unsigned.apk release-inputs/
+          cp app/build/outputs/apk/automation/release/*-unsigned.apk release-inputs/
+          cp app/build/outputs/bundle/portalRelease/*.aab release-inputs/
+          cp app/build/outputs/bundle/automationRelease/*.aab release-inputs/
+          cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" release-inputs/
+          cp app/build/outputs/mapping/portalRelease/mapping.txt release-inputs/portal-mapping.txt
+          cp app/build/outputs/mapping/automationRelease/mapping.txt release-inputs/automation-mapping.txt
+          sha256sum release-inputs/* > release-inputs/UNSIGNED_SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Release-Unsigned-Inputs-For-Private-Signing
+          path: release-inputs/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Release-Security-And-Smoke-Reports
           path: app/build/reports/
