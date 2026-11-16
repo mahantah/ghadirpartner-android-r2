@@ -49,12 +49,13 @@ internal fun CustomerWallet(api: ApiClient) {
                 DetailLine("اعتبار رزروشده", formatMoney(snapshot.l("reserved")) + " تومان")
                 DetailLine("بدهی اعتباری", formatMoney(snapshot.l("outstanding")) + " تومان")
                 for (entry in wallet.arr("transactions").objects()) {
-                    val label = when (entry.s("source")) {
-                        "order_cancellation" -> "بازگشت وجه"
-                        "order_purchase" -> "پرداخت سفارش"
-                        "credit_repayment" -> "بازپرداخت اعتبار"
-                        else -> "گردش کیف پول"
-                    }
+                    val label =
+                        when (entry.s("source")) {
+                            "order_cancellation" -> "بازگشت وجه"
+                            "order_purchase" -> "پرداخت سفارش"
+                            "credit_repayment" -> "بازپرداخت اعتبار"
+                            else -> "گردش کیف پول"
+                        }
                     DetailLine("$label · ${entry.s("number")}", formatMoney(entry.l("amount")) + " تومان")
                 }
             }
