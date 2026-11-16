@@ -65,6 +65,17 @@ internal fun SettlementForm(
     var busy by remember { mutableStateOf(false) }
     var retry by rememberSaveable { mutableIntStateOf(0) }
     val creditActive = value.b("credit_enabled")
+    val orderPayment = remember(api) { IranKishOrderPayment(api) }
+    var onlineAvailable by remember(api) { mutableStateOf(false) }
+    LaunchedEffect(orderPayment) {
+        try {
+            onlineAvailable = orderPayment.available()
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            onlineAvailable = false
+        }
+    }
     LaunchedEffect(busy, creditLoading) { onBusyChanged(busy || creditLoading) }
     DisposableEffect(Unit) { onDispose { onBusyChanged(false) } }
     LaunchedEffect(retry) {
@@ -159,34 +170,45 @@ internal fun SettlementForm(
         }
         if (value.b("cash_enabled")) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettlementMethodCard("واریز به حساب", true, false, Modifier.weight(1f)) {}
-                SettlementMethodCard("پرداخت آنلاین", false, false, Modifier.weight(1f)) {}
-            }
-            Text("پرداخت آنلاین مستقیمِ سفارش هنوز فعال نیست.", color = Muted)
-            SettlementAmountField("نقد", amountText("cash")) { setAmount("cash", it) }
-            when (invoiceType) {
-                "رسمی" -> {
-                    DetailLine("صاحب حساب", BuildConfig.CHEQUE_FORMAL_PAYEE)
-                    Text("شمارهٔ حساب شرکت در اپ ثبت نشده است.", color = Muted)
+                SettlementMethodCard("واریز به حساب", !value.b("cash_online"), !busy, Modifier.weight(1f)) {
+                    set("cash_online", false)
                 }
-                "غیررسمی" -> {
-                    DetailLine("صاحب حساب", BuildConfig.CHEQUE_INFORMAL_PAYEE)
-                    DetailLine("شماره کارت", "\u2066${BuildConfig.INFORMAL_CASH_CARD}\u2069")
-                    DetailLine("شماره شبا", "\u2066${BuildConfig.INFORMAL_CASH_IBAN}\u2069")
+                SettlementMethodCard("پرداخت آنلاین", value.b("cash_online"), onlineAvailable && !busy, Modifier.weight(1f)) {
+                    patch {
+                        it.put("cash_online", true).remove("tracking_number")
+                        PaymentProofSelection.set(it, "cash", emptyList())
+                    }
                 }
             }
-            DesignField("شماره پیگیری", value.s("tracking_number"), { set("tracking_number", asciiDigits(it).take(100)) }, "شماره پیگیری انتقال — در صورت پرداخت", enabled = !busy)
-            GhadirButton(
-                if (busy) "در حال آماده‌سازی فایل‌ها…" else "افزودن عکس یا PDF رسید",
-                { imageTarget = "cash"; picker.launch(PaymentProofSelection.mimeTypes) },
-                enabled = !busy && !deferProof && cashFiles < BuildConfig.PROOF_MAX_FILES_PER_KIND,
-                secondary = true,
-            )
-            if (cashFiles > 0) GhadirButton(
-                "${faNumber(cashFiles)} فایل رسید انتخاب شد · پاک کردن انتخاب",
-                { patch { PaymentProofSelection.set(it, "cash", emptyList()) } },
-                enabled = !busy, secondary = true,
-            )
+            val online = value.b("cash_online")
+            SettlementAmountField(if (online) "پرداخت آنلاین" else "نقد", amountText("cash")) { setAmount("cash", it) }
+            if (online) {
+                Text("بعد از ثبت سفارش می‌توانید این مبلغ را در درگاه ایران‌کیش پرداخت کنید.", color = Muted)
+            } else {
+                when (invoiceType) {
+                    "رسمی" -> {
+                        DetailLine("صاحب حساب", BuildConfig.CHEQUE_FORMAL_PAYEE)
+                        Text("شمارهٔ حساب شرکت در اپ ثبت نشده است.", color = Muted)
+                    }
+                    "غیررسمی" -> {
+                        DetailLine("صاحب حساب", BuildConfig.CHEQUE_INFORMAL_PAYEE)
+                        DetailLine("شماره کارت", "\u2066${BuildConfig.INFORMAL_CASH_CARD}\u2069")
+                        DetailLine("شماره شبا", "\u2066${BuildConfig.INFORMAL_CASH_IBAN}\u2069")
+                    }
+                }
+                DesignField("شماره پیگیری", value.s("tracking_number"), { set("tracking_number", asciiDigits(it).take(100)) }, "شماره پیگیری انتقال — در صورت پرداخت", enabled = !busy)
+                GhadirButton(
+                    if (busy) "در حال آماده‌سازی فایل‌ها…" else "افزودن عکس یا PDF رسید",
+                    { imageTarget = "cash"; picker.launch(PaymentProofSelection.mimeTypes) },
+                    enabled = !busy && !deferProof && cashFiles < BuildConfig.PROOF_MAX_FILES_PER_KIND,
+                    secondary = true,
+                )
+                if (cashFiles > 0) GhadirButton(
+                    "${faNumber(cashFiles)} فایل رسید انتخاب شد · پاک کردن انتخاب",
+                    { patch { PaymentProofSelection.set(it, "cash", emptyList()) } },
+                    enabled = !busy, secondary = true,
+                )
+            }
         }
         if (value.b("check_enabled")) {
             val payeeNote = ChequePayeePolicy().instructionsFor(invoiceType)
