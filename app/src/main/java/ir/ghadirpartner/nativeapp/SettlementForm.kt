@@ -4,6 +4,9 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -11,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -20,9 +25,11 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
+/** Normalize Persian and Arabic input digits before parsing payment details. */
 internal fun asciiDigits(value: String): String =
     value.map { if (it.isDigit()) Character.digit(it, 10).toString() else it.toString() }.joinToString("")
 
+/** Show independent settlement choices and keep each selected method's details visible. */
 @Composable
 internal fun SettlementForm(
     api: ApiClient,
@@ -57,7 +64,7 @@ internal fun SettlementForm(
     var error by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var retry by rememberSaveable { mutableIntStateOf(0) }
-    val creditActive = value.b("credit_enabled") && value.optLong("credit_amount") > 0L
+    val creditActive = value.b("credit_enabled")
     LaunchedEffect(busy, creditLoading) { onBusyChanged(busy || creditLoading) }
     DisposableEffect(Unit) { onDispose { onBusyChanged(false) } }
     LaunchedEffect(retry) {
@@ -124,15 +131,14 @@ internal fun SettlementForm(
         if (invoiceType == "رسمی") {
             DesignNotice("فاکتور رسمی — فروشنده: هوشمند پرداز پویا تجارت قدیر — شناسه ملی ۱۴۰۱۰۳۶۶۳۹۵")
         }
-        SplitMethodRow("نقد", value.b("cash_enabled"), amountText("cash"), { enabled ->
-            patch { toggleSettlementPart(it, "cash", enabled, currentTotal) }
-        }, { setAmount("cash", it) })
-        SplitMethodRow("چک", value.b("check_enabled"), amountText("check"), { enabled ->
-            patch { toggleSettlementPart(it, "check", enabled, currentTotal) }
-        }, { setAmount("check", it) })
-        SplitMethodRow("اعتباری", value.b("credit_enabled"), amountText("credit"), { enabled ->
-            patch { toggleSettlementPart(it, "credit", enabled, currentTotal) }
-        }, { setAmount("credit", it) })
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for ((part, label) in listOf("check" to "چک", "cash" to "نقد", "credit" to "اعتباری")) {
+                val selected = value.b("${part}_enabled")
+                SettlementMethodCard(label, selected, !busy, Modifier.weight(1f)) { enabled ->
+                    patch { toggleSettlementPart(it, part, enabled, currentTotal) }
+                }
+            }
+        }
         if (creditLoaded && (walletAvailable > 0L || value.b("wallet_enabled"))) {
             DetailLine("موجودی قابل استفاده کیف پول", formatMoney(walletAvailable) + " تومان")
             SplitMethodRow("کیف پول", value.b("wallet_enabled"), amountText("wallet"), { enabled ->
@@ -151,13 +157,24 @@ internal fun SettlementForm(
             }, secondary = true)
             Text(suggestion, color = Muted)
         }
-        if (value.b("cash_enabled") && invoiceType == "غیررسمی") {
-            DetailLine("صاحب حساب", BuildConfig.CHEQUE_INFORMAL_PAYEE)
-            DetailLine("شماره کارت", "\u2066${BuildConfig.INFORMAL_CASH_CARD}\u2069")
-            DetailLine("شماره شبا", "\u2066${BuildConfig.INFORMAL_CASH_IBAN}\u2069")
-        }
-        if (value.b("cash_enabled") && value.optLong("cash_amount") > 0L) {
-            DesignNotice("تسویه نقدی\n\nثبت رسید پرداخت برای بررسی واحد مالی.")
+        if (value.b("cash_enabled")) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettlementMethodCard("واریز به حساب", true, false, Modifier.weight(1f)) {}
+                SettlementMethodCard("پرداخت آنلاین", false, false, Modifier.weight(1f)) {}
+            }
+            Text("پرداخت آنلاین مستقیمِ سفارش هنوز فعال نیست.", color = Muted)
+            SettlementAmountField("نقد", amountText("cash")) { setAmount("cash", it) }
+            when (invoiceType) {
+                "رسمی" -> {
+                    DetailLine("صاحب حساب", BuildConfig.CHEQUE_FORMAL_PAYEE)
+                    Text("شمارهٔ حساب شرکت در اپ ثبت نشده است.", color = Muted)
+                }
+                "غیررسمی" -> {
+                    DetailLine("صاحب حساب", BuildConfig.CHEQUE_INFORMAL_PAYEE)
+                    DetailLine("شماره کارت", "\u2066${BuildConfig.INFORMAL_CASH_CARD}\u2069")
+                    DetailLine("شماره شبا", "\u2066${BuildConfig.INFORMAL_CASH_IBAN}\u2069")
+                }
+            }
             DesignField("شماره پیگیری", value.s("tracking_number"), { set("tracking_number", asciiDigits(it).take(100)) }, "شماره پیگیری انتقال — در صورت پرداخت", enabled = !busy)
             GhadirButton(
                 if (busy) "در حال آماده‌سازی فایل‌ها…" else "افزودن عکس یا PDF رسید",
@@ -171,9 +188,10 @@ internal fun SettlementForm(
                 enabled = !busy, secondary = true,
             )
         }
-        if (value.b("check_enabled") && value.optLong("check_amount") > 0L) {
+        if (value.b("check_enabled")) {
             val payeeNote = ChequePayeePolicy().instructionsFor(invoiceType)
             DesignNotice("تسویه با چک\n\n$payeeNote")
+            SettlementAmountField("چک", amountText("check")) { setAmount("check", it) }
             DesignField("شناسه صیادی", value.s("check_number"), { set("check_number", asciiDigits(it).filter(Char::isDigit).take(16)) }, "شناسه ۱۶ رقمی", keyboardType = KeyboardType.Number, enabled = !busy)
             BankSelectionField(value.s("bank_name"), !busy) { set("bank_name", it) }
             PersianDateSelectionField("سررسید", value.s("due_date"), !busy) { set("due_date", it) }
@@ -202,7 +220,7 @@ internal fun SettlementForm(
                 enabled = !busy, secondary = true,
             )
         }
-        if (listOf("cash", "check").any { value.b("${it}_enabled") && value.optLong("${it}_amount") > 0L }) {
+        if (listOf("cash", "check").any { value.b("${it}_enabled") }) {
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Checkbox(
                     checked = deferProof,
@@ -214,6 +232,7 @@ internal fun SettlementForm(
             }
         }
         if (creditActive) {
+            SettlementAmountField("اعتباری", amountText("credit")) { setAmount("credit", it) }
             GlassSurface {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("اعتبار حساب شما", color = Ink, fontWeight = FontWeight.Bold, fontSize = 20.sp)
@@ -239,6 +258,49 @@ internal fun SettlementForm(
 }
 
 @Composable
+private fun SettlementMethodCard(
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    modifier: Modifier,
+    onSelected: (Boolean) -> Unit,
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Surface(
+        modifier = modifier,
+        shape = shape,
+        color = if (selected) Orange.copy(alpha = 0.12f) else AppSurface,
+        border = BorderStroke(1.dp, if (selected) Orange else Border),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 52.dp)
+                .toggleable(value = selected, enabled = enabled, role = Role.Checkbox, onValueChange = onSelected)
+                .semantics { contentDescription = "فعال‌سازی $label" }
+                .padding(horizontal = 4.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(label, color = Ink, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+        }
+    }
+}
+
+@Composable
+private fun SettlementAmountField(label: String, amount: String, onAmount: (String) -> Unit) {
+    DesignField(
+        "$label — مبلغ (تومان)",
+        amount,
+        onAmount,
+        "مبلغ به تومان",
+        keyboardType = KeyboardType.Number,
+        transformation = SettlementAmountTransformation,
+        textDirection = TextDirection.Ltr,
+        textAlign = TextAlign.Right,
+    )
+}
+
+@Composable
 private fun SplitMethodRow(
     label: String,
     enabled: Boolean,
@@ -256,16 +318,7 @@ private fun SplitMethodRow(
             Text(label, color = Ink, modifier = Modifier.weight(1f))
         }
         if (enabled) {
-            DesignField(
-                "$label — مبلغ (تومان)",
-                amount,
-                onAmount,
-                "مبلغ به تومان",
-                keyboardType = KeyboardType.Number,
-                transformation = SettlementAmountTransformation,
-                textDirection = TextDirection.Ltr,
-                textAlign = TextAlign.Right,
-            )
+            SettlementAmountField(label, amount, onAmount)
         }
     }
 }
