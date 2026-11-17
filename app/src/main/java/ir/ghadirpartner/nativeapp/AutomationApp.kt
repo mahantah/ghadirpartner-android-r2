@@ -341,6 +341,7 @@ private fun AutomationOrderDialog(api: ApiClient, order: JSONObject, roles: Set<
             LazyColumn(modifier = Modifier.heightIn(max = 560.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { ErrorBanner(error) { error = "" } }
                 item { StaffOrderFollowup(api, order, roles, onFollowup) }
+                item { OrderShippingReceipts(api, order.i("id"), allowUpload = roles.any { it in setOf("admin", "sales", "prep", "finance") }) }
                 item { SimpleDropdown("وضعیت سفارش", status, statusOptions) { status = it } }
                 item { SimpleDropdown("وضعیت تسویه", payment, payOptions) { payment = it } }
                 if (status == "ارسال شد") {
