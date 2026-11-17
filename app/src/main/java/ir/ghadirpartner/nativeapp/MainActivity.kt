@@ -61,7 +61,6 @@ private fun NativeAppRoot() {
     var me by remember { mutableStateOf<JSONObject?>(null) }
     var authNonce by remember { mutableIntStateOf(0) }
     var biometricChecked by remember { mutableStateOf(false) }
-    var passwordVerified by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val biometricRequired=rememberBiometricEnabled(context,me?.s("username").orEmpty())
     DisposableEffect(context) {
@@ -75,14 +74,19 @@ private fun NativeAppRoot() {
 
     LaunchedEffect(authNonce) {
         checking = true
-        biometricChecked = passwordVerified
-        passwordVerified = false
+        biometricChecked = false
         me = try {
-            val current = api.me()
+            val current = if (api.hasSession()) api.me() else null
+            if (current == null) {
+                checking = false
+                return@LaunchedEffect
+            }
             if (api.modeAllowed(current)) current else {
                 api.logout()
                 null
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (_: Exception) { null }
         checking = false
     }
@@ -91,7 +95,7 @@ private fun NativeAppRoot() {
         checking -> SplashScreen()
         me == null -> LoginScreen(
             api = api,
-            onLoggedIn = { passwordVerified = true; authNonce++ }
+            onLoggedIn = { account -> biometricChecked = true; me = account }
         )
         api.isPortal -> Box {
             PortalApp(

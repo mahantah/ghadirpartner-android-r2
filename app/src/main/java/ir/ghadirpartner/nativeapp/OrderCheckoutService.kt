@@ -30,8 +30,13 @@ internal class OrderRepository(
     }
 
     /** Submit once; retries remain a deliberate customer action after an API failure. */
-    suspend fun create(checkout: OrderCheckout): JSONObject {
-        val body = withContext(Dispatchers.Default) { requestBody(checkout) }
+    suspend fun create(checkout: OrderCheckout, mode: String = "", paymentId: String = ""): JSONObject {
+        val body = withContext(Dispatchers.Default) {
+            requestBody(checkout).apply {
+                if (mode.isNotEmpty()) put("online_checkout_mode", mode)
+                if (paymentId.isNotEmpty()) put("online_checkout_id", paymentId)
+            }
+        }
         return api.post("/api/orders/add", body) as JSONObject
     }
 
@@ -83,11 +88,18 @@ internal class OrderCheckoutService(
             else -> settlementError(checkout.paymentMethod, checkout.settlement)
         }
 
+    /** Validate and price the draft before requesting the bank handoff. */
+    suspend fun preparePayment(checkout: OrderCheckout): JSONObject {
+        val error = validation(checkout)
+        require(error.isBlank()) { error }
+        return repository.create(checkout, "prepare")
+    }
+
     /** Validate again before sending the customer order for company review. */
-    suspend fun submit(checkout: OrderCheckout): JSONObject {
+    suspend fun submit(checkout: OrderCheckout, paymentId: String = ""): JSONObject {
         val error: String = validation(checkout)
         require(error.isBlank()) { error }
-        return repository.create(checkout)
+        return repository.create(checkout, if (checkout.settlement.b("cash_online") && checkout.settlement.b("cash_enabled")) "finalize" else "", paymentId)
     }
 }
 

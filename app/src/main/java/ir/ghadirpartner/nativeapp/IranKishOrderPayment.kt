@@ -5,12 +5,10 @@ import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -29,10 +27,22 @@ internal class IranKishOrderPayment(private val api: ApiClient) {
     suspend fun start(orderId: Int): Uri? {
         val response = action("start", orderId)
         if (response.b("confirmed")) return null
-        val id = response.s("id")
+        return launchUri(response.s("id"))
+    }
+
+    /** Open the bank using the server-issued opaque checkout ID. */
+    fun launchUri(id: String): Uri {
         require(id.matches(Regex("[a-f0-9]{20}"))) { "لینک پرداخت سفارش معتبر نیست." }
         return Uri.parse("${api.base}$path/launch").buildUpon().appendQueryParameter("id", id).build()
     }
+
+    /** Refresh the draft's payment without publishing an order. */
+    suspend fun recheckCheckout(id: String): JSONObject =
+        api.post(path, JSONObject().put("action", "recheck_checkout").put("checkout_id", id)) as JSONObject
+
+    /** Release a confirmed checkout that cannot be submitted. */
+    suspend fun returnCheckoutToWallet(id: String): Boolean =
+        (api.post(path, JSONObject().put("action", "return_checkout_to_wallet").put("checkout_id", id)) as JSONObject).b("credited")
 
     /** Reconcile the bank's confirmation with the original order. */
     suspend fun recheck(orderId: Int): JSONObject = action("recheck", orderId)
@@ -46,7 +56,6 @@ internal class IranKishOrderPayment(private val api: ApiClient) {
 internal fun IranKishOrderPaymentActions(
     api: ApiClient,
     order: JSONObject,
-    autoOpen: Boolean = false,
     onConfirmed: () -> Unit,
 ) {
     val saved = order.obj("irankish_order_payment")
@@ -66,7 +75,6 @@ internal fun IranKishOrderPaymentActions(
     val service = remember(api) { IranKishOrderPayment(api) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var autoOpened by rememberSaveable(orderId) { mutableStateOf(false) }
     var busy by remember(orderId) { mutableStateOf(false) }
     var message by remember(orderId) { mutableStateOf("") }
     suspend fun perform(open: Boolean) {
@@ -90,12 +98,6 @@ internal fun IranKishOrderPaymentActions(
             message = error.message ?: "دریافت وضعیت پرداخت ممکن نشد."
         } finally {
             busy = false
-        }
-    }
-    LaunchedEffect(orderId, autoOpen) {
-        if (autoOpen && !autoOpened) {
-            autoOpened = true
-            perform(true)
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
