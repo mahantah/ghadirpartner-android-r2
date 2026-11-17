@@ -251,7 +251,6 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                                 DetailLine("اقلام",orderItemsDescription(order))
                             }}
                             DesignNotice("سفارش برای بررسی شرکت ثبت شد. نتیجهٔ تأیید یا عدم تأیید را در مراحل سفارش می‌بینید.")
-                            IranKishOrderPaymentActions(api, order, autoOpen = true) { screen = "order-detail" }
                             GhadirButton("مشاهده سفارش",{screen="order-detail"})
                             GhadirButton("دریافت پیش‌فاکتور",{proformaOrigin="success";screen="proforma"},secondary=true)
                         }
@@ -335,6 +334,7 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
     var orders by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var ordersLoaded by remember { mutableStateOf(false) }
     var offers by remember { mutableStateOf(emptyList<JSONObject>()) }
     var stats by remember { mutableStateOf(JSONObject()) }
     var loadedAccount by remember {mutableStateOf(false)}
@@ -351,8 +351,21 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
             loading = true; error = ""
             try {
                 coroutineScope {
-                    val ordersReq = async { (api.get("/api/orders") as JSONArray).objects().sortedByDescending { it.i("id") } }
-                    val offersReq = async { (api.get("/api/offers") as JSONArray).objects().filterNot { it.b("used_by_customer") } }
+                    val ordersReq = async {
+                        (api.get("/api/orders") as JSONArray).objects().sortedByDescending { it.i("id") }.also {
+                            orders = it
+                            ordersLoaded = true
+                        }
+                    }
+                    launch {
+                        try {
+                            offers = (api.get("/api/offers") as JSONArray).objects().filterNot { it.b("used_by_customer") }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            // Offers have their own page and may be retried independently.
+                        }
+                    }
                     val statsReq = async {
                         try { api.get("/api/reports/customer-summary") as? JSONObject ?: JSONObject() }
                         catch(e: kotlinx.coroutines.CancellationException) { throw e }
@@ -367,8 +380,6 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
                     val loadedOrders = ordersReq.await()
                     val loadedStats = statsReq.await().takeIf { it.length() > 0 }
                         ?: customerSummaryFromOrders(loadedOrders)
-                    offers = offersReq.await()
-                    orders = loadedOrders
                     stats = loadedStats
                     loadedAccount = true
                     if (purchasedReq != null) {
@@ -389,8 +400,8 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
         }
     }
     LaunchedEffect(Unit) { refresh() }
-    if (loading) { LoadingPane(); return }
-    if(error.isNotBlank()&&!loadedAccount) {
+    if (showReport && loading) { LoadingPane(); return }
+    if(showReport && error.isNotBlank()&&!loadedAccount) {
         Column(Modifier.fillMaxSize().padding(horizontal=20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
             DesignState("اطلاعات حساب دریافت نشد","ارتباط با سرویس برقرار نشد. اتصال را بررسی کنید و دوباره تلاش کنید.",R.drawable.design_offline)
             GhadirButton("تلاش دوباره",{refresh()})
@@ -424,24 +435,30 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
     }
     val featured=offers.firstOrNull {it.s("title").contains("میکس")} ?: offers.firstOrNull()
     LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        if(error.isNotBlank())item {ErrorBanner(error){error=""};GhadirButton("تلاش دوباره",{refresh()})}
+        if(error.isNotBlank())item {
+            if (!ordersLoaded) DesignState("اطلاعات حساب دریافت نشد","ارتباط با سرویس برقرار نشد. اتصال را بررسی کنید و دوباره تلاش کنید.",R.drawable.design_offline)
+            else ErrorBanner(error){error=""}
+            GhadirButton("تلاش دوباره",{refresh()})
+        }
         item {Column(verticalArrangement=Arrangement.spacedBy(2.dp)) {
             Text("سلام، $customerName",color=Ink,fontSize=22.sp,lineHeight=36.sp,fontWeight=FontWeight.Bold)
             Text("خلاصه حساب شما",color=Muted,fontSize=14.sp,lineHeight=23.sp)
         }}
-        item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            DetailLine("سفارش در جریان",faNumber(orders.count {it.s("status") !in setOf("تحویل شد","لغو شد")})+" سفارش")
+        if (error.isBlank() || ordersLoaded) item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            DetailLine("سفارش در جریان",if(ordersLoaded) faNumber(orders.count {it.s("status") !in setOf("تحویل شد","لغو شد")})+" سفارش" else "—")
             HorizontalDivider(color=Border)
-            DetailLine("خرید این ماه",formatMoney(stats.obj("month").l("amount"))+" تومان")
+            DetailLine("خرید این ماه",if(loadedAccount) formatMoney(stats.obj("month").l("amount"))+" تومان" else "—")
         }}}
         item {GhadirButton("ثبت سفارش جدید",{navigate("new")})}
         item {DesignOfferHero(featured?.s("title")?:"طرح‌ها و آفرهای قدیر پارتنر",
             featured?.s("description")?.ifBlank {"شرایط و مدل‌های مشمول را ببینید."}
                 ?:"پیشنهادهای مجاز حساب شما در بخش آفرها نمایش داده می‌شوند.",
             "مشاهده آفر") {if(featured!=null)openOffer(featured.i("id")) else navigate("offers")}}
-        if(orders.isEmpty())item {
-            DesignState("هنوز سفارشی ندارید","پس از ثبت اولین سفارش، وضعیت و جزئیات آن را اینجا می‌بینید.",R.drawable.design_empty_orders)
-        } else item {DesignOrderCard(orders.first(),latest=true){openOrder(orders.first())}}
+        if (ordersLoaded) {
+            if (orders.isEmpty()) item {
+                DesignState("هنوز سفارشی ندارید","پس از ثبت اولین سفارش، وضعیت و جزئیات آن را اینجا می‌بینید.",R.drawable.design_empty_orders)
+            } else item { DesignOrderCard(orders.first(), latest = true) { openOrder(orders.first()) } }
+        }
     }
 }
 @Composable
@@ -761,6 +778,10 @@ private fun PortalNewOrder(
     val context=LocalContext.current
     // Receipt images can exceed Android's saved-instance-state transaction limit.
     val settlementSaver=remember(context) { cachedJsonSaver(context) }
+    var paymentId by rememberSaveable { mutableStateOf("") }
+    var paymentConfirmed by rememberSaveable { mutableStateOf(false) }
+    var browserOpened by rememberSaveable { mutableStateOf(false) }
+    var confirmWalletReturn by rememberSaveable { mutableStateOf(false) }
     var settlement by rememberSaveable(stateSaver=settlementSaver) {mutableStateOf(JSONObject())}
     var invoiceType by rememberSaveable {mutableStateOf("")}
     var notes by rememberSaveable {mutableStateOf("")}
@@ -779,7 +800,7 @@ private fun PortalNewOrder(
     LaunchedEffect(step) {listState.scrollToItem(0);onStageChanged(when(step){1->"تحویل و تسویه";2->"تأیید نهایی سفارش";else->"ثبت سفارش"})}
     var handledBackRequest by rememberSaveable { mutableIntStateOf(backRequest) }
     LaunchedEffect(backRequest) {
-        if(backRequest!=handledBackRequest&&step>0&&!submitting&&!evidenceBusy)step--
+        if(backRequest!=handledBackRequest&&step>0&&!submitting&&!evidenceBusy&&paymentId.isBlank()&&!paymentConfirmed)step--
         handledBackRequest=backRequest
     }
     BackHandler(submitting) { /* Keep the pending request alive until the server responds. */ }
@@ -790,7 +811,7 @@ private fun PortalNewOrder(
         }
     }
     LaunchedEffect(initialOfferCode) { if(initialOfferCode.isNotBlank()) { promoCode=initialOfferCode;appliedOffer=null } }
-    BackHandler(step>0||evidenceBusy) {if(!submitting&&!evidenceBusy)step--}
+    BackHandler(step>0||evidenceBusy) {if(!submitting&&!evidenceBusy&&paymentId.isBlank()&&!paymentConfirmed)step--}
     LaunchedEffect(retry) {
         loading=true;error=""
         try {
@@ -812,8 +833,11 @@ private fun PortalNewOrder(
     val subtotal=cart.sumOf {it.unit*it.qty}
     val discount=discountForOfferNative(appliedOffer,cart)
     val total=(subtotal-discount).coerceAtLeast(0L)
-    LaunchedEffect(cart,step,selectedAddressId,invoiceType,settlement,notes,promoCode,appliedOffer,total) {
-        if (revisionOrder == null) onDraftSnapshot(if(cart.isEmpty())null else checkoutDraftFromState(cart,step,selectedAddressId,invoiceType,settlement,notes,promoCode,appliedOffer))
+    LaunchedEffect(cart,step,selectedAddressId,invoiceType,settlement,notes,promoCode,appliedOffer,total,paymentId) {
+        if (revisionOrder == null) onDraftSnapshot(
+            if (cart.isEmpty()) null else checkoutDraftFromState(cart,step,selectedAddressId,invoiceType,settlement,notes,promoCode,appliedOffer)
+                .put("online_checkout_id", paymentId),
+        )
     }
     LaunchedEffect(total) {
         settlement=if(!settlement.b("split"))defaultSplitSettlement(total) else refreshSettlementTotals(settlement,total)
@@ -827,6 +851,7 @@ private fun PortalNewOrder(
             if (revisionOrder == null || currentPrice == null || currentPrice <= 0) line else line.copy(unit = currentPrice)
         }
         step=draft.optInt("step").coerceIn(0,2)
+        paymentId = draft.s("online_checkout_id")
         selectedAddressId=draft.s("selectedAddressId")
         invoiceType=draft.s("invoiceType")
         notes=draft.s("notes")
@@ -871,10 +896,49 @@ private fun PortalNewOrder(
             settlement=defaultSplitSettlement(total);error=""
         } catch(e:IllegalArgumentException) {error=e.message?:"تعداد نامعتبر است"}
     }
+    val orderPayment = remember(api) { IranKishOrderPayment(api) }
+
+    fun updatePayment() {
+        if (submitting || paymentId.isBlank() || paymentConfirmed) return
+        scope.launch {
+            submitting = true
+            error = ""
+            try {
+                val result = orderPayment.recheckCheckout(paymentId)
+                paymentConfirmed = result.b("confirmed")
+                if (!paymentConfirmed) {
+                    if (result.b("expired")) paymentId = ""
+                    error = "پرداخت هنوز تأیید نشده است."
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error = e.message ?: "بررسی وضعیت پرداخت ناموفق بود"
+            } finally {
+                submitting = false
+            }
+        }
+    }
+
+    val onPaymentResume by androidx.compose.runtime.rememberUpdatedState {
+        if (browserOpened) {
+            browserOpened = false
+            updatePayment()
+        }
+    }
+    DisposableEffect(context) {
+        val lifecycle = (context as FragmentActivity).lifecycle
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) onPaymentResume()
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+
     fun submit() {
         if(submitting)return
         if(addressText.isBlank()){error="نشانی تحویل را انتخاب کنید";step=1;return}
-        if(cart.any {line -> val p=products.firstOrNull {it.s("name")==line.product};p==null||!catalogInStock(p)||cart.filter{it.product==line.product}.sumOf{it.qty.toLong()}>p.i("stock")}) {
+        if(!paymentConfirmed && cart.any {line -> val p=products.firstOrNull {it.s("name")==line.product};p==null||!catalogInStock(p)||cart.filter{it.product==line.product}.sumOf{it.qty.toLong()}>p.i("stock")}) {
             error="موجودی سبد را دوباره بررسی کنید";step=0;return
         }
         val validation=checkoutService.validation(checkout())
@@ -883,7 +947,29 @@ private fun PortalNewOrder(
         scope.launch {
             submitting=true;error=""
             try {
-                val order=checkoutService.submit(checkout())
+                val reviewed = checkout()
+                val online = reviewed.settlement.b("cash_online") && reviewed.settlement.b("cash_enabled")
+                if (online && !paymentConfirmed) {
+                    if (paymentId.isNotBlank()) {
+                        val existing = orderPayment.recheckCheckout(paymentId)
+                        paymentConfirmed = existing.b("confirmed")
+                        if (existing.b("expired")) paymentId = ""
+                    }
+                    if (paymentId.isBlank() && !paymentConfirmed) {
+                        val result = checkoutService.preparePayment(reviewed)
+                        paymentId = result.s("checkout_id")
+                        paymentConfirmed = result.b("confirmed")
+                    }
+                    if (!paymentConfirmed) {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, orderPayment.launchUri(paymentId))
+                            .addCategory(android.content.Intent.CATEGORY_BROWSABLE)
+                        context.startActivity(intent)
+                        browserOpened = true
+                    }
+                    return@launch
+                }
+                val order=checkoutService.submit(reviewed, if (online) paymentId else "")
+                paymentId = ""; paymentConfirmed = false; browserOpened = false
                 cart=emptyList();step=0;settlement=defaultSplitSettlement(0);notes="";promoCode="";appliedOffer=null
                 selected=null;selectedAddressId="";invoiceType="";optionSheet="";promoMessage=""
                 onSuccess(order)
@@ -904,6 +990,7 @@ private fun PortalNewOrder(
                     val restoredTotal=restored.sumOf{it.unit*it.qty}.coerceAtLeast(0L)
                     cart=restored
                     step=abandonedBanner.optInt("step").coerceIn(0,2)
+                    paymentId = abandonedBanner.s("online_checkout_id")
                     selectedAddressId=abandonedBanner.s("selectedAddressId")
                     invoiceType=abandonedBanner.s("invoiceType")
                     notes=abandonedBanner.s("notes")
@@ -1031,13 +1118,58 @@ private fun PortalNewOrder(
                                 PaymentProofSelection.set(next, kind, files.filterIndexed { i, _ -> i != index }.map { it.data })
                             }
                         },
-                        enabled = !submitting,
+                        enabled = !submitting && paymentId.isBlank() && !paymentConfirmed,
                     )
                 }
             }
-            item {GhadirButton(if(submitting)"در حال ثبت…" else if(revisionOrder!=null)"ارسال سفارش اصلاح‌شده" else if(settlement.b("cash_online") && settlement.b("cash_enabled")) "ثبت سفارش و ادامه به پرداخت" else "تأیید و ثبت نهایی",{submit()},enabled=!submitting&&cart.isNotEmpty())}
-            item {GhadirButton("بازگشت و ویرایش",{step=0},secondary=true,enabled=!submitting)}
+            val online = settlement.b("cash_online") && settlement.b("cash_enabled")
+            if (online && paymentConfirmed) item {
+                DesignNotice("پرداخت آنلاین تأیید شد. اکنون سفارش را ثبت کنید.")
+                if (paymentId.isNotBlank() && error.isNotBlank()) {
+                    GhadirButton("برگشت مبلغ به کیف پول", { confirmWalletReturn = true }, enabled = !submitting, secondary = true)
+                }
+            }
+            if (online && paymentId.isNotBlank() && !paymentConfirmed) item {
+                GhadirButton("بررسی نتیجه پرداخت", { updatePayment() }, enabled = !submitting, secondary = true)
+            }
+            val submitLabel = when {
+                submitting -> "در حال پردازش…"
+                online && !paymentConfirmed -> "پرداخت آنلاین"
+                revisionOrder != null -> "ارسال سفارش اصلاح‌شده"
+                else -> "تأیید و ثبت نهایی"
+            }
+            item { GhadirButton(submitLabel, { submit() }, enabled = !submitting && cart.isNotEmpty()) }
+            item { GhadirButton("بازگشت و ویرایش", { step=0 }, secondary = true, enabled = !submitting && paymentId.isBlank() && !paymentConfirmed) }
         }
+    }
+    if (confirmWalletReturn) {
+        AlertDialog(
+            onDismissRequest = { confirmWalletReturn = false },
+            title = { Text("برگشت مبلغ به کیف پول") },
+            text = { Text("سفارش ثبت نمی‌شود و مبلغ پرداخت‌شده به موجودی کیف پول شما اضافه می‌شود.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmWalletReturn = false
+                    scope.launch {
+                        submitting = true
+                        try {
+                            check(orderPayment.returnCheckoutToWallet(paymentId))
+                            paymentId = ""; paymentConfirmed = false; browserOpened = false
+                            error = ""
+                            step = 1
+                            android.widget.Toast.makeText(context, "مبلغ به کیف پول اضافه شد.", android.widget.Toast.LENGTH_LONG).show()
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            error = e.message ?: "برگشت مبلغ ناموفق بود."
+                        } finally {
+                            submitting = false
+                        }
+                    }
+                }) { Text("تأیید برگشت مبلغ") }
+            },
+            dismissButton = { TextButton(onClick = { confirmWalletReturn = false }) { Text("انصراف") } },
+        )
     }
     if(optionSheet.isNotBlank()) {
         ModalBottomSheet(onDismissRequest={optionSheet=""},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),containerColor=AppSurface) {

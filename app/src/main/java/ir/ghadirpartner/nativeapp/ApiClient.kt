@@ -196,6 +196,9 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
         memoryCache.clear()
     }
 
+    /** Check for a local session before attempting startup authentication. */
+    internal fun hasSession(): Boolean = cookieJar.loadForRequest(urlFor("/api/me")).isNotEmpty()
+
     suspend fun me(): JSONObject = get("/api/me") as JSONObject
 
     suspend fun downloadFile(path: String, fileName: String, mimeType: String): String = withContext(Dispatchers.IO) {

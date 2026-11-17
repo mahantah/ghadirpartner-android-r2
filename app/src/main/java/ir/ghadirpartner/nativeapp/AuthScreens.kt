@@ -53,7 +53,7 @@ fun SplashScreen() {
 }
 
 @Composable
-fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
+fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
     val scope=rememberCoroutineScope()
     val pageScroll=rememberScrollState()
     val context=androidx.compose.ui.platform.LocalContext.current
@@ -95,7 +95,7 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
                                 }
                                 require(identity.isBlank()||account.s("username")==canonicalPortalIdentity(identity)){"شماره واردشده با نشست فعلی یکسان نیست؛ با رمز یا کد وارد شوید."}
                                 require(api.modeAllowed(account)&&biometricEnabled(context,account.s("username"))){"ابتدا با رمز یا کد پیامکی وارد شوید و ورود بیومتریک را در پروفایل فعال کنید."}
-                                onLoggedIn()
+                                onLoggedIn(account)
                             }catch(e:kotlinx.coroutines.CancellationException){throw e}
                             catch(e:Exception){biometricFailed=true;error=e.message?:"نشست شما منقضی شده است؛ با رمز یا کد پیامکی وارد شوید."}
                         }
@@ -160,7 +160,7 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
                                 api.post("/api/native/login-otp/confirm",JSONObject().put("mobile",identity).put("otp",otp))
                                 val account=api.me()
                                 if(!api.modeAllowed(account)){api.logout();throw ApiException(403,api.modeError())}
-                                onLoggedIn()
+                                onLoggedIn(account)
                             }catch(e:kotlinx.coroutines.CancellationException){throw e}
                             catch(e:Exception){error=e.message?:"کد تأیید نشد"}finally{loading=false}
                         }
@@ -197,7 +197,7 @@ fun LoginScreen(api:ApiClient,onLoggedIn:()->Unit) {
                             val authenticated=api.login(identity,password)
                             val savedIdentity=authenticated.s("username").ifBlank{identity.trim()}
                             if(rememberLogin)try{loginStore.save(savedIdentity,password)}catch(_:Exception){loginStore.clear();rememberLogin=false;android.widget.Toast.makeText(context,"ورود انجام شد؛ ذخیرهٔ رمز روی این دستگاه ممکن نبود.",android.widget.Toast.LENGTH_LONG).show()} else loginStore.clear()
-                            onLoggedIn()
+                            onLoggedIn(authenticated)
                         }
                             catch(e:kotlinx.coroutines.CancellationException){throw e}
                             catch(e:Exception){error=e.message?:"ورود ناموفق بود"}finally{loading=false}}
