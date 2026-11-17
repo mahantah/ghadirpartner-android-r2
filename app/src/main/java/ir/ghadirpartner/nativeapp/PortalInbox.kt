@@ -99,11 +99,11 @@ class PortalInboxState(private val api:ApiClient,context:android.content.Context
         try {
             val staff = owned.filter { it.startsWith("staff:") }
             if (staff.isNotEmpty()) {
-                api.post("/api/notifications/staff/read", JSONObject().put("ids", JSONArray(staff)))
+                api.request("POST", "/api/notifications/staff/read", JSONObject().put("ids", JSONArray(staff)))
             }
             val activity = owned - staff.toSet()
             if(!localMode && activity.isNotEmpty())try {
-                api.post("/api/notifications/read",JSONObject().put("ids",JSONArray(activity)))
+                api.request("POST", "/api/notifications/read",JSONObject().put("ids",JSONArray(activity)))
             }catch(e:ApiException){if(e.status !in setOf(404,405,501))throw e}
             locallyRead=(locallyRead+owned).takeLastSet(1000)
             prefs?.edit()?.putStringSet(readKey,locallyRead)?.apply()

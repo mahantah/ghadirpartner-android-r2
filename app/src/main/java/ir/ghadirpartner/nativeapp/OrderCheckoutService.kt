@@ -1,5 +1,7 @@
 package ir.ghadirpartner.nativeapp
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -29,6 +31,11 @@ internal class OrderRepository(
 
     /** Submit once; retries remain a deliberate customer action after an API failure. */
     suspend fun create(checkout: OrderCheckout): JSONObject {
+        val body = withContext(Dispatchers.Default) { requestBody(checkout) }
+        return api.post("/api/orders/add", body) as JSONObject
+    }
+
+    private fun requestBody(checkout: OrderCheckout): JSONObject {
         val items: JSONArray = JSONArray()
         checkout.lines.forEach { line ->
             val item = JSONObject().put("product", line.product).put("qty", line.qty).put("price_key", line.priceKey)
@@ -51,7 +58,7 @@ internal class OrderRepository(
         if (checkout.revisionOrderId > 0) {
             body.put("revision_order_id", checkout.revisionOrderId).put("revision_version", checkout.revisionVersion)
         }
-        return api.post("/api/orders/add", body) as JSONObject
+        return body
     }
 }
 
