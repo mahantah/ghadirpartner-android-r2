@@ -42,6 +42,8 @@ internal fun CustomerWallet(api: ApiClient) {
     val scope = rememberCoroutineScope()
     var onlineTopUp by remember(api) { mutableStateOf(false) }
     var retry by remember(api) { mutableIntStateOf(0) }
+    var attemptAmount by rememberSaveable { mutableStateOf(0L) }
+    var creditedAmount by rememberSaveable { mutableStateOf<Long?>(null) }
 
     suspend fun refresh() {
         error = ""
@@ -77,12 +79,17 @@ internal fun CustomerWallet(api: ApiClient) {
             paymentError = ""
             try {
                 val result = topUps.recheck(attemptId)
+                val credited = result.b("credited")
+                if (credited) creditedAmount = attemptAmount
                 paymentMessage = when {
-                    result.b("credited") -> "مبلغ به کیف پول اضافه شد."
+                    credited -> ""
                     result.b("failed") -> "شارژ کیف پول ناموفق بود."
                     else -> "شارژ کیف پول هنوز تأیید نشده است."
                 }
-                if (result.b("credited") || result.b("failed") || result.b("expired")) attemptId = ""
+                if (credited || result.b("failed") || result.b("expired")) {
+                    attemptId = ""
+                    attemptAmount = 0L
+                }
                 refresh()
             } catch (failure: CancellationException) {
                 throw failure
@@ -119,7 +126,9 @@ internal fun CustomerWallet(api: ApiClient) {
                         try {
                             val id = topUps.start(amount)
                             val uri = topUps.launchUri(id)
+                            attemptAmount = amount
                             attemptId = id
+                            creditedAmount = null
                             topUpDialog = false
                             gateway.launch(IranKishPaymentActivity.intent(context, uri))
                         } catch (failure: CancellationException) {
@@ -138,6 +147,7 @@ internal fun CustomerWallet(api: ApiClient) {
     }
     GlassSurface {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            creditedAmount?.let { PaymentSuccessCard(it, message = "مبلغ به کیف پول اضافه شد") }
             val snapshot = account
             if (snapshot == null) {
                 Text(error.ifBlank { "در حال دریافت کیف پول…" }, color = if (error.isBlank()) Muted else Danger)

@@ -793,6 +793,10 @@ private fun PortalNewOrder(
         if(settlement.b("restore_failed")){step=1;error="اطلاعات تسویه بازیابی نشد؛ لطفاً دوباره تکمیل کنید.";settlement=defaultSplitSettlement(0L)}
     }
     var restoreApplied by rememberSaveable {mutableStateOf(false)}
+    var checkoutPaymentAmount by rememberSaveable { mutableStateOf(0L) }
+    LaunchedEffect(paymentConfirmed) {
+        if (paymentConfirmed) listState.scrollToItem(0)
+    }
     LaunchedEffect(submitting,evidenceBusy){onBusyChanged(submitting||evidenceBusy)}
     DisposableEffect(Unit){onDispose{onBusyChanged(false)}}
     LaunchedEffect(error) {if(error.isNotBlank())listState.scrollToItem(0)}
@@ -900,7 +904,10 @@ private fun PortalNewOrder(
                 val result = orderPayment.recheckCheckout(paymentId)
                 paymentConfirmed = result.b("confirmed")
                 if (!paymentConfirmed) {
-                    if (result.b("expired") || result.b("failed")) paymentId = ""
+                    if (result.b("expired") || result.b("failed")) {
+                        paymentId = ""
+                        checkoutPaymentAmount = 0L
+                    }
                     error = if (result.b("failed")) "پرداخت ناموفق بود. می‌توانید سفارش را ویرایش کنید." else "پرداخت هنوز تأیید نشده است."
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -931,6 +938,7 @@ private fun PortalNewOrder(
                     error = "پرداخت تأیید شد. اکنون سفارش را ثبت کنید."
                 } else {
                     paymentId = ""
+                    checkoutPaymentAmount = 0L
                     error = ""
                     step = nextStep
                 }
@@ -969,11 +977,15 @@ private fun PortalNewOrder(
                     if (paymentId.isNotBlank()) {
                         val existing = orderPayment.recheckCheckout(paymentId)
                         paymentConfirmed = existing.b("confirmed")
-                        if (existing.b("expired") || existing.b("failed")) paymentId = ""
+                        if (!paymentConfirmed && (existing.b("expired") || existing.b("failed"))) {
+                            paymentId = ""
+                            checkoutPaymentAmount = 0L
+                        }
                     }
                     if (paymentId.isBlank() && !paymentConfirmed) {
                         val result = checkoutService.preparePayment(reviewed)
                         paymentId = result.s("checkout_id")
+                        checkoutPaymentAmount = reviewed.settlement.l("cash_amount")
                         paymentConfirmed = result.b("confirmed")
                     }
                     if (!paymentConfirmed) {
@@ -982,7 +994,7 @@ private fun PortalNewOrder(
                     return@launch
                 }
                 val order=checkoutService.submit(reviewed, if (online) paymentId else "")
-                paymentId = ""; paymentConfirmed = false
+                paymentId = ""; checkoutPaymentAmount = 0L; paymentConfirmed = false
                 cart=emptyList();step=0;settlement=defaultSplitSettlement(0);notes="";promoCode="";appliedOffer=null
                 selected=null;selectedAddressId="";invoiceType="";optionSheet="";promoMessage=""
                 onSuccess(order)
@@ -1104,6 +1116,26 @@ private fun PortalNewOrder(
             },enabled=!evidenceBusy)}
             item {GhadirButton("بازگشت و ویرایش",{step=0},secondary=true)}
         } else {
+            val online = settlement.b("cash_online") && settlement.b("cash_enabled")
+            val showPaymentSuccess = online && paymentConfirmed
+            val submitLabel = when {
+                submitting -> "در حال پردازش…"
+                online && !paymentConfirmed -> "پرداخت آنلاین"
+                revisionOrder != null -> "ارسال سفارش اصلاح‌شده"
+                else -> "تأیید و ثبت نهایی"
+            }
+            if (showPaymentSuccess) {
+                item(key = "checkout-payment-success") {
+                    PaymentSuccessCard(checkoutPaymentAmount) {
+                        GhadirButton(submitLabel, { submit() }, enabled = !submitting && cart.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth())
+                        if (paymentId.isNotBlank() && error.isNotBlank()) {
+                            GhadirButton("برگشت مبلغ به کیف پول", { confirmWalletReturn = true },
+                                enabled = !submitting, secondary = true)
+                        }
+                    }
+                }
+            }
             item {DesignNotice("سفارش را نهایی می‌کنید؟\n\nمدل، تعداد، نشانی و روش تسویه را بررسی کنید. پس از ثبت، سفارش در انتظار تأیید شرکت قرار می‌گیرد و نتیجه در مراحل سفارش نمایش داده می‌شود.")}
             item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                 Text("بررسی سفارش",color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold)
@@ -1135,23 +1167,12 @@ private fun PortalNewOrder(
                     )
                 }
             }
-            val online = settlement.b("cash_online") && settlement.b("cash_enabled")
-            if (online && paymentConfirmed) item {
-                DesignNotice("پرداخت آنلاین تأیید شد. اکنون سفارش را ثبت کنید.")
-                if (paymentId.isNotBlank() && error.isNotBlank()) {
-                    GhadirButton("برگشت مبلغ به کیف پول", { confirmWalletReturn = true }, enabled = !submitting, secondary = true)
-                }
-            }
             if (online && paymentId.isNotBlank() && !paymentConfirmed) item {
                 GhadirButton("بررسی نتیجه پرداخت", { updatePayment() }, enabled = !submitting, secondary = true)
             }
-            val submitLabel = when {
-                submitting -> "در حال پردازش…"
-                online && !paymentConfirmed -> "پرداخت آنلاین"
-                revisionOrder != null -> "ارسال سفارش اصلاح‌شده"
-                else -> "تأیید و ثبت نهایی"
+            if (!showPaymentSuccess) item {
+                GhadirButton(submitLabel, { submit() }, enabled = !submitting && cart.isNotEmpty())
             }
-            item { GhadirButton(submitLabel, { submit() }, enabled = !submitting && cart.isNotEmpty()) }
             item { GhadirButton("بازگشت و ویرایش", { editOrder(0) }, secondary = true, enabled = !submitting && !paymentConfirmed) }
         }
     }
@@ -1167,7 +1188,7 @@ private fun PortalNewOrder(
                         submitting = true
                         try {
                             check(orderPayment.returnCheckoutToWallet(paymentId))
-                            paymentId = ""; paymentConfirmed = false
+                            paymentId = ""; checkoutPaymentAmount = 0L; paymentConfirmed = false
                             error = ""
                             step = 1
                             android.widget.Toast.makeText(context, "مبلغ به کیف پول اضافه شد.", android.widget.Toast.LENGTH_LONG).show()
