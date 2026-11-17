@@ -635,6 +635,7 @@ private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->
             if (correction.s("status") != "requested") item { OrderProofActions(api, order) { refreshOrder() } }
             item { CustomerCreditRepayment(api, order) }
             item {OrderDeliveryTimeline(order.s("status"),order.s("approval_status"))}
+            item(key = "shipping-receipts") { OrderShippingReceipts(api, order.i("id")) }
             item {GhadirButton(if(refreshing)"در حال به‌روزرسانی…" else "به‌روزرسانی وضعیت",{refreshOrder()},enabled=!refreshing,secondary=true)}
             if(order.s("rejection_reason").isNotBlank())item {DesignNotice("علت عدم تأیید شرکت\n\n"+order.s("rejection_reason"))}
             item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
