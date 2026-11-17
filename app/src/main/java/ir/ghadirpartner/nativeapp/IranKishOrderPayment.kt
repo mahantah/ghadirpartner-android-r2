@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -64,17 +65,23 @@ internal fun IranKishOrderPaymentActions(
     val saved = order.obj("irankish_order_payment")
     val amount = saved.l("amount")
     if (amount <= 0L) return
+    val orderId = order.i("id")
     val receipt = saved.obj("receipt")
-    if (receipt.l("amount") > 0L) {
+    val receiptAmount = receipt.l("amount")
+    var justConfirmed by rememberSaveable(orderId) { mutableStateOf(false) }
+    if (justConfirmed || receiptAmount > 0L) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            DetailLine("پرداخت تأییدشده ایران‌کیش", formatMoney(receipt.l("amount")) + " تومان")
-            DetailLine("شماره پیگیری", faDigits(receipt.s("reference")))
+            if (justConfirmed) {
+                PaymentSuccessCard(receiptAmount.takeIf { it > 0L } ?: amount)
+            } else {
+                DetailLine("پرداخت تأییدشده ایران‌کیش", formatMoney(receiptAmount) + " تومان")
+            }
+            if (receiptAmount > 0L) DetailLine("شماره پیگیری", faDigits(receipt.s("reference")))
         }
         return
     }
     if (order.s("status") !in listOf("در انتظار تأیید سفارش", "ثبت شده")) return
 
-    val orderId = order.i("id")
     val service = remember(api) { IranKishOrderPayment(api) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -85,8 +92,12 @@ internal fun IranKishOrderPaymentActions(
         busy = true
         message = ""
         try {
-            if (service.recheck(orderId).obj("receipt").l("amount") > 0L) onConfirmed()
-            else message = "پرداخت هنوز تأیید نشده است."
+            if (service.recheck(orderId).obj("receipt").l("amount") > 0L) {
+                justConfirmed = true
+                onConfirmed()
+            } else {
+                message = "پرداخت هنوز تأیید نشده است."
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
@@ -104,7 +115,12 @@ internal fun IranKishOrderPaymentActions(
         message = ""
         try {
             val uri = service.start(orderId)
-            if (uri == null) onConfirmed() else gateway.launch(IranKishPaymentActivity.intent(context, uri))
+            if (uri == null) {
+                justConfirmed = true
+                onConfirmed()
+            } else {
+                gateway.launch(IranKishPaymentActivity.intent(context, uri))
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
