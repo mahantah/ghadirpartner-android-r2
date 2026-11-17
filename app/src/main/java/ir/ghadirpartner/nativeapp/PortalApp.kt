@@ -780,7 +780,6 @@ private fun PortalNewOrder(
     val settlementSaver=remember(context) { cachedJsonSaver(context) }
     var paymentId by rememberSaveable { mutableStateOf("") }
     var paymentConfirmed by rememberSaveable { mutableStateOf(false) }
-    var browserOpened by rememberSaveable { mutableStateOf(false) }
     var confirmWalletReturn by rememberSaveable { mutableStateOf(false) }
     var settlement by rememberSaveable(stateSaver=settlementSaver) {mutableStateOf(JSONObject())}
     var invoiceType by rememberSaveable {mutableStateOf("")}
@@ -798,11 +797,6 @@ private fun PortalNewOrder(
     DisposableEffect(Unit){onDispose{onBusyChanged(false)}}
     LaunchedEffect(error) {if(error.isNotBlank())listState.scrollToItem(0)}
     LaunchedEffect(step) {listState.scrollToItem(0);onStageChanged(when(step){1->"تحویل و تسویه";2->"تأیید نهایی سفارش";else->"ثبت سفارش"})}
-    var handledBackRequest by rememberSaveable { mutableIntStateOf(backRequest) }
-    LaunchedEffect(backRequest) {
-        if(backRequest!=handledBackRequest&&step>0&&!submitting&&!evidenceBusy&&paymentId.isBlank()&&!paymentConfirmed)step--
-        handledBackRequest=backRequest
-    }
     BackHandler(submitting) { /* Keep the pending request alive until the server responds. */ }
     LaunchedEffect(initialProduct,products) {
         if(initialProduct.isNotBlank()&&products.isNotEmpty()) {
@@ -811,7 +805,6 @@ private fun PortalNewOrder(
         }
     }
     LaunchedEffect(initialOfferCode) { if(initialOfferCode.isNotBlank()) { promoCode=initialOfferCode;appliedOffer=null } }
-    BackHandler(step>0||evidenceBusy) {if(!submitting&&!evidenceBusy&&paymentId.isBlank()&&!paymentConfirmed)step--}
     LaunchedEffect(retry) {
         loading=true;error=""
         try {
@@ -907,8 +900,8 @@ private fun PortalNewOrder(
                 val result = orderPayment.recheckCheckout(paymentId)
                 paymentConfirmed = result.b("confirmed")
                 if (!paymentConfirmed) {
-                    if (result.b("expired")) paymentId = ""
-                    error = "پرداخت هنوز تأیید نشده است."
+                    if (result.b("expired") || result.b("failed")) paymentId = ""
+                    error = if (result.b("failed")) "پرداخت ناموفق بود. می‌توانید سفارش را ویرایش کنید." else "پرداخت هنوز تأیید نشده است."
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -920,20 +913,43 @@ private fun PortalNewOrder(
         }
     }
 
-    val onPaymentResume by androidx.compose.runtime.rememberUpdatedState {
-        if (browserOpened) {
-            browserOpened = false
-            updatePayment()
+    val gateway = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+    ) { updatePayment() }
+
+    fun editOrder(nextStep: Int) {
+        if (submitting || evidenceBusy || paymentConfirmed) return
+        if (paymentId.isBlank()) {
+            step = nextStep
+            return
+        }
+        scope.launch {
+            submitting = true
+            try {
+                paymentConfirmed = orderPayment.releaseCheckout(paymentId)
+                if (paymentConfirmed) {
+                    error = "پرداخت تأیید شد. اکنون سفارش را ثبت کنید."
+                } else {
+                    paymentId = ""
+                    error = ""
+                    step = nextStep
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error = e.message ?: "بازگشت به ویرایش ممکن نشد."
+            } finally {
+                submitting = false
+            }
         }
     }
-    DisposableEffect(context) {
-        val lifecycle = (context as FragmentActivity).lifecycle
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) onPaymentResume()
-        }
-        lifecycle.addObserver(observer)
-        onDispose { lifecycle.removeObserver(observer) }
+
+    var handledBackRequest by rememberSaveable { mutableIntStateOf(backRequest) }
+    LaunchedEffect(backRequest) {
+        if (backRequest != handledBackRequest && step > 0) editOrder(step - 1)
+        handledBackRequest=backRequest
     }
+    BackHandler(step > 0 || evidenceBusy) { if (step > 0) editOrder(step - 1) }
 
     fun submit() {
         if(submitting)return
@@ -953,7 +969,7 @@ private fun PortalNewOrder(
                     if (paymentId.isNotBlank()) {
                         val existing = orderPayment.recheckCheckout(paymentId)
                         paymentConfirmed = existing.b("confirmed")
-                        if (existing.b("expired")) paymentId = ""
+                        if (existing.b("expired") || existing.b("failed")) paymentId = ""
                     }
                     if (paymentId.isBlank() && !paymentConfirmed) {
                         val result = checkoutService.preparePayment(reviewed)
@@ -961,15 +977,12 @@ private fun PortalNewOrder(
                         paymentConfirmed = result.b("confirmed")
                     }
                     if (!paymentConfirmed) {
-                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, orderPayment.launchUri(paymentId))
-                            .addCategory(android.content.Intent.CATEGORY_BROWSABLE)
-                        context.startActivity(intent)
-                        browserOpened = true
+                        gateway.launch(IranKishPaymentActivity.intent(context, orderPayment.launchUri(paymentId)))
                     }
                     return@launch
                 }
                 val order=checkoutService.submit(reviewed, if (online) paymentId else "")
-                paymentId = ""; paymentConfirmed = false; browserOpened = false
+                paymentId = ""; paymentConfirmed = false
                 cart=emptyList();step=0;settlement=defaultSplitSettlement(0);notes="";promoCode="";appliedOffer=null
                 selected=null;selectedAddressId="";invoiceType="";optionSheet="";promoMessage=""
                 onSuccess(order)
@@ -1139,7 +1152,7 @@ private fun PortalNewOrder(
                 else -> "تأیید و ثبت نهایی"
             }
             item { GhadirButton(submitLabel, { submit() }, enabled = !submitting && cart.isNotEmpty()) }
-            item { GhadirButton("بازگشت و ویرایش", { step=0 }, secondary = true, enabled = !submitting && paymentId.isBlank() && !paymentConfirmed) }
+            item { GhadirButton("بازگشت و ویرایش", { editOrder(0) }, secondary = true, enabled = !submitting && !paymentConfirmed) }
         }
     }
     if (confirmWalletReturn) {
@@ -1154,7 +1167,7 @@ private fun PortalNewOrder(
                         submitting = true
                         try {
                             check(orderPayment.returnCheckoutToWallet(paymentId))
-                            paymentId = ""; paymentConfirmed = false; browserOpened = false
+                            paymentId = ""; paymentConfirmed = false
                             error = ""
                             step = 1
                             android.widget.Toast.makeText(context, "مبلغ به کیف پول اضافه شد.", android.widget.Toast.LENGTH_LONG).show()
