@@ -1,4 +1,4 @@
-name: Build exact Ghadir Partner r5.36 source
+name: Build exact Ghadir Partner r5.39 source
 on:
   pull_request:
     branches: [main]
@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: '148fb534ddf539c14037f8a858eb879ecc00d265'
+          ref: '61bea15d7fe76fea4da15720a525864a34472b05'
           persist-credentials: false
       - uses: actions/setup-java@v4
         with:
@@ -69,7 +69,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: '148fb534ddf539c14037f8a858eb879ecc00d265'
+          ref: '61bea15d7fe76fea4da15720a525864a34472b05'
           persist-credentials: false
       - uses: actions/setup-java@v4
         with:
