@@ -1,6 +1,5 @@
 package ir.ghadirpartner.nativeapp
 
-import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,7 +15,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-/** Bridge the order's authenticated API to the bank in the system browser. */
+/** Bridge the order's authenticated API to the bank in the app payment screen. */
 internal class IranKishOrderPayment(private val api: ApiClient) {
     private val path = "/api/orders/irankish"
 
@@ -39,6 +38,10 @@ internal class IranKishOrderPayment(private val api: ApiClient) {
     /** Refresh the draft's payment without publishing an order. */
     suspend fun recheckCheckout(id: String): JSONObject =
         api.post(path, JSONObject().put("action", "recheck_checkout").put("checkout_id", id)) as JSONObject
+
+    /** Unlock an unpaid draft while retaining a possible late bank transfer. */
+    suspend fun releaseCheckout(id: String): Boolean =
+        (api.post(path, JSONObject().put("action", "release_checkout").put("checkout_id", id)) as JSONObject).b("confirmed")
 
     /** Release a confirmed checkout that cannot be submitted. */
     suspend fun returnCheckoutToWallet(id: String): Boolean =
@@ -77,21 +80,31 @@ internal fun IranKishOrderPaymentActions(
     val scope = rememberCoroutineScope()
     var busy by remember(orderId) { mutableStateOf(false) }
     var message by remember(orderId) { mutableStateOf("") }
-    suspend fun perform(open: Boolean) {
+    suspend fun recheckPayment() {
         if (busy) return
         busy = true
         message = ""
         try {
-            if (open) {
-                val uri = service.start(orderId)
-                if (uri == null) onConfirmed() else {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE))
-                }
-            } else {
-                val result = service.recheck(orderId)
-                if (result.obj("receipt").l("amount") > 0L) onConfirmed()
-                else message = "پرداخت هنوز تأیید نشده است."
-            }
+            if (service.recheck(orderId).obj("receipt").l("amount") > 0L) onConfirmed()
+            else message = "پرداخت هنوز تأیید نشده است."
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            message = error.message ?: "دریافت وضعیت پرداخت ممکن نشد."
+        } finally {
+            busy = false
+        }
+    }
+    val gateway = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+    ) { scope.launch { recheckPayment() } }
+    suspend fun openPayment() {
+        if (busy) return
+        busy = true
+        message = ""
+        try {
+            val uri = service.start(orderId)
+            if (uri == null) onConfirmed() else gateway.launch(IranKishPaymentActivity.intent(context, uri))
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
@@ -102,8 +115,8 @@ internal fun IranKishOrderPaymentActions(
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         DetailLine("مبلغ پرداخت آنلاین", formatMoney(amount) + " تومان")
-        GhadirButton("پرداخت با ایران‌کیش", { scope.launch { perform(true) } }, enabled = !busy)
-        GhadirButton("بررسی نتیجه پرداخت", { scope.launch { perform(false) } }, enabled = !busy, secondary = true)
+        GhadirButton("پرداخت با ایران‌کیش", { scope.launch { openPayment() } }, enabled = !busy)
+        GhadirButton("بررسی نتیجه پرداخت", { scope.launch { recheckPayment() } }, enabled = !busy, secondary = true)
         if (message.isNotBlank()) DesignNotice(message)
     }
 }
