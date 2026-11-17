@@ -74,6 +74,12 @@ class DesignFlowTest {
         val payload=when(path) {
             "/api/me"->me.toString()
             "/api/orders"->"[$order]"
+            "/api/order-shipping-receipts"->"""{"order_id":1024,"receipts":[{"id":"shipping-fixture","carrier":"کالارسان","tracking_code":"TEST-42","note":"رسید ارسال نمونه","created_at":"2026-11-17","files":[{"proof_token":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proof_mime":"image/png","note":""}]}]}"""
+            "/api/order-shipping-receipts/document"->{
+                assertEquals("1024",request.url.queryParameter("order_id"))
+                assertEquals("a".repeat(48),request.url.queryParameter("token"))
+                """{"mime":"image/png","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jQ1sAAAAASUVORK5CYII="}"""
+            }
             "/api/orders/add"->JSONObject(order.toString()).put("id",1001).put("number","GHP-MOCK-1001").put("status","ثبت شد").toString()
             "/api/offers"->"""[{"id":3,"title":"قدیر میکس؛ خرید ترکیبی","description":"پیشنهاد ویژه برای همکاران؛ شرایط و مدل‌های مشمول را ببینید.","discount_type":"percent","discount_value":5,"promo_code":"MOCK5"}]"""
             "/api/catalog"->"""[{"name":"i90","manufacturer":"SZZT","available":true,"stock":$fixtureStock,"serial_required":true,"price_updated_at":"2026-10-04","prices":{"serial_1_50":11400000,"serial_51_200":11600000,"panel_cash":11000000,"panel_7d":11300000,"panel_1m":11900000,"sales_agent":11200000}}]"""
@@ -249,6 +255,11 @@ class DesignFlowTest {
             compose.onAllNodesWithText("سفارش‌ها").onLast().performClick()
             waitText("جزئیات سفارش");shot("design-orders.png")
             showText("جزئیات سفارش");compose.onNodeWithText("جزئیات سفارش").performClick()
+            showText("رسیدهای ارسال")
+            waitText("کالارسان")
+            showText("مشاهده رسید ارسال ۱")
+            compose.onNodeWithText("مشاهده رسید ارسال ۱").performClick()
+            compose.waitUntil(10000){compose.onAllNodesWithContentDescription("رسید ارسال ۱").fetchSemanticsNodes().isNotEmpty()}
             showText("اطلاعات تحویل");shot("design-order-detail.png")
             showText("دریافت PDF سریال‌ها");compose.onNodeWithText("دریافت PDF سریال‌ها").performClick()
             waitText("SN: 902410001");shot("design-serials.png")

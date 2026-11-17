@@ -113,6 +113,7 @@ internal fun OrderShippingReceipts(api: ApiClient, orderId: Int, allowUpload: Bo
                 if (receipt.s("note").isNotBlank()) Text(receipt.s("note"), color = Ink)
                 receipt.arr("files").objects().forEachIndexed { index, proof ->
                     ShippingReceiptPreview(repository, orderId, proof.s("proof_token"), "رسید ارسال ${faNumber(index + 1)}")
+                    if (proof.s("note").isNotBlank()) Text(proof.s("note"), color = Ink)
                 }
             }
             GhadirButton("به‌روزرسانی رسیدها", { scope.launch { load() } }, secondary = true, enabled = !busy)
