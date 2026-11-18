@@ -121,9 +121,8 @@ internal fun ApprovedPriceCard(product: JSONObject, group: String, expandAll: Bo
 @Composable
 internal fun ApprovedOrderCard(order: JSONObject, onClick: () -> Unit) {
     val progress = order.obj("settlement_progress")
-    val payment = progress.s("label").ifBlank {
-        order.s("requested_payment_method_label").ifBlank { order.s("payment_status") }
-    }
+    val method = order.s("requested_payment_method_label")
+    val payment = progress.s("label").ifBlank { order.s("payment_status") }
     ApprovedSurface {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -137,6 +136,9 @@ internal fun ApprovedOrderCard(order: JSONObject, onClick: () -> Unit) {
             Text(orderItemsDescription(order), color = ApprovedPalette.ink)
             Text(formatMoney(order.l("approved_total").takeIf { it > 0L } ?: order.l("estimated_total")) + " تومان",
                 color = ApprovedPalette.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            if (method.isNotBlank() && !payment.contains(method)) {
+                Text(method, color = ApprovedPalette.muted)
+            }
             if (payment.isNotBlank()) {
                 Surface(color = ApprovedPalette.secondary, shape = RoundedCornerShape(8.dp)) {
                     Text(payment, Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = ApprovedPalette.ink)

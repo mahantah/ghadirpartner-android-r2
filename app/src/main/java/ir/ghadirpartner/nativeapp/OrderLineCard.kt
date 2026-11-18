@@ -41,15 +41,20 @@ internal fun OrderLineCard(
             if (line.panelSwitch.isNotBlank()) DetailLine("سوئیچ", line.panelSwitch)
             HorizontalDivider(color = ApprovedPalette.border)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                if (onIncrease != null) OutlinedIconButton(
-                    onClick = onIncrease,
-                    modifier = Modifier.semantics { contentDescription = "افزایش تعداد " + line.product },
-                ) { Icon(Icons.Outlined.Add, null, tint = ApprovedPalette.accent) }
-                Text(faNumber(line.qty) + " دستگاه", color = ApprovedPalette.ink, modifier = Modifier.padding(horizontal = 8.dp))
                 if (onDecrease != null) OutlinedIconButton(
                     onClick = onDecrease, enabled = line.qty > 1,
                     modifier = Modifier.semantics { contentDescription = "کاهش تعداد " + line.product },
                 ) { Icon(Icons.Outlined.Remove, null, tint = ApprovedPalette.accent) }
+                Surface(shape = RoundedCornerShape(8.dp), color = ApprovedPalette.surface,
+                    border = BorderStroke(1.dp, ApprovedPalette.border)) {
+                    Text(faNumber(line.qty), color = ApprovedPalette.ink, fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                            .semantics { contentDescription = "تعداد " + line.product })
+                }
+                if (onIncrease != null) OutlinedIconButton(
+                    onClick = onIncrease,
+                    modifier = Modifier.semantics { contentDescription = "افزایش تعداد " + line.product },
+                ) { Icon(Icons.Outlined.Add, null, tint = ApprovedPalette.accent) }
             }
             Text("مبلغ ردیف", color = ApprovedPalette.muted, fontSize = 12.sp)
             Text("جمع " + formatMoney(line.unit * line.qty) + " تومان", color = ApprovedPalette.ink,

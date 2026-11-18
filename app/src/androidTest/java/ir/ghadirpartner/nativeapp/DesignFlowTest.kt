@@ -223,7 +223,7 @@ class DesignFlowTest {
             compose.onAllNodesWithText("۱۱٬۲۰۰٬۰۰۰ تومان").onLast().assertExists();shot("design-catalog-agent.png")
             compose.onAllNodesWithText("ثبت سفارش").onLast().performClick()
             compose.waitUntil(15000){compose.onAllNodesWithContentDescription("مدل دستگاه").fetchSemanticsNodes().isNotEmpty()}
-            compose.onNodeWithContentDescription("مدل دستگاه").performClick()
+            showField("مدل دستگاه");compose.onNodeWithContentDescription("مدل دستگاه").performClick()
             compose.onNodeWithText("i90 • SZZT").performClick()
             showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").performClick()
             showText("ثبت در پنل");compose.onNodeWithText("ثبت در پنل").performClick()

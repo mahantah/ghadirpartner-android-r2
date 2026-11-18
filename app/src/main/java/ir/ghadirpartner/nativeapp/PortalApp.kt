@@ -540,7 +540,7 @@ private fun PortalOrders(
         }
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
-                Text("سفارش‌های من", color=ApprovedPalette.ink, fontSize=22.sp, fontWeight=FontWeight.Bold, modifier=Modifier.weight(1f))
+                Spacer(Modifier.weight(1f))
                 ApprovedButton("سفارش جدید", {onNavigate("new")})
             }
         }
@@ -1291,7 +1291,6 @@ private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,Stri
     }
     Box(Modifier.fillMaxSize().background(ApprovedPalette.background)) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=100.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        item { Text("قیمت‌ها", color=ApprovedPalette.ink, fontSize=24.sp, fontWeight=FontWeight.Bold) }
         item { ApprovedSearchBox(query, {query=it}, "جست‌وجوی نام یا مدل کالا") }
         item { ApprovedButton(if(expandAll) "بستن همه قیمت‌ها" else "نمایش همه قیمت‌ها", {expandAll=!expandAll}, modifier=Modifier.fillMaxWidth(), secondary=true) }
         item {
