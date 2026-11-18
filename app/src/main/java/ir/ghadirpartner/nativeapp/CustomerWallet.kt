@@ -157,7 +157,7 @@ internal fun CustomerWallet(api: ApiClient) {
                 val wallet = snapshot.obj("wallet")
                 ApprovedWalletBalance(wallet)
                 if (onlineTopUp) {
-                    ApprovedButton("شارژ کیف پول با ایران‌کیش", { topUpDialog = true },
+                    ApprovedButton("شارژ کیف پول", { topUpDialog = true },
                         enabled = !paymentBusy, modifier = Modifier.fillMaxWidth())
                     if (attemptId.isNotBlank()) {
                         GhadirButton("بررسی وضعیت شارژ", { refreshPayment() }, enabled = !paymentBusy, secondary = true)

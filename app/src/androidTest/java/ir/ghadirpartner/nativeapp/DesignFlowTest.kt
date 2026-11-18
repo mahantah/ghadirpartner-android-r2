@@ -1,5 +1,6 @@
 package ir.ghadirpartner.nativeapp
 
+import androidx.compose.foundation.verticalScroll
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -46,6 +47,33 @@ class DesignFlowTest {
         fixtureStock=4
         context.getSharedPreferences("ghadir_abandoned_order",0).edit().clear().commit()
         OfferPopupRepository(context.getSharedPreferences("offer-popup",0),me.s("username")).acknowledge(3)
+    }
+    /** Verify the approved wallet balances, theme rendering and amount-entry action. */
+    @Test fun walletDesignKeepsFundsAndCreditIndependent() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        ActivityScenario.launch(MainActivity::class.java).use {scenario->
+            scenario.onActivity {activity->
+                if(AppAppearance.dark)AppAppearance.toggle(activity)
+                activity.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){
+                    androidx.compose.foundation.layout.Column(
+                        androidx.compose.ui.Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())
+                    ) { CustomerWallet(ApiClient(activity,client())) }
+                }}}
+            }
+            waitText("۱۲٬۵۰۰٬۰۰۰ تومان")
+            compose.onNodeWithText("۱۰٬۵۰۰٬۰۰۰ تومان").assertExists()
+            compose.onNodeWithText("۲٬۰۰۰٬۰۰۰ تومان").assertExists()
+            compose.onNodeWithText("۳۰٬۰۰۰٬۰۰۰ تومان").assertExists()
+            shot("design-wallet-day.png",scrollToTop=false)
+            compose.onNodeWithText("شارژ کیف پول").performScrollTo().performClick()
+            compose.onNodeWithContentDescription("مبلغ به تومان").assertExists()
+            compose.onNodeWithText("انصراف").performClick()
+            scenario.onActivity {AppAppearance.toggle(context)}
+            waitText("۱۲٬۵۰۰٬۰۰۰ تومان")
+            shot("design-wallet-night.png",scrollToTop=false)
+            scenario.onActivity {AppAppearance.toggle(context)}
+            assertTrue(writes.isEmpty())
+        }
     }
     @Test fun offerPopupOpensDetailsOncePerAccount() {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
@@ -97,7 +125,8 @@ class DesignFlowTest {
             "/api/purchased-devices"->"{\"qty\":2}"
             "/api/reports/customer-summary"->"{\"month\":{\"amount\":34200000,\"orders\":3}}"
             "/api/orders/irankish"->"{\"enabled\":false}"
-            "/api/native/credit"->"{\"configured\":true,\"available\":30000000,\"due_date\":\"1405/07/26\"}"
+            "/api/native/credit"->"""{"configured":true,"available":30000000,"limit":100000000,"outstanding":70000000,"reserved":0,"wallet":{"balance":12500000,"available":10500000,"reserved":2000000,"transactions":[{"source":"irankish_credit","amount":5000000,"at":"2026-11-18"},{"source":"order_purchase","amount":-2500000,"number":"GHP-FIXTURE","at":"2026-11-17"}]}}"""
+            "/api/wallet/irankish"->"""{"enabled":true}"""
             "/api/native/login-otp/request"->"{\"ok\":true,\"retry_after\":60}"
             "/api/native/login-otp/confirm"->"{\"ok\":true}"
             else->throw AssertionError("Unexpected test request: ${request.method} $path")
@@ -176,7 +205,7 @@ class DesignFlowTest {
             compose.onNodeWithContentDescription("حالت شب").performClick();shot("design-home-night.png")
             compose.onNodeWithContentDescription("حالت روز").performClick()
             compose.onAllNodesWithText("قیمت‌ها").onLast().performClick()
-            waitText("۱۱٬۴۰۰٬۰۰۰ تومان")
+            waitText("افزودن به سفارش")
             compose.onNodeWithContentDescription("جستجوی مدل یا شرکت سازنده").assertDoesNotExist()
             compose.onNodeWithContentDescription("فیلتر لیست قیمت‌ها").performClick()
             waitText("جست‌وجو و فیلتر قیمت‌ها")
