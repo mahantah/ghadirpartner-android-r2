@@ -27,7 +27,7 @@ internal fun OrderLineCard(
     ApprovedSurface {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.PointOfSale, null, tint = ApprovedPalette.ink)
+                PosTerminalIcon()
                 Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                     Text(line.product, color = ApprovedPalette.ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Text(line.priceLabel, color = ApprovedPalette.muted, fontSize = 12.sp)
