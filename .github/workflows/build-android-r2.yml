@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 'b7a11f71028ec8f6dab95d52d09a75e7280c8739'
+          ref: '44622482595ed4708c94c680a65a5af6b6134e4b'
           persist-credentials: false
       - uses: actions/setup-java@v4
         with:
@@ -69,7 +69,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 'b7a11f71028ec8f6dab95d52d09a75e7280c8739'
+          ref: '44622482595ed4708c94c680a65a5af6b6134e4b'
           persist-credentials: false
       - uses: actions/setup-java@v4
         with:
