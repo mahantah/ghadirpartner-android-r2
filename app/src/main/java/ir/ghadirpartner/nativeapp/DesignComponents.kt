@@ -63,7 +63,7 @@ internal fun DesignField(
                     .background(AppSurface).border(1.dp,Border,RoundedCornerShape(16.dp))
                     .padding(horizontal=14.dp,vertical=12.dp), verticalAlignment=Alignment.CenterVertically,
                     horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                    if(icon!=null) {
+                    if(icon!=null&&icon!=R.drawable.r54_eye) {
                         val svg=when(icon){R.drawable.r54_phone->"phone";R.drawable.r54_eye->"eye";R.drawable.design_search->"search";R.drawable.design_calendar->"calendar";R.drawable.design_map_pin->"map_pin";R.drawable.design_chevron->"chevron";else->null}
                         val glyph:@Composable ()->Unit = {
                             if(svg!=null) FigmaSvg(svg,null,Modifier.size(28.dp),ColorFilter.tint(Muted))
@@ -77,6 +77,11 @@ internal fun DesignField(
                     Box(Modifier.weight(1f)) {
                         if(value.isBlank()) Text(placeholder,color=Muted,fontSize=14.sp)
                         inner()
+                    }
+                    if(icon==R.drawable.r54_eye&&onIcon!=null) {
+                        IconButton(onClick=onIcon,modifier=Modifier.size(48.dp).semantics {contentDescription="نمایش یا پنهان کردن رمز"}) {
+                            FigmaSvg("eye",null,Modifier.size(28.dp),ColorFilter.tint(Muted))
+                        }
                     }
                 }
             })
