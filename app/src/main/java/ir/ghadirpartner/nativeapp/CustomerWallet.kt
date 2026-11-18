@@ -1,5 +1,6 @@
 package ir.ghadirpartner.nativeapp
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -145,8 +146,8 @@ internal fun CustomerWallet(api: ApiClient) {
             dismissButton = { TextButton(enabled = !paymentBusy, onClick = { topUpDialog = false }) { Text("انصراف") } },
         )
     }
-    GlassSurface {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column {
+        Column(Modifier.fillMaxWidth().background(ApprovedPalette.background).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             creditedAmount?.let { PaymentSuccessCard(it, message = "مبلغ به کیف پول اضافه شد") }
             val snapshot = account
             if (snapshot == null) {
@@ -154,11 +155,9 @@ internal fun CustomerWallet(api: ApiClient) {
                 if (error.isNotBlank()) GhadirButton("تلاش دوباره", { retry++ }, secondary = true)
             } else {
                 val wallet = snapshot.obj("wallet")
-                DetailLine("موجودی کیف پول", formatMoney(wallet.l("balance")) + " تومان")
-                DetailLine("موجودی قابل استفاده کیف پول", formatMoney(wallet.l("available")) + " تومان")
-                DetailLine("موجودی رزروشده کیف پول", formatMoney(wallet.l("reserved")) + " تومان")
+                ApprovedWalletBalance(wallet)
                 if (onlineTopUp) {
-                    GhadirButton("شارژ کیف پول با ایران‌کیش", { topUpDialog = true },
+                    ApprovedButton("شارژ کیف پول با ایران‌کیش", { topUpDialog = true },
                         enabled = !paymentBusy, modifier = Modifier.fillMaxWidth())
                     if (attemptId.isNotBlank()) {
                         GhadirButton("بررسی وضعیت شارژ", { refreshPayment() }, enabled = !paymentBusy, secondary = true)
@@ -170,24 +169,8 @@ internal fun CustomerWallet(api: ApiClient) {
                     Text(error, color = Danger)
                     GhadirButton("به‌روزرسانی موجودی", { retry++ }, secondary = true)
                 }
-                DetailLine("سقف اعتبار", formatMoney(snapshot.l("limit")) + " تومان")
-                DetailLine("اعتبار قابل استفاده", formatMoney(snapshot.l("available")) + " تومان")
-                DetailLine("اعتبار رزروشده", formatMoney(snapshot.l("reserved")) + " تومان")
-                DetailLine("بدهی اعتباری", formatMoney(snapshot.l("outstanding")) + " تومان")
-                for (entry in wallet.arr("transactions").objects()) {
-                    val label =
-                        when (entry.s("source")) {
-                            "order_cancellation" -> "بازگشت وجه"
-                            "order_purchase" -> "پرداخت سفارش"
-                            "credit_repayment" -> "بازپرداخت اعتبار"
-                            "manual_credit" -> "شارژ کیف پول"
-                            "irankish_credit" -> "شارژ آنلاین ایران‌کیش"
-                            else -> "گردش کیف پول"
-                        }
-                    val reference = entry.s("number").ifBlank { entry.s("reference") }
-                    val title = if (reference.isBlank()) label else "$label · $reference"
-                    DetailLine(title, formatMoney(entry.l("amount")) + " تومان")
-                }
+                ApprovedWalletCredit(snapshot)
+                ApprovedWalletTransactions(wallet.arr("transactions").objects())
             }
         }
     }

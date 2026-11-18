@@ -156,9 +156,8 @@ class DesignFlowTest {
         assertTrue("Control must be above the floating navigation before tapping",node.fetchSemanticsNode().boundsInRoot.bottom<=top)
     }
     private fun chooseInvoice() {
-        showField("تنظیم نوع فاکتور");compose.onNodeWithContentDescription("تنظیم نوع فاکتور").performClick()
+        showText("غیررسمی")
         compose.onNodeWithText("غیررسمی",substring=false).performClick()
-        compose.onNodeWithText("تأیید و بستن").performClick()
     }
     @Test fun catalogCheckoutAndSerials() {
         ActivityScenario.launch(MainActivity::class.java).use {scenario->
@@ -180,10 +179,11 @@ class DesignFlowTest {
             compose.waitUntil(uiWaitTimeoutMs) {
                 compose.onAllNodesWithContentDescription("جستجوی مدل یا شرکت سازنده").fetchSemanticsNodes().isEmpty()
             }
+            showText("نمایش همه قیمت‌ها");compose.onNodeWithText("نمایش همه قیمت‌ها").performClick()
             shot("design-catalog-serial.png")
-            compose.onNodeWithText("ثبت در پنل").performClick()
+            compose.onNodeWithText("پنل").performClick()
             compose.onNodeWithText("۱۱٬۰۰۰٬۰۰۰ تومان").assertExists();shot("design-catalog-panel.png")
-            compose.onNodeWithText("عامل فروش").performClick()
+            compose.onNodeWithText("عاملین فروش").performClick()
             compose.onAllNodesWithText("۱۱٬۲۰۰٬۰۰۰ تومان").onLast().assertExists();shot("design-catalog-agent.png")
             compose.onAllNodesWithText("ثبت سفارش").onLast().performClick()
             compose.waitUntil(15000){compose.onAllNodesWithContentDescription("مدل دستگاه").fetchSemanticsNodes().isNotEmpty()}
@@ -461,9 +461,7 @@ class DesignFlowTest {
             hideKeyboard(scenario)
             compose.onNodeWithText("اعمال کد تخفیف").performScrollTo().performClick()
             compose.onNodeWithText("تأیید و بستن").performScrollTo().performClick()
-            showField("تنظیم نوع فاکتور");compose.onNodeWithContentDescription("تنظیم نوع فاکتور").performClick()
-            compose.onNodeWithText("رسمی",substring=false).performClick()
-            compose.onNodeWithText("تأیید و بستن").performClick()
+            showText("رسمی");compose.onNodeWithText("رسمی",substring=false).performClick()
             showField("تنظیم توضیحات");compose.onNodeWithContentDescription("تنظیم توضیحات").performClick()
             compose.onNodeWithContentDescription("توضیحات سفارش — اختیاری").performTextInput("تماس قبل از ارسال")
             hideKeyboard(scenario)

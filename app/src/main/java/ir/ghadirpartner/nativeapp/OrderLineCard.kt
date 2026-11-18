@@ -1,5 +1,7 @@
 package ir.ghadirpartner.nativeapp
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,65 +24,36 @@ internal fun OrderLineCard(
     onDecrease: (() -> Unit)? = null,
     onRemove: (() -> Unit)? = null,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = AppSurface,
-        border = BorderStroke(1.dp, Border),
-    ) {
+    ApprovedSurface {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("مدل دستگاه", color = Muted, style = MaterialTheme.typography.labelMedium)
-            Text(
-                line.product,
-                color = Ink,
-                fontSize = 16.sp,
-                lineHeight = 26.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Start,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(line.priceLabel, color = Ink, fontSize = 13.sp, lineHeight = 22.sp)
-            if (line.panelSwitch.isNotBlank()) DetailLine("سوئیچ", line.panelSwitch)
-            HorizontalDivider(color = Border)
-            Text("تعداد", color = Muted, style = MaterialTheme.typography.labelMedium)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                if (onDecrease != null) {
-                    TextButton(
-                        onClick = onDecrease,
-                        enabled = line.qty > 1,
-                        modifier = Modifier.semantics { contentDescription = "کاهش تعداد " + line.product },
-                    ) { Text("−") }
+                Icon(Icons.Outlined.PointOfSale, null, tint = ApprovedPalette.ink)
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                    Text(line.product, color = ApprovedPalette.ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(line.priceLabel, color = ApprovedPalette.muted, fontSize = 12.sp)
+                    Text("قیمت واحد " + formatMoney(line.unit) + " تومان", color = ApprovedPalette.muted, fontSize = 12.sp)
                 }
-                Text(
-                    faNumber(line.qty) + " دستگاه",
-                    color = Ink,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f),
-                )
-                if (onIncrease != null) {
-                    TextButton(
-                        onClick = onIncrease,
-                        modifier = Modifier.semantics { contentDescription = "افزایش تعداد " + line.product },
-                    ) { Text("+") }
-                }
-            }
-            // Stack amounts to keep long prices legible on narrow screens and large fonts.
-            Text("قیمت واحد", color = Muted, style = MaterialTheme.typography.labelMedium)
-            Text(formatMoney(line.unit) + " تومان", color = Ink, lineHeight = 24.sp)
-            Text("مبلغ ردیف", color = Muted, style = MaterialTheme.typography.labelMedium)
-            Text(
-                formatMoney(line.unit * line.qty) + " تومان",
-                color = Ink,
-                fontWeight = FontWeight.Bold,
-                lineHeight = 24.sp,
-            )
-            if (onRemove != null) {
-                TextButton(
+                if (onRemove != null) IconButton(
                     onClick = onRemove,
                     modifier = Modifier.semantics { contentDescription = "حذف " + line.product + " • " + line.priceLabel },
-                ) { Text("حذف کالا", color = Danger) }
+                ) { Icon(Icons.Outlined.DeleteOutline, "حذف کالا", tint = ApprovedPalette.muted) }
             }
+            if (line.panelSwitch.isNotBlank()) DetailLine("سوئیچ", line.panelSwitch)
+            HorizontalDivider(color = ApprovedPalette.border)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                if (onIncrease != null) OutlinedIconButton(
+                    onClick = onIncrease,
+                    modifier = Modifier.semantics { contentDescription = "افزایش تعداد " + line.product },
+                ) { Icon(Icons.Outlined.Add, null, tint = ApprovedPalette.accent) }
+                Text(faNumber(line.qty) + " دستگاه", color = ApprovedPalette.ink, modifier = Modifier.padding(horizontal = 8.dp))
+                if (onDecrease != null) OutlinedIconButton(
+                    onClick = onDecrease, enabled = line.qty > 1,
+                    modifier = Modifier.semantics { contentDescription = "کاهش تعداد " + line.product },
+                ) { Icon(Icons.Outlined.Remove, null, tint = ApprovedPalette.accent) }
+            }
+            Text("مبلغ ردیف", color = ApprovedPalette.muted, fontSize = 12.sp)
+            Text("جمع " + formatMoney(line.unit * line.qty) + " تومان", color = ApprovedPalette.ink,
+                fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
     }
 }
