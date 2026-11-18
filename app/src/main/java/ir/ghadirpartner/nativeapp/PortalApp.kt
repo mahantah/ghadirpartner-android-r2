@@ -10,6 +10,7 @@ import androidx.biometric.BiometricManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.background
@@ -521,39 +522,53 @@ private fun PortalOrders(
     val term=asciiDigits(query).trim()
     val filtered=orders.filter {o->
         val delivered=o.s("status")=="تحویل شد"
-        (!deliveredOnly||delivered)&&when(group){"delivered"->delivered;"active"->!delivered&&!o.s("status").contains("لغو");else->true}&&
+        (!deliveredOnly||delivered)&&when(group){"delivered"->delivered;"active"->!delivered&&!o.s("status").contains("لغو");"pending"->o.s("status").contains("انتظار");"preparing"->o.s("status").contains("آماده");"shipped"->o.s("status")=="ارسال شد";else->true}&&
             (term.isBlank()||listOf(o.s("number"),o.s("status"),o.s("payment_status"),orderItemsDescription(o)).any {asciiDigits(it).contains(term,true)})
     }
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().background(ApprovedPalette.background).padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(!deliveredOnly&&abandonedOrder!=null)item {
             GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                Text("سفارشات رها شده",color=Ink,fontWeight=FontWeight.Bold,fontSize=18.sp)
-                Text("یک سفارش تکمیل‌نشده ذخیره شده است؛ معتبر تا ساعت ۲۴ امروز به وقت تهران.",color=Muted,fontSize=13.sp)
+                Text("سفارشات رها شده",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold,fontSize=18.sp)
+                Text("یک سفارش تکمیل‌نشده ذخیره شده است؛ معتبر تا ساعت ۲۴ امروز به وقت تهران.",color=ApprovedPalette.muted,fontSize=13.sp)
                 val preview=cartFromDraft(abandonedOrder)
-                if(preview.isNotEmpty())Text(preview.joinToString(" • "){"${shortProductName(it.product)} × ${faNumber(it.qty)}"},color=Ink,fontSize=13.sp)
+                if(preview.isNotEmpty())Text(preview.joinToString(" • "){"${shortProductName(it.product)} × ${faNumber(it.qty)}"},color=ApprovedPalette.ink,fontSize=13.sp)
                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    GhadirButton("ادامه سفارش",{onContinueAbandoned(abandonedOrder)},modifier=Modifier.weight(1f))
-                    GhadirButton("حذف سفارش",onDeleteAbandoned,secondary=true,modifier=Modifier.weight(1f))
+                    ApprovedButton("ادامه سفارش",{onContinueAbandoned(abandonedOrder)},modifier=Modifier.weight(1f))
+                    ApprovedButton("حذف سفارش",onDeleteAbandoned,secondary=true,modifier=Modifier.weight(1f))
                 }
             }}
         }
-        item {DesignField("جستجوی سفارش",query,{query=it},"شماره سفارش",R.drawable.design_search)}
-        if(!deliveredOnly)item {DesignChoices(listOf("all" to "همه","active" to "در جریان","delivered" to "تحویل‌شده"),group,{group=it})}
+        item {
+            Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
+                Spacer(Modifier.weight(1f))
+                ApprovedButton("سفارش جدید", {onNavigate("new")})
+            }
+        }
+        item {ApprovedSearchBox(query,{query=it},"جست‌وجوی شماره سفارش یا کالا")}
+        if(!deliveredOnly)item {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                listOf("all" to "همه","pending" to "در انتظار تأیید","preparing" to "در حال آماده‌سازی","shipped" to "ارسال‌شده","active" to "در جریان","delivered" to "تحویل‌شده").forEach { (key,label) ->
+                    FilterChip(selected=group==key,onClick={group=key},label={Text(label)},
+                        colors=FilterChipDefaults.filterChipColors(containerColor=ApprovedPalette.surface,
+                            selectedContainerColor=ApprovedPalette.accent,labelColor=ApprovedPalette.ink,selectedLabelColor=Color.White))
+                }
+            }
+        }
         when {
             loading->item{LoadingPane()}
             error.isNotBlank()->item {
                 DesignState("دریافت سفارش‌ها ناموفق بود",error,R.drawable.design_offline)
-                GhadirButton("تلاش دوباره",{retry++})
+                ApprovedButton("تلاش دوباره",{retry++})
             }
             filtered.isEmpty()->item {
                 DesignState(if(orders.isEmpty())"هنوز سفارشی ندارید" else "سفارشی پیدا نشد",
                     if(orders.isEmpty())"پس از ثبت اولین سفارش، وضعیت و جزئیات آن را اینجا می‌بینید." else "فیلتر یا عبارت جستجو را تغییر دهید.",
                     R.drawable.design_empty_orders)
-                GhadirButton(if(orders.isEmpty())"ثبت اولین سفارش" else "پاک کردن جستجو و فیلترها",
+                ApprovedButton(if(orders.isEmpty())"ثبت اولین سفارش" else "پاک کردن جستجو و فیلترها",
                     {if(orders.isEmpty())onNavigate("new") else {query="";group=if(deliveredOnly)"delivered" else "all"}})
-                Spacer(Modifier.height(16.dp));GhadirButton("مشاهده قیمت‌ها",{onNavigate("catalog")},secondary=true)
+                Spacer(Modifier.height(16.dp));ApprovedButton("مشاهده قیمت‌ها",{onNavigate("catalog")},secondary=true)
             }
-            else->items(filtered,key={it.i("id")}) {o->DesignOrderCard(o){onOpen(o)}}
+            else->items(filtered,key={it.i("id")}) {o->ApprovedOrderCard(o){onOpen(o)}}
         }
     }
 }
@@ -753,6 +768,7 @@ private fun PortalNewOrder(
     var offers by remember {mutableStateOf(emptyList<JSONObject>())}
     var addresses by remember {mutableStateOf(emptyList<JSONObject>())}
     var customer by remember {mutableStateOf(JSONObject())}
+    var productQuery by rememberSaveable { mutableStateOf("") }
     var selected by rememberSaveable(stateSaver=NullableJsonSaver) {mutableStateOf<JSONObject?>(null)}
     var group by rememberSaveable {mutableStateOf("serial")}
     var panelTier by rememberSaveable {mutableStateOf("panel_cash")}
@@ -1005,13 +1021,14 @@ private fun PortalNewOrder(
         }
     }
     if(loading){LoadingPane();return}
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),state=listState,contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        if(error.isNotBlank())item {ErrorBanner(error){error=""};if(products.isEmpty())GhadirButton("تلاش دوباره",{retry++})}
+    Box(Modifier.fillMaxSize().background(ApprovedPalette.background)) {
+    LazyColumn(Modifier.fillMaxSize().background(ApprovedPalette.background).padding(horizontal=20.dp),state=listState,contentPadding=PaddingValues(top=12.dp,bottom=(if(step==0)148.dp else 28.dp)+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+        if(error.isNotBlank())item {ErrorBanner(error){error=""};if(products.isEmpty())ApprovedButton("تلاش دوباره",{retry++})}
         if (revisionOrder != null) item { DesignNotice(revisionOrder.obj("customer_correction").s("reason")) }
         if(abandonedBanner!=null&&cart.isEmpty()&&restoreDraft==null)item {
-            GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            ApprovedSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 DesignNotice("سفارش تکمیل نشده دارید. می‌توانید همان سفارش را ادامه دهید.")
-                GhadirButton("ادامه همان سفارش",{
+                ApprovedButton("ادامه همان سفارش",{
                     val restored=cartFromDraft(abandonedBanner)
                     val restoredTotal=restored.sumOf{it.unit*it.qty}.coerceAtLeast(0L)
                     cart=restored
@@ -1028,23 +1045,22 @@ private fun PortalNewOrder(
                 })
             }}
         }
-        item {Text(listOf("۱. کالاها", "۲. تحویل و تسویه", "۳. تأیید")[step],color=Ink,fontWeight=FontWeight.Bold)
-            LinearProgressIndicator(progress={ (step+1)/3f },modifier=Modifier.fillMaxWidth().padding(top=8.dp),color=Orange)
-            Text("جمع سفارش: "+formatMoney(total)+" تومان",color=Ink,modifier=Modifier.padding(top=8.dp))}
+        item { ApprovedCheckoutProgress(step) }
         if(step==0) {
-            item {Text("۱. انتخاب کالا",color=Ink,fontSize=18.sp,fontWeight=FontWeight.Bold)}
-            item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                DropdownField("مدل دستگاه",selected?.let {shortProductName(it.s("name"))+" • "+it.s("manufacturer")}?:"انتخاب دستگاه",products,{shortProductName(it.s("name"))+" • "+it.s("manufacturer")}) {selected=it;panelSwitch=""}
+            item { ApprovedSearchBox(productQuery, {productQuery=it}, "جست‌وجوی کالا یا مدل") }
+            item {Text("۱. انتخاب کالا",color=ApprovedPalette.ink,fontSize=18.sp,fontWeight=FontWeight.Bold)}
+            item {ApprovedSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                DropdownField("مدل دستگاه",selected?.let {shortProductName(it.s("name"))+" • "+it.s("manufacturer")}?:"انتخاب دستگاه",products.filter { productQuery.isBlank() || it.s("name").contains(productQuery,true) || it.s("manufacturer").contains(productQuery,true) },{shortProductName(it.s("name"))+" • "+it.s("manufacturer")}) {selected=it;panelSwitch=""}
                 selected?.let { product ->
-                    Text(product.s("name"), color=Ink, fontWeight=FontWeight.Bold, fontSize=16.sp, lineHeight=26.sp)
-                    if(product.s("manufacturer").isNotBlank())Text("سازنده: "+product.s("manufacturer"), color=Muted, fontSize=12.sp, lineHeight=20.sp)
+                    Text(product.s("name"), color=ApprovedPalette.ink, fontWeight=FontWeight.Bold, fontSize=16.sp, lineHeight=26.sp)
+                    if(product.s("manufacturer").isNotBlank())Text("سازنده: "+product.s("manufacturer"), color=ApprovedPalette.muted, fontSize=12.sp, lineHeight=20.sp)
                 }
-                Text("نوع قیمت",color=Muted,fontSize=12.sp)
+                Text("نوع قیمت",color=ApprovedPalette.muted,fontSize=12.sp)
                 DesignChoices(listOf("agent" to "عامل فروش","panel" to "ثبت در پنل","serial" to "سریال آزاد"),group,{group=it})
                 if (group == "panel") {
                     DropdownField("نوع خرید پنل",catalogPriceRows("panel").first {it.first==panelTier}.second,catalogPriceRows("panel"),{it.second}){panelTier=it.first}
                     if (switchLoadFailed) {
-                        GhadirButton("دریافت دوبارهٔ سوئیچ‌ها", { switchRetry++ }, secondary = true)
+                        ApprovedButton("دریافت دوبارهٔ سوئیچ‌ها", { switchRetry++ }, secondary = true)
                     } else if (panelSwitches.isEmpty()) {
                         Text("در حال دریافت سوئیچ‌ها…", color = Muted)
                     } else {
@@ -1052,19 +1068,19 @@ private fun PortalNewOrder(
                     }
                 }
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                    Text("تعداد",color=Muted,fontSize=12.sp,modifier=Modifier.weight(1f))
-                    TextButton(onClick={qtyText=(qty.toLong()+1).coerceAtMost((selected?.i("stock")?:0).toLong()).toString()},enabled=selected!=null&&qty<(selected?.i("stock")?:0)) {Text("+",color=Ink)}
+                    Text("تعداد",color=ApprovedPalette.muted,fontSize=12.sp,modifier=Modifier.weight(1f))
+                    TextButton(onClick={qtyText=(qty.toLong()+1).coerceAtMost((selected?.i("stock")?:0).toLong()).toString()},enabled=selected!=null&&qty<(selected?.i("stock")?:0)) {Text("+",color=ApprovedPalette.ink)}
                     androidx.compose.foundation.text.BasicTextField(qtyText,{qtyText=asciiDigits(it).filter(Char::isDigit).take(10)},
                         modifier=Modifier.width(100.dp).heightIn(min=48.dp).semantics {contentDescription="تعداد کالا"},singleLine=true,
                         keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(keyboardType=androidx.compose.ui.text.input.KeyboardType.Number),
-                        textStyle=MaterialTheme.typography.bodyMedium.copy(color=Ink,textAlign=TextAlign.Center),
+                        textStyle=MaterialTheme.typography.bodyMedium.copy(color=ApprovedPalette.ink,textAlign=TextAlign.Center),
                         decorationBox={inner->Box(Modifier.fillMaxWidth().heightIn(min=48.dp),contentAlignment=Alignment.Center){inner()}})
-                    TextButton(onClick={qtyText=(qty-1).coerceAtLeast(1).toString()}){Text("−",color=Ink)}
+                    TextButton(onClick={qtyText=(qty-1).coerceAtLeast(1).toString()}){Text("−",color=ApprovedPalette.ink)}
                 }
                 if(selected!=null&&qty>(selected?.i("stock")?:0))Text("تعداد از موجودی کالا بیشتر است",color=Danger,fontSize=12.sp)
                 DetailLine("قیمت واحد",if(unit>0)formatMoney(unit)+" تومان" else "—")
-                GhadirButton("افزودن کالا",{
-                    val product=selected?:return@GhadirButton
+                ApprovedButton("افزودن کالا",{
+                    val product=selected?:return@ApprovedButton
                     try {
                         cart=cartService.add(cart,catalogEntry(product),qty,priceKey,if(group=="panel")panelSwitch else "")
                         panelSwitch=""
@@ -1072,9 +1088,9 @@ private fun PortalNewOrder(
                     } catch(e:IllegalArgumentException) { error=e.message?:"افزودن کالا ناموفق بود" }
                 },enabled=selected!=null&&unit>0&&qty>0&&qty<=(selected?.i("stock")?:0)&&(group!="panel"||panelSwitch in panelSwitches),secondary=true)
             }}}
-            item {GlassSurface(color = CartSurface) {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                Text("سبد سفارش",color=Ink,fontWeight=FontWeight.Bold)
-                if(cart.isEmpty())Text("هنوز کالایی به سبد اضافه نشده است.",color=Muted,fontSize=12.sp)
+            item {ApprovedSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                Text("سبد سفارش",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold)
+                if(cart.isEmpty())Text("هنوز کالایی به سبد اضافه نشده است.",color=ApprovedPalette.muted,fontSize=12.sp)
                 cart.forEach { line ->
                     key(line.stableKey) {
                         OrderLineCard(
@@ -1095,27 +1111,34 @@ private fun PortalNewOrder(
                 DetailLine("جمع سفارش",formatMoney(total)+" تومان")
             }}}
             item(key="order-options") {
-                Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                    Text("جزئیات سفارش",color=Ink,fontWeight=FontWeight.Bold)
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                        CheckoutOptionCard("کد تخفیف",promoCode.ifBlank {"افزودن کد"},Icons.Default.LocalOffer,Modifier.weight(1f),appliedOffer!=null){optionSheet="discount"}
-                        CheckoutOptionCard("نوع فاکتور",invoiceType.ifBlank {"انتخاب الزامی"},Icons.Default.ReceiptLong,Modifier.weight(1f),invoiceType=="رسمی"){optionSheet="invoice"}
-                        CheckoutOptionCard("توضیحات",if(notes.isBlank())"افزودن یادداشت" else "یادداشت ثبت شد",Icons.Default.EditNote,Modifier.weight(1f),notes.isNotBlank()){optionSheet="notes"}
+                Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Text("نوع فاکتور",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold)
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                        listOf("رسمی", "غیررسمی").forEach { choice ->
+                            FilterChip(selected=invoiceType==choice,onClick={invoiceType=choice},
+                                label={Text(choice)},modifier=Modifier.weight(1f),
+                                leadingIcon={Icon(if(invoiceType==choice) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked,null)},
+                                colors=FilterChipDefaults.filterChipColors(containerColor=ApprovedPalette.surface,
+                                    selectedContainerColor=ApprovedPalette.secondary,labelColor=ApprovedPalette.ink,selectedLabelColor=ApprovedPalette.accent))
+                        }
                     }
+                    CheckoutOptionCard("کد تخفیف",promoCode.ifBlank {"افزودن کد"},Icons.Default.LocalOffer,
+                        Modifier.fillMaxWidth(),appliedOffer!=null){optionSheet="discount"}
+                    CheckoutOptionCard("توضیحات",if(notes.isBlank())"افزودن یادداشت" else "یادداشت ثبت شد",Icons.Default.EditNote,
+                        Modifier.fillMaxWidth(),notes.isNotBlank()){optionSheet="notes"}
                 }
             }
-            item {GhadirButton("ادامه و بررسی سفارش",{if(invoiceType.isBlank())error="نوع فاکتور را انتخاب کنید" else {error="";step=1}},enabled=cart.isNotEmpty())}
         } else if(step==1) {
             item {
                 CheckoutAddressSection(api,customer,addresses,selectedAddressId,{selectedAddressId=it},{addresses=it})
             }
             item {DesignField("گیرنده",receiver,{},"",enabled=false)}
-            item {Text("روش تسویه • نقد / چک / اعتباری (قابل ترکیب)",color=Muted,fontSize=12.sp)}
+            item {Text("روش تسویه • نقد / چک / اعتباری (قابل ترکیب)",color=ApprovedPalette.muted,fontSize=12.sp)}
             item {SettlementForm(api,total,invoiceType,settlement,onBusyChanged={evidenceBusy=it}){settlement=it}}
-            item {GhadirButton("ادامه به بررسی نهایی",{
+            item {ApprovedButton("ادامه به بررسی نهایی",{
                 error=checkoutService.validation(checkout());if(error.isBlank()&&addressText.isBlank())error="نشانی تحویل را در پروفایل تکمیل کنید";if(error.isBlank())step=2
             },enabled=!evidenceBusy)}
-            item {GhadirButton("بازگشت و ویرایش",{step=0},secondary=true)}
+            item {ApprovedButton("بازگشت و ویرایش",{step=0},secondary=true)}
         } else {
             val online = settlement.b("cash_online") && settlement.b("cash_enabled")
             val showPaymentSuccess = online && paymentConfirmed
@@ -1128,18 +1151,18 @@ private fun PortalNewOrder(
             if (showPaymentSuccess) {
                 item(key = "checkout-payment-success") {
                     PaymentSuccessCard(checkoutPaymentAmount) {
-                        GhadirButton(submitLabel, { submit() }, enabled = !submitting && cart.isNotEmpty(),
+                        ApprovedButton(submitLabel, { submit() }, enabled = !submitting && cart.isNotEmpty(),
                             modifier = Modifier.fillMaxWidth())
                         if (paymentId.isNotBlank() && error.isNotBlank()) {
-                            GhadirButton("برگشت مبلغ به کیف پول", { confirmWalletReturn = true },
+                            ApprovedButton("برگشت مبلغ به کیف پول", { confirmWalletReturn = true },
                                 enabled = !submitting, secondary = true)
                         }
                     }
                 }
             }
             item {DesignNotice("سفارش را نهایی می‌کنید؟\n\nمدل، تعداد، نشانی و روش تسویه را بررسی کنید. پس از ثبت، سفارش در انتظار تأیید شرکت قرار می‌گیرد و نتیجه در مراحل سفارش نمایش داده می‌شود.")}
-            item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-                Text("بررسی سفارش",color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold)
+            item {ApprovedSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+                Text("بررسی سفارش",color=ApprovedPalette.ink,fontSize=20.sp,fontWeight=FontWeight.Bold)
                 DetailLine("نوع فاکتور",invoiceType)
                 cart.forEach { line ->
                     key(line.stableKey) { OrderLineCard(line) }
@@ -1150,9 +1173,9 @@ private fun PortalNewOrder(
                 if(discount>0)DetailLine("تخفیف",formatMoney(discount)+" تومان")
                 DetailLine("جمع سفارش",formatMoney(total)+" تومان")
                 if(appliedOffer!=null)DetailLine("کد تخفیف",appliedOffer!!.s("promo_code"))
-                if(notes.isNotBlank())Text("توضیحات: "+notes,color=Ink,fontSize=14.sp)
-                Text("گیرنده: "+receiver,color=Ink,fontSize=14.sp)
-                Text(addressText,color=Ink,fontSize=14.sp)
+                if(notes.isNotBlank())Text("توضیحات: "+notes,color=ApprovedPalette.ink,fontSize=14.sp)
+                Text("گیرنده: "+receiver,color=ApprovedPalette.ink,fontSize=14.sp)
+                Text(addressText,color=ApprovedPalette.ink,fontSize=14.sp)
             }}}
             PaymentProofSelection.active(settlement, settlementPrimaryMethod(settlement)).forEach { (kind, files) ->
                 item(key = "review-$kind") {
@@ -1169,13 +1192,29 @@ private fun PortalNewOrder(
                 }
             }
             if (online && paymentId.isNotBlank() && !paymentConfirmed) item {
-                GhadirButton("بررسی نتیجه پرداخت", { updatePayment() }, enabled = !submitting, secondary = true)
+                ApprovedButton("بررسی نتیجه پرداخت", { updatePayment() }, enabled = !submitting, secondary = true)
             }
             if (!showPaymentSuccess) item {
-                GhadirButton(submitLabel, { submit() }, enabled = !submitting && cart.isNotEmpty())
+                ApprovedButton(submitLabel, { submit() }, enabled = !submitting && cart.isNotEmpty())
             }
-            item { GhadirButton("بازگشت و ویرایش", { editOrder(0) }, secondary = true, enabled = !submitting && !paymentConfirmed) }
+            item { ApprovedButton("بازگشت و ویرایش", { editOrder(0) }, secondary = true, enabled = !submitting && !paymentConfirmed) }
         }
+    }
+    if (step == 0) {
+        Surface(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom=LocalPortalBottomPadding.current)
+            .semantics {contentDescription="خلاصه ثابت سفارش"},
+            color=ApprovedPalette.surface, shadowElevation=4.dp) {
+            Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth()) {
+                    Text("جمع سفارش",color=ApprovedPalette.muted,modifier=Modifier.weight(1f))
+                    Text(formatMoney(total)+" تومان",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold)
+                }
+                ApprovedButton("ادامه و بررسی سفارش", {
+                    if(invoiceType.isBlank()) error="نوع فاکتور را انتخاب کنید" else {error="";step=1}
+                },enabled=cart.isNotEmpty(),modifier=Modifier.fillMaxWidth())
+            }
+        }
+    }
     }
     if (confirmWalletReturn) {
         AlertDialog(
@@ -1209,20 +1248,20 @@ private fun PortalNewOrder(
     if(optionSheet.isNotBlank()) {
         ModalBottomSheet(onDismissRequest={optionSheet=""},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),containerColor=AppSurface) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=20.dp).padding(bottom=24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-                Text(when(optionSheet){"discount"->"کد تخفیف";"invoice"->"نوع فاکتور";else->"توضیحات سفارش"},fontSize=20.sp,fontWeight=FontWeight.Bold,color=Ink)
+                Text(when(optionSheet){"discount"->"کد تخفیف";"invoice"->"نوع فاکتور";else->"توضیحات سفارش"},fontSize=20.sp,fontWeight=FontWeight.Bold,color=ApprovedPalette.ink)
                 when(optionSheet) {
                     "discount"->{
                         DesignField("کد تخفیف",promoCode,{promoCode=promoNorm(it).take(24);appliedOffer=null;settlement=defaultSplitSettlement(total);promoMessage=""},"کد تخفیف را وارد کنید")
-                        GhadirButton("اعمال کد تخفیف",{applyPromo()},enabled=promoCode.isNotBlank()&&cart.isNotEmpty())
+                        ApprovedButton("اعمال کد تخفیف",{applyPromo()},enabled=promoCode.isNotBlank()&&cart.isNotEmpty())
                         if(promoMessage.isNotBlank())Text(promoMessage,color=if(appliedOffer!=null)Success else Danger)
                     }
                     "invoice"->DesignChoices(listOf("غیررسمی" to "غیررسمی","رسمی" to "رسمی"),invoiceType,{invoiceType=it})
                     else->{
                         DesignField("توضیحات سفارش — اختیاری",notes,{notes=it.take(500)},"توضیحات موردنیاز برای این سفارش",singleLine=false)
-                        Text(faNumber(notes.length)+" از ۵۰۰ کاراکتر",color=Muted,fontSize=12.sp)
+                        Text(faNumber(notes.length)+" از ۵۰۰ کاراکتر",color=ApprovedPalette.muted,fontSize=12.sp)
                     }
                 }
-                GhadirButton("تأیید و بستن",{optionSheet=""},secondary=true)
+                ApprovedButton("تأیید و بستن",{optionSheet=""},secondary=true)
             }
         }
     }
@@ -1239,6 +1278,7 @@ private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,Stri
     var modelFilter by rememberSaveable {mutableStateOf("همه مدل‌ها")}
     var manufacturerFilter by rememberSaveable {mutableStateOf("همه سازنده‌ها")}
     var stockFilter by rememberSaveable {mutableStateOf("همه")}
+    var expandAll by rememberSaveable { mutableStateOf(false) }
     var retry by remember {mutableIntStateOf(0)}
     LaunchedEffect(retry) {
         loading=true;error=""
@@ -1254,12 +1294,23 @@ private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,Stri
             (manufacturerFilter=="همه سازنده‌ها"||maker==manufacturerFilter)&&
             when(stockFilter){"موجود"->catalogInStock(p);"ناموجود"->!catalogInStock(p);else->true}
     }
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(ApprovedPalette.background)) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=100.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        item {DesignChoices(listOf("agent" to "عامل فروش","panel" to "ثبت در پنل","serial" to "سریال آزاد"),group,{group=it})}
+        item { ApprovedSearchBox(query, {query=it}, "جست‌وجوی نام یا مدل کالا") }
+        item { ApprovedButton(if(expandAll) "بستن همه قیمت‌ها" else "نمایش همه قیمت‌ها", {expandAll=!expandAll}, modifier=Modifier.fillMaxWidth(), secondary=true) }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                listOf("serial" to "دستگاه‌ها","panel" to "پنل","agent" to "عاملین فروش").forEach { (key,label) ->
+                    FilterChip(selected=group==key,onClick={group=key},label={Text(label)},
+                        modifier=Modifier.weight(1f).semantics {contentDescription="دسته قیمت "+label},
+                        colors=FilterChipDefaults.filterChipColors(containerColor=ApprovedPalette.surface,
+                            selectedContainerColor=ApprovedPalette.accent,labelColor=ApprovedPalette.ink,selectedLabelColor=Color.White))
+                }
+            }
+        }
         when {
             loading-> {
-                item {Text("در حال دریافت قیمت‌ها…",color=Muted,fontSize=12.sp)}
+                item {Text("در حال دریافت قیمت‌ها…",color=ApprovedPalette.muted,fontSize=12.sp)}
                 items(3){GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
                     Box(Modifier.fillMaxWidth(.6f).height(24.dp).clip(RoundedCornerShape(8.dp)).background(AppSecondary))
                     repeat(3){Box(Modifier.fillMaxWidth().height(32.dp).clip(RoundedCornerShape(8.dp)).background(AppSecondary))}
@@ -1268,17 +1319,17 @@ private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,Stri
             error.isNotBlank()->item {
                 DesignState("اتصال برقرار نشد","قیمت‌های به‌روز دریافت نشد. اتصال اینترنت را بررسی و دوباره تلاش کنید.",R.drawable.design_offline)
                 Text(error,color=Danger,fontSize=12.sp)
-                GhadirButton("تلاش دوباره",{retry++})
-                Spacer(Modifier.height(16.dp));GhadirButton("بازگشت به پیشخوان",onHome,secondary=true)
+                ApprovedButton("تلاش دوباره",{retry++})
+                Spacer(Modifier.height(16.dp));ApprovedButton("بازگشت به پیشخوان",onHome,secondary=true)
             }
             filtered.isEmpty()->item {
                 DesignState("نتیجه‌ای پیدا نشد","نام مدل را بررسی کنید یا فیلترها را بردارید.",R.drawable.design_search_empty)
-                GhadirButton("پاک کردن جستجو و فیلترها",{query="";stockFilter="همه";manufacturerFilter="همه سازنده‌ها";modelFilter="همه مدل‌ها";showFilters=false},secondary=true)
+                ApprovedButton("پاک کردن جستجو و فیلترها",{query="";stockFilter="همه";manufacturerFilter="همه سازنده‌ها";modelFilter="همه مدل‌ها";showFilters=false},secondary=true)
             }
             else->{
                 val date=products.map {it.s("price_updated_at")}.filter {it.isNotBlank()}.maxOrNull()
-                if(date!=null)item {Text("آخرین به‌روزرسانی: "+formatDateFa(date),color=Muted,fontSize=12.sp)}
-                items(filtered,key={it.s("name")}) {p->CatalogListRow(p,group){onOrder(p.s("name"),group)}}
+                if(date!=null)item {Text("آخرین به‌روزرسانی: "+formatDateFa(date),color=ApprovedPalette.muted,fontSize=12.sp)}
+                items(filtered,key={it.s("name")}) {p->ApprovedPriceCard(p,group,expandAll){onOrder(p.s("name"),group)}}
             }
         }
     }
@@ -1289,13 +1340,13 @@ private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,Stri
     }
     if(showFilters)ModalBottomSheet(onDismissRequest={showFilters=false},containerColor=AppSurface) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=20.dp).padding(bottom=32.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text("جست‌وجو و فیلتر قیمت‌ها",color=Ink,fontWeight=FontWeight.Bold,fontSize=20.sp)
+            Text("جست‌وجو و فیلتر قیمت‌ها",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold,fontSize=20.sp)
             DesignField("جستجوی مدل یا شرکت سازنده",query,{query=it},"مدل یا سازنده را وارد کنید",R.drawable.design_search)
             DropdownField("مدل دستگاه",modelFilter,listOf("همه مدل‌ها")+products.map {it.s("name")}.distinct(),{shortProductName(it)}){modelFilter=it}
             DropdownField("شرکت سازنده",manufacturerFilter,listOf("همه سازنده‌ها")+products.map {it.s("manufacturer").ifBlank {"بدون سازنده"}}.distinct(),{it}){manufacturerFilter=it}
             DropdownField("وضعیت موجودی",stockFilter,listOf("همه","موجود","ناموجود"),{it}){stockFilter=it}
-            GhadirButton("نمایش نتایج",{showFilters=false})
-            GhadirButton("پاک کردن فیلترها",{query="";stockFilter="همه";manufacturerFilter="همه سازنده‌ها";modelFilter="همه مدل‌ها"},secondary=true)
+            ApprovedButton("نمایش نتایج",{showFilters=false})
+            ApprovedButton("پاک کردن فیلترها",{query="";stockFilter="همه";manufacturerFilter="همه سازنده‌ها";modelFilter="همه مدل‌ها"},secondary=true)
         }
     }
 }
@@ -1308,36 +1359,6 @@ internal fun catalogPriceRows(group:String):List<Pair<String,String>> = when(gro
     else->listOf("serial_1_50" to "۱ تا ۵۰","serial_51_200" to "۵۱ تا ۲۰۰")
 }
 
-@Composable
-private fun CatalogListRow(p:JSONObject,group:String,onOrder:()->Unit) {
-    val inStock=catalogInStock(p)
-    GlassSurface(shape=RoundedCornerShape(24.dp)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                Column(Modifier.weight(1f)) {
-                    Text(shortProductName(p.s("name")),color=Ink,fontSize=20.sp,lineHeight=33.sp,fontWeight=FontWeight.Bold)
-                    Text(p.s("manufacturer").ifBlank {"بدون سازنده"},color=Muted,fontSize=12.sp,lineHeight=20.sp)
-                }
-                Surface(color=if(AppAppearance.dark)AppSecondary else if(inStock)Color(0xFFE9F6EF) else Color(0xFFFDEEF0),shape=RoundedCornerShape(12.dp)) {
-                    Text(if(inStock)"موجود" else "ناموجود",color=if(inStock)Success else Danger,fontSize=12.sp,
-                        fontWeight=FontWeight.Bold,modifier=Modifier.padding(horizontal=10.dp,vertical=5.dp))
-                }
-            }
-            Text("نوع خرید / تعداد • قیمت (تومان)",color=Muted,fontSize=10.sp,lineHeight=16.sp)
-            GhadirButton("افزودن به سفارش",onOrder,enabled=inStock&&catalogPriceRows(group).any {p.obj("prices").l(it.first)>0},secondary=true)
-            catalogPriceRows(group).forEach {(key,label)->
-                Surface(color=AppSecondary,shape=RoundedCornerShape(8.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=5.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
-                        Text(label,color=Muted,fontSize=12.sp,modifier=Modifier.width(90.dp))
-                        val price=p.obj("prices").l(key)
-                        Text(if(inStock&&price>0)formatMoney(price)+" تومان" else "—",color=Ink,fontSize=14.sp,lineHeight=23.sp,
-                            fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
-                    }
-                }
-            }
-        }
-    }
-}
 @Composable
 private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Unit,onPhotoUpdated:(String)->Unit,onLogout:()->Unit,onProforma:()->Unit,onNavigate:(String)->Unit,onSectionChanged:(String)->Unit={},onBusyChanged:(Boolean)->Unit={},backRequest:Int=0) {
     val initial=me.obj("customer")
