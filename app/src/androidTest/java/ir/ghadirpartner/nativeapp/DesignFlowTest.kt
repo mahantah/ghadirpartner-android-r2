@@ -127,6 +127,10 @@ class DesignFlowTest {
         }
     }
     private fun showText(text:String) {
+        if(compose.onAllNodes(hasContentDescription("خلاصه ثابت سفارش") and hasAnyDescendant(hasText(text))).fetchSemanticsNodes().isNotEmpty()) {
+            compose.onAllNodesWithText(text).onLast().assertIsDisplayed()
+            return
+        }
         val lists=compose.onAllNodes(hasScrollToIndexAction())
         if(lists.fetchSemanticsNodes().size==1)lists.onFirst().performScrollToNode(hasText(text))
         compose.onAllNodesWithText(text).onLast().performScrollTo()
@@ -145,14 +149,17 @@ class DesignFlowTest {
             compose.waitForIdle()
             val bars=compose.onAllNodesWithContentDescription("ناوبری شناور").fetchSemanticsNodes()
             if(bars.isEmpty())return
-            val overlap=node.fetchSemanticsNode().boundsInRoot.bottom-bars.single().boundsInRoot.top+12f
+            val footers=compose.onAllNodesWithContentDescription("خلاصه ثابت سفارش").fetchSemanticsNodes()
+            val visibleBottom=(bars+footers).minOf {it.boundsInRoot.top}
+            val overlap=node.fetchSemanticsNode().boundsInRoot.bottom-visibleBottom+12f
             if(overlap<=0)return
             compose.onAllNodes(hasScrollToIndexAction()).onFirst()
                 .performSemanticsAction(SemanticsActions.ScrollBy){it(0f,overlap)}
             compose.waitForIdle()
         }
         compose.waitForIdle()
-        val top=compose.onNodeWithContentDescription("ناوبری شناور").fetchSemanticsNode().boundsInRoot.top
+        val top=(compose.onAllNodesWithContentDescription("ناوبری شناور").fetchSemanticsNodes()+
+            compose.onAllNodesWithContentDescription("خلاصه ثابت سفارش").fetchSemanticsNodes()).minOf {it.boundsInRoot.top}
         assertTrue("Control must be above the floating navigation before tapping",node.fetchSemanticsNode().boundsInRoot.bottom<=top)
     }
     private fun chooseInvoice() {

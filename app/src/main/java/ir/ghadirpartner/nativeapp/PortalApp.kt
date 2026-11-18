@@ -766,6 +766,7 @@ private fun PortalNewOrder(
     var offers by remember {mutableStateOf(emptyList<JSONObject>())}
     var addresses by remember {mutableStateOf(emptyList<JSONObject>())}
     var customer by remember {mutableStateOf(JSONObject())}
+    var productQuery by rememberSaveable { mutableStateOf("") }
     var selected by rememberSaveable(stateSaver=NullableJsonSaver) {mutableStateOf<JSONObject?>(null)}
     var group by rememberSaveable {mutableStateOf("serial")}
     var panelTier by rememberSaveable {mutableStateOf("panel_cash")}
@@ -1018,7 +1019,8 @@ private fun PortalNewOrder(
         }
     }
     if(loading){LoadingPane();return}
-    LazyColumn(Modifier.fillMaxSize().background(ApprovedPalette.background).padding(horizontal=20.dp),state=listState,contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    Box(Modifier.fillMaxSize().background(ApprovedPalette.background)) {
+    LazyColumn(Modifier.fillMaxSize().background(ApprovedPalette.background).padding(horizontal=20.dp),state=listState,contentPadding=PaddingValues(top=12.dp,bottom=(if(step==0)148.dp else 28.dp)+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(error.isNotBlank())item {ErrorBanner(error){error=""};if(products.isEmpty())ApprovedButton("تلاش دوباره",{retry++})}
         if (revisionOrder != null) item { DesignNotice(revisionOrder.obj("customer_correction").s("reason")) }
         if(abandonedBanner!=null&&cart.isEmpty()&&restoreDraft==null)item {
@@ -1043,9 +1045,10 @@ private fun PortalNewOrder(
         }
         item { ApprovedCheckoutProgress(step) }
         if(step==0) {
+            item { ApprovedSearchBox(productQuery, {productQuery=it}, "جست‌وجوی کالا یا مدل") }
             item {Text("۱. انتخاب کالا",color=ApprovedPalette.ink,fontSize=18.sp,fontWeight=FontWeight.Bold)}
             item {ApprovedSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                DropdownField("مدل دستگاه",selected?.let {shortProductName(it.s("name"))+" • "+it.s("manufacturer")}?:"انتخاب دستگاه",products,{shortProductName(it.s("name"))+" • "+it.s("manufacturer")}) {selected=it;panelSwitch=""}
+                DropdownField("مدل دستگاه",selected?.let {shortProductName(it.s("name"))+" • "+it.s("manufacturer")}?:"انتخاب دستگاه",products.filter { productQuery.isBlank() || it.s("name").contains(productQuery,true) || it.s("manufacturer").contains(productQuery,true) },{shortProductName(it.s("name"))+" • "+it.s("manufacturer")}) {selected=it;panelSwitch=""}
                 selected?.let { product ->
                     Text(product.s("name"), color=ApprovedPalette.ink, fontWeight=FontWeight.Bold, fontSize=16.sp, lineHeight=26.sp)
                     if(product.s("manufacturer").isNotBlank())Text("سازنده: "+product.s("manufacturer"), color=ApprovedPalette.muted, fontSize=12.sp, lineHeight=20.sp)
@@ -1120,7 +1123,6 @@ private fun PortalNewOrder(
                         Modifier.fillMaxWidth(),notes.isNotBlank()){optionSheet="notes"}
                 }
             }
-            item {ApprovedButton("ادامه و بررسی سفارش",{if(invoiceType.isBlank())error="نوع فاکتور را انتخاب کنید" else {error="";step=1}},enabled=cart.isNotEmpty())}
         } else if(step==1) {
             item {
                 CheckoutAddressSection(api,customer,addresses,selectedAddressId,{selectedAddressId=it},{addresses=it})
@@ -1192,6 +1194,22 @@ private fun PortalNewOrder(
             }
             item { ApprovedButton("بازگشت و ویرایش", { editOrder(0) }, secondary = true, enabled = !submitting && !paymentConfirmed) }
         }
+    }
+    if (step == 0) {
+        Surface(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom=LocalPortalBottomPadding.current)
+            .semantics {contentDescription="خلاصه ثابت سفارش"},
+            color=ApprovedPalette.surface, shadowElevation=4.dp) {
+            Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth()) {
+                    Text("جمع سفارش",color=ApprovedPalette.muted,modifier=Modifier.weight(1f))
+                    Text(formatMoney(total)+" تومان",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold)
+                }
+                ApprovedButton("ادامه و بررسی سفارش", {
+                    if(invoiceType.isBlank()) error="نوع فاکتور را انتخاب کنید" else {error="";step=1}
+                },enabled=cart.isNotEmpty(),modifier=Modifier.fillMaxWidth())
+            }
+        }
+    }
     }
     if (confirmWalletReturn) {
         AlertDialog(
