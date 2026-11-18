@@ -79,7 +79,7 @@ internal fun DesignField(
                         inner()
                     }
                     if(icon==R.drawable.r54_eye&&onIcon!=null) {
-                        IconButton(onClick=onIcon,modifier=Modifier.size(48.dp).semantics {contentDescription="نمایش یا پنهان کردن رمز"}) {
+                        IconButton(onClick=onIcon,modifier=Modifier.size(28.dp).semantics {contentDescription="نمایش یا پنهان کردن رمز"}) {
                             FigmaSvg("eye",null,Modifier.size(28.dp),ColorFilter.tint(Muted))
                         }
                     }
