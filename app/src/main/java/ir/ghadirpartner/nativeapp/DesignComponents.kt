@@ -1,5 +1,7 @@
 package ir.ghadirpartner.nativeapp
 
+import androidx.compose.material.icons.outlined.Lock
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -71,6 +73,7 @@ internal fun DesignField(
                         else Box(Modifier.size(28.dp),contentAlignment=Alignment.Center) {glyph()}
 
                     }
+                    if(icon==R.drawable.r54_eye) Icon(androidx.compose.material.icons.Icons.Outlined.Lock,null,tint=Muted,modifier=Modifier.size(22.dp))
                     Box(Modifier.weight(1f)) {
                         if(value.isBlank()) Text(placeholder,color=Muted,fontSize=14.sp)
                         inner()

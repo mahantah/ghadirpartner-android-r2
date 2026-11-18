@@ -525,7 +525,7 @@ private fun PortalOrders(
         (!deliveredOnly||delivered)&&when(group){"delivered"->delivered;"active"->!delivered&&!o.s("status").contains("لغو");"pending"->o.s("status").contains("انتظار");"preparing"->o.s("status").contains("آماده");"shipped"->o.s("status")=="ارسال شد";else->true}&&
             (term.isBlank()||listOf(o.s("number"),o.s("status"),o.s("payment_status"),orderItemsDescription(o)).any {asciiDigits(it).contains(term,true)})
     }
-    LazyColumn(Modifier.fillMaxSize().background(ApprovedPalette.background).padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().background(Color.Transparent).padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(!deliveredOnly&&abandonedOrder!=null)item {
             ApprovedSurface {Column(Modifier.fillMaxWidth().padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                 Text("سفارشات رها شده",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold,fontSize=14.sp)
@@ -600,7 +600,7 @@ private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->
     LaunchedEffect(cancelView){onSectionChanged(cancelView)}
     LaunchedEffect(backRequest){if(backRequest>0)cancelView=false}
     BackHandler(cancelView){if(!cancelling)cancelView=false}
-    LazyColumn(Modifier.fillMaxSize().background(ApprovedPalette.background).padding(horizontal=16.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+    LazyColumn(Modifier.fillMaxSize().background(Color.Transparent).padding(horizontal=16.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(10.dp)) {
         if(error.isNotBlank())item {ErrorBanner(error){error=""}}
         if(cancelSent)item {DesignNotice("درخواست لغو ثبت شد و در انتظار بررسی است.")}
         if(cancelView) {
@@ -1006,8 +1006,8 @@ private fun PortalNewOrder(
         }
     }
     if(loading){LoadingPane();return}
-    Box(Modifier.fillMaxSize().background(ApprovedPalette.background)) {
-    LazyColumn(Modifier.fillMaxSize().background(ApprovedPalette.background).padding(horizontal=20.dp),state=listState,contentPadding=PaddingValues(top=12.dp,bottom=(if(step==0)88.dp else 28.dp)+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    Box(Modifier.fillMaxSize().background(Color.Transparent)) {
+    LazyColumn(Modifier.fillMaxSize().background(Color.Transparent).padding(horizontal=20.dp),state=listState,contentPadding=PaddingValues(top=12.dp,bottom=(if(step==0)88.dp else 28.dp)+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(error.isNotBlank())item {ErrorBanner(error){error=""};if(products.isEmpty())ApprovedButton("تلاش دوباره",{retry++})}
         if (revisionOrder != null) item { DesignNotice(revisionOrder.obj("customer_correction").s("reason")) }
         if(abandonedBanner!=null&&cart.isEmpty()&&restoreDraft==null)item {
@@ -1273,7 +1273,7 @@ private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,Stri
             (manufacturerFilter=="همه سازنده‌ها"||maker==manufacturerFilter)&&
             when(stockFilter){"موجود"->catalogInStock(p);"ناموجود"->!catalogInStock(p);else->true}
     }
-    Box(Modifier.fillMaxSize().background(ApprovedPalette.background)) {
+    Box(Modifier.fillMaxSize().background(Color.Transparent)) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=100.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         item { ApprovedSearchBox(query, {query=it}, "جست‌وجوی نام یا مدل کالا") }
         item { ApprovedButton(if(expandAll) "بستن همه قیمت‌ها" else "نمایش همه قیمت‌ها", {expandAll=!expandAll}, modifier=Modifier.fillMaxWidth(), secondary=true) }

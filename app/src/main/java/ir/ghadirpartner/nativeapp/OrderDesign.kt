@@ -1,6 +1,5 @@
 package ir.ghadirpartner.nativeapp
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,7 +9,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -29,46 +27,6 @@ internal fun PosTerminalIcon(modifier: Modifier = Modifier) {
         modifier.size(28.dp),
         tint = ApprovedPalette.ink,
     )
-}
-
-/** Keep the brand visible above the scrollable, keyboard-aware authentication form. */
-@Composable
-internal fun LoginBrandHeader() {
-    Surface(
-        Modifier.padding(horizontal = 20.dp, vertical = 12.dp).widthIn(max = 420.dp).fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        color = Navy,
-    ) {
-        Row(
-            Modifier.padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Image(
-                painterResource(R.drawable.brand_logo),
-                "نشان قدیر پارتنر",
-                Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)),
-            )
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    "قدیر پارتنر",
-                    color = androidx.compose.ui.graphics.Color.White,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    "همراه مطمئن کسب‌وکار شما",
-                    color = androidx.compose.ui.graphics.Color.White,
-                    fontSize = 12.sp,
-                )
-                HorizontalDivider(
-                    Modifier.width(40.dp),
-                    color = ApprovedPalette.accent,
-                    thickness = 3.dp,
-                )
-            }
-        }
-    }
 }
 
 /** Match OTP headings to the password form without changing code entry or resend rules. */

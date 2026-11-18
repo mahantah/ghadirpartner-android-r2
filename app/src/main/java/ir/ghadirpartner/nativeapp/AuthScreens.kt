@@ -17,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.paint
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -140,14 +141,15 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
         }
         return
     }
-    Column(Modifier.fillMaxSize().background(ApprovedPalette.background).statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        if(view=="login") LoginBrandHeader() else Surface(color=AppSurface.copy(alpha=.94f)) {
+    Box(Modifier.fillMaxSize().paint(painterResource(R.drawable.brand_login_waves),contentScale=ContentScale.Crop)) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
+        if(view=="login") Spacer(Modifier.height(200.dp)) else Surface(color=AppSurface.copy(alpha=.94f)) {
             PortalBackHeader(when(view){"otp"->"کد تأیید";"biometric"->"ورود امن";else->"ورود به قدیر پارتنر"}) {
                 loginPrompt?.cancelAuthentication();view="login";error=""
             }
         }
         Surface(modifier=Modifier.padding(horizontal=20.dp).widthIn(max=420.dp).fillMaxWidth(),shape=RoundedCornerShape(24.dp),
-            color=ApprovedPalette.surface,border=androidx.compose.foundation.BorderStroke(1.dp,ApprovedPalette.border)) {
+            color=ApprovedPalette.surface.copy(alpha=.94f),border=androidx.compose.foundation.BorderStroke(1.dp,ApprovedPalette.border)) {
         Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
             when(view) {
                 "otp"->{
@@ -214,6 +216,7 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
         }
         }
     }
+}
 }
 
 @Composable

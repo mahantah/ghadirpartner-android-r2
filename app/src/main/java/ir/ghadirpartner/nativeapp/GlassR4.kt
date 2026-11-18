@@ -8,6 +8,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.draw.paint
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
@@ -34,32 +36,11 @@ fun Modifier.liquidGlass(shape: Shape = RoundedCornerShape(20.dp), accent: Boole
 fun Modifier.glass(shape: Shape = RoundedCornerShape(16.dp), accent: Boolean = false): Modifier =
     clip(shape).background(if(accent) Orange else AppSurface).border(1.dp,Border,shape)
 
-/** Quiet payment-network signature; cached paths, no animation or bitmap allocation. */
-fun Modifier.portalBackdrop(): Modifier {
-    val dark=AppAppearance.dark
-    val base=AppBackground
-    val navy=if(dark)Color(0xFF385B7D) else Color(0xFF142B4B)
-    val orange=Color(0xFFF58220)
-    return background(base).drawWithCache {
-        val w=size.width;val h=size.height
-        val signature=Path().apply {
-            moveTo(-w*.25f,h*.30f)
-            cubicTo(w*.30f,-h*.02f,w*.70f,h*.50f,w*1.25f,h*.12f)
-            moveTo(-w*.20f,h*.84f)
-            cubicTo(w*.22f,h*.58f,w*.68f,h*1.16f,w*1.20f,h*.76f)
-        }
-        val network=Path().apply {
-            moveTo(w*.78f,0f);lineTo(w*.78f,h*.14f);lineTo(w*.93f,h*.20f);lineTo(w*.93f,h*.34f)
-            moveTo(0f,h*.70f);lineTo(w*.17f,h*.70f);lineTo(w*.27f,h*.76f);lineTo(w*.27f,h*.90f)
-        }
-        onDrawBehind {
-            drawRect(Brush.radialGradient(listOf(navy.copy(alpha=if(dark).20f else .07f),Color.Transparent),center=Offset(w*.95f,h*.08f),radius=w*1.25f))
-            drawRect(Brush.radialGradient(listOf(orange.copy(alpha=if(dark).10f else .07f),Color.Transparent),center=Offset(w*.05f,h*.85f),radius=w))
-            drawPath(signature,navy.copy(alpha=if(dark).20f else .055f),style=Stroke(1.dp.toPx()))
-            drawPath(network,orange.copy(alpha=if(dark).22f else .13f),style=Stroke(1.dp.toPx()))
-            listOf(Offset(w*.93f,h*.34f),Offset(w*.27f,h*.90f)).forEach {drawCircle(orange.copy(alpha=.22f),3.dp.toPx(),it)}
-        }
-    }
+/** Apply the shared logo-free artwork; the day overlay preserves readable pale surfaces. */
+fun Modifier.portalBackdrop(): Modifier = composed {
+    this.paint(androidx.compose.ui.res.painterResource(R.drawable.brand_app_waves),
+        contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        .background(Color.White.copy(alpha = if (AppAppearance.dark) 0f else BuildConfig.WAVE_DAY_OVERLAY))
 }
 
 @Composable
