@@ -22,8 +22,13 @@ import org.json.JSONObject
 
 /** Use a handheld terminal silhouette with receipt, display, keypad and card slot. */
 @Composable
-internal fun PosTerminalIcon(modifier: Modifier = Modifier.size(28.dp)) {
-    Icon(painterResource(R.drawable.pos_terminal), null, modifier, tint = ApprovedPalette.ink)
+internal fun PosTerminalIcon(modifier: Modifier = Modifier) {
+    Icon(
+        painterResource(R.drawable.pos_terminal),
+        null,
+        modifier.size(28.dp),
+        tint = ApprovedPalette.ink,
+    )
 }
 
 /** Keep the brand visible above the scrollable, keyboard-aware authentication form. */
