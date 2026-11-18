@@ -548,7 +548,9 @@ private fun PortalOrders(
         if(!deliveredOnly)item {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 listOf("all" to "همه","pending" to "در انتظار تأیید","preparing" to "در حال آماده‌سازی","shipped" to "ارسال‌شده","active" to "در جریان","delivered" to "تحویل‌شده").forEach { (key,label) ->
-                    FilterChip(selected=group==key,onClick={group=key},label={Text(label)})
+                    FilterChip(selected=group==key,onClick={group=key},label={Text(label)},
+                        colors=FilterChipDefaults.filterChipColors(containerColor=ApprovedPalette.surface,
+                            selectedContainerColor=ApprovedPalette.accent,labelColor=ApprovedPalette.ink,selectedLabelColor=Color.White))
                 }
             }
         }
@@ -1114,7 +1116,10 @@ private fun PortalNewOrder(
                     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                         listOf("رسمی", "غیررسمی").forEach { choice ->
                             FilterChip(selected=invoiceType==choice,onClick={invoiceType=choice},
-                                label={Text(choice)},modifier=Modifier.weight(1f))
+                                label={Text(choice)},modifier=Modifier.weight(1f),
+                                leadingIcon={Icon(if(invoiceType==choice) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked,null)},
+                                colors=FilterChipDefaults.filterChipColors(containerColor=ApprovedPalette.surface,
+                                    selectedContainerColor=ApprovedPalette.secondary,labelColor=ApprovedPalette.ink,selectedLabelColor=ApprovedPalette.accent))
                         }
                     }
                     CheckoutOptionCard("کد تخفیف",promoCode.ifBlank {"افزودن کد"},Icons.Default.LocalOffer,
@@ -1297,7 +1302,9 @@ private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,Stri
             Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 listOf("serial" to "دستگاه‌ها","panel" to "پنل","agent" to "عاملین فروش").forEach { (key,label) ->
                     FilterChip(selected=group==key,onClick={group=key},label={Text(label)},
-                        modifier=Modifier.weight(1f).semantics {contentDescription="دسته قیمت "+label})
+                        modifier=Modifier.weight(1f).semantics {contentDescription="دسته قیمت "+label},
+                        colors=FilterChipDefaults.filterChipColors(containerColor=ApprovedPalette.surface,
+                            selectedContainerColor=ApprovedPalette.accent,labelColor=ApprovedPalette.ink,selectedLabelColor=Color.White))
                 }
             }
         }

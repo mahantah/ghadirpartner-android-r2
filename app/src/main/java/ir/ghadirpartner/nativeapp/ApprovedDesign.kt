@@ -86,7 +86,7 @@ internal fun ApprovedPriceCard(product: JSONObject, group: String, expandAll: Bo
                 Column(Modifier.weight(1f)) {
                     Text(shortProductName(product.s("name")), color = ApprovedPalette.ink,
                         fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Text("موجودی " + faNumber(product.i("stock")) + " عدد", color = if (available) ApprovedPalette.muted else Danger)
+                    Text(if (available) "موجودی " + faNumber(product.i("stock")) + " عدد" else "ناموجود", color = if (available) ApprovedPalette.muted else Danger)
                 }
                 Icon(if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                     contentDescription = if (expanded) "بستن قیمت‌ها" else "نمایش همه قیمت‌ها",
