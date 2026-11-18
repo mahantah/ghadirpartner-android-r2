@@ -146,13 +146,24 @@ class DesignFlowTest {
     }
     private fun hideKeyboard(scenario:ActivityScenario<MainActivity>) {
         scenario.onActivity {(it.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(it.window.decorView.windowToken,0)}
+        // Android 10 resizes the activity after the IME dismissal request returns.
+        // Wait for that resize before locating a control in the fixed footer.
+        compose.waitUntil(uiWaitTimeoutMs) {
+            var visible=false
+            scenario.onActivity { activity ->
+                visible=androidx.core.view.ViewCompat.getRootWindowInsets(activity.window.decorView)
+                    ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime())==true
+            }
+            !visible
+        }
         compose.waitForIdle()
     }
     private fun waitText(text:String) {
         try {
             compose.waitUntil(uiWaitTimeoutMs) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
         } catch (error: androidx.compose.ui.test.ComposeTimeoutException) {
-            throw AssertionError("Timed out waiting for UI text: $text", error)
+            shot("design-flow-failure.png",scrollToTop=false)
+            throw AssertionError("Timed out waiting for UI text: $text\n"+compose.onRoot().printToString(), error)
         }
     }
     private fun showText(text:String) {
@@ -386,6 +397,7 @@ class DesignFlowTest {
             showField("افزایش تعداد i90");compose.onNodeWithContentDescription("افزایش تعداد i90").performClick()
             chooseInvoice()
             showText("ادامه و بررسی سفارش");compose.onNodeWithText("ادامه و بررسی سفارش").performClick()
+            waitText("ادامه به بررسی نهایی")
             showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
             showText("تأیید و ثبت نهایی");compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
             waitText("سفارش با موفقیت ثبت شد")

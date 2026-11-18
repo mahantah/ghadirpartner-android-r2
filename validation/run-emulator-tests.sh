@@ -20,10 +20,11 @@ if ! adb shell am instrument -w ir.ghadirpartner.portalapp.debug.test/androidx.t
   echo 'Android instrumentation command failed' >&2
   exit 1
 fi
+instrumentation_ok=true
 if ! grep -Eq '^OK \([0-9]+ tests?\)' app/build/reports/startup/instrumentation.txt; then
   cat app/build/reports/startup/instrumentation.txt
   echo 'Android instrumentation tests did not all pass' >&2
-  exit 1
+  instrumentation_ok=false
 fi
 adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/invoice-reference.pdf > app/build/reports/invoice-reference.pdf
 adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/invoice-official.pdf > app/build/reports/invoice-official.pdf
@@ -33,10 +34,12 @@ adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/profile-day.png >
 adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/profile-night.png > app/build/reports/profile-night.png
 adb exec-out run-as ir.ghadirpartner.portalapp.debug cat files/invoice-list.png > app/build/reports/invoice-list.png
 mkdir -p app/build/reports/design
-for name in design-wallet-day design-wallet-night design-checkout-calendar design-home-day design-home-night design-catalog-serial design-catalog-panel design-catalog-agent design-checkout-cart design-checkout-cash design-checkout-check design-checkout-credit design-checkout-review design-checkout-success design-orders design-order-detail design-serials design-login design-otp design-account-offline design-message-center design-login-remembered design-profile-services design-profile-settings design-checkout-options design-profile-floating design-draft-restore-failure design-profile-main-day design-profile-main-night design-purchase-trend; do
+for name in design-flow-failure design-wallet-day design-wallet-night design-checkout-calendar design-home-day design-home-night design-catalog-serial design-catalog-panel design-catalog-agent design-checkout-cart design-checkout-cash design-checkout-check design-checkout-credit design-checkout-review design-checkout-success design-orders design-order-detail design-serials design-login design-otp design-account-offline design-message-center design-login-remembered design-profile-services design-profile-settings design-checkout-options design-profile-floating design-draft-restore-failure design-profile-main-day design-profile-main-night design-purchase-trend; do
   if adb exec-out run-as ir.ghadirpartner.portalapp.debug cat "files/$name.png" > "app/build/reports/design/$name.png" 2>/dev/null; then
     test -s "app/build/reports/design/$name.png"
   else
     rm -f "app/build/reports/design/$name.png"
   fi
 done
+
+if [ "$instrumentation_ok" != true ]; then exit 1; fi
