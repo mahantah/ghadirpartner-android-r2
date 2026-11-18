@@ -1189,12 +1189,8 @@ private fun PortalNewOrder(
         Surface(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom=LocalPortalBottomPadding.current)
             .semantics {contentDescription="خلاصه ثابت سفارش"},
             color=ApprovedPalette.surface, shadowElevation=4.dp) {
-            Row(Modifier.padding(horizontal=12.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                Text("جمع سفارش • "+formatMoney(total)+" تومان",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold,
-                    fontSize=12.sp,modifier=Modifier.weight(1f),maxLines=1)
-                ApprovedButton("ادامه", {
-                    if(invoiceType.isBlank()) error="نوع فاکتور را انتخاب کنید" else {error="";step=1}
-                },enabled=cart.isNotEmpty(),modifier=Modifier.semantics {contentDescription="ادامه و بررسی سفارش"})
+            ApprovedCheckoutSummary(total, cart.isNotEmpty()) {
+                if(invoiceType.isBlank()) error="نوع فاکتور را انتخاب کنید" else {error="";step=1}
             }
         }
     }

@@ -1,5 +1,7 @@
 package ir.ghadirpartner.nativeapp
 
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.verticalScroll
 import android.content.Context
 import android.graphics.Bitmap
@@ -75,6 +77,30 @@ class DesignFlowTest {
             assertTrue(writes.isEmpty())
         }
     }
+    /** A narrow phone must show the full financial total and preserve the continuation callback. */
+    @Test fun compactSummaryFitsNarrowPhonesAndKeepsItsAmount() {
+        val continued = AtomicInteger()
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity -> activity.setContent {
+                GhadirTheme { CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier
+                        .then(androidx.compose.ui.Modifier.width(320.dp))) {
+                        ApprovedCheckoutSummary(999999999L, true) { continued.incrementAndGet() }
+                    }
+                } }
+            } }
+            val label = compose.onNodeWithText("جمع سفارش • ۹۹۹٬۹۹۹٬۹۹۹ تومان")
+            label.assertIsDisplayed()
+            val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            label.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            assertTrue(layouts.isNotEmpty())
+            assertFalse("The complete total must remain readable", layouts.single().hasVisualOverflow)
+            compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
+            assertEquals(1, continued.get())
+            assertTrue(writes.isEmpty())
+        }
+    }
+
     @Test fun offerPopupOpensDetailsOncePerAccount() {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         context.getSharedPreferences("offer-popup",0).edit().clear().commit()
