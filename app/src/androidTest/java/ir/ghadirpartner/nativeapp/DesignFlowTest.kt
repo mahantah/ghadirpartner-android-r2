@@ -1,5 +1,6 @@
 package ir.ghadirpartner.nativeapp
 
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.verticalScroll
@@ -98,6 +99,29 @@ class DesignFlowTest {
             compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
             assertEquals(1, continued.get())
             assertTrue(writes.isEmpty())
+        }
+    }
+
+    /** Password and OTP actions remain scrollable with a narrow viewport and visible keyboard. */
+    @Test fun loginAndOtpStayReachableWithKeyboardOnSmallPhone() {
+        val logged = AtomicInteger()
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity -> activity.setContent {
+                GhadirTheme { CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.width(320.dp).height(480.dp)) {
+                        LoginScreen(ApiClient(activity, client())) { logged.incrementAndGet() }
+                    }
+                } }
+            } }
+            waitText("خوش آمدید")
+            compose.onNodeWithContentDescription("شماره همراه").performScrollTo().performTextReplacement("۰۹۱۲۱۲۳۴۵۶۷")
+            compose.onNodeWithText("ورود با کد یک‌بارمصرف").performScrollTo().assertIsDisplayed().performClick()
+            waitText("کد تأیید را وارد کنید")
+            compose.onNodeWithContentDescription("کد شش‌رقمی").performScrollTo().performTextInput("۱۲۳۴۵۶")
+            compose.onNodeWithText("تأیید و ورود").performScrollTo().assertIsDisplayed().performClick()
+            compose.waitUntil(uiWaitTimeoutMs) { logged.get() == 1 }
+            assertEquals("09121234567", writes.single { it.first == "/api/native/login-otp/request" }.second.s("mobile"))
+            assertEquals("123456", writes.single { it.first == "/api/native/login-otp/confirm" }.second.s("otp"))
         }
     }
 

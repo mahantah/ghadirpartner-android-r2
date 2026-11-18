@@ -29,23 +29,40 @@ internal fun PosTerminalIcon(modifier: Modifier = Modifier.size(28.dp)) {
 /** Keep the brand visible above the scrollable, keyboard-aware authentication form. */
 @Composable
 internal fun LoginBrandHeader() {
-    Column(
-        Modifier.fillMaxWidth().padding(top = 28.dp, bottom = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    Surface(
+        Modifier.padding(horizontal = 20.dp, vertical = 12.dp).widthIn(max = 420.dp).fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = Navy,
     ) {
-        Image(
-            painterResource(R.drawable.brand_logo),
-            "نشان قدیر پارتنر",
-            Modifier.size(72.dp).clip(RoundedCornerShape(20.dp)),
-        )
-        Text(
-            "قدیر پارتنر",
-            color = ApprovedPalette.ink,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Text("همراه مطمئن کسب‌وکار شما", color = ApprovedPalette.muted, fontSize = 12.sp)
+        Row(
+            Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Image(
+                painterResource(R.drawable.brand_logo),
+                "نشان قدیر پارتنر",
+                Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)),
+            )
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    "قدیر پارتنر",
+                    color = androidx.compose.ui.graphics.Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    "همراه مطمئن کسب‌وکار شما",
+                    color = androidx.compose.ui.graphics.Color.White,
+                    fontSize = 12.sp,
+                )
+                HorizontalDivider(
+                    Modifier.width(40.dp),
+                    color = ApprovedPalette.accent,
+                    thickness = 3.dp,
+                )
+            }
+        }
     }
 }
 

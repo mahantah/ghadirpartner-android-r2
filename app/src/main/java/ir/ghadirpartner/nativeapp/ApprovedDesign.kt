@@ -29,6 +29,8 @@ internal object ApprovedPalette {
     val muted get() = color(BuildConfig.DESIGN_MUTED_LIGHT, BuildConfig.DESIGN_MUTED_DARK)
     val border get() = color(BuildConfig.DESIGN_BORDER_LIGHT, BuildConfig.DESIGN_BORDER_DARK)
     val accent get() = color(BuildConfig.DESIGN_ACCENT, BuildConfig.DESIGN_ACCENT)
+    val walletStart get() = color(BuildConfig.DESIGN_WALLET_START, BuildConfig.DESIGN_WALLET_START)
+    val walletEnd get() = color(BuildConfig.DESIGN_WALLET_END, BuildConfig.DESIGN_WALLET_END)
 }
 
 /** Provide the approved opaque card styling inside the redesigned screens. */
@@ -166,7 +168,7 @@ internal fun ApprovedOrderCard(order: JSONObject, onClick: () -> Unit) {
 internal fun ApprovedWalletBalance(wallet: JSONObject) {
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = Navy) {
         Column(Modifier.background(androidx.compose.ui.graphics.Brush.linearGradient(
-            listOf(Navy, Navy.copy(red = .12f, green = .24f, blue = .34f))))
+            listOf(ApprovedPalette.walletStart, ApprovedPalette.walletEnd)))
             .padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
