@@ -96,22 +96,28 @@ internal fun ApprovedPriceCard(product: JSONObject, group: String, expandAll: Bo
                 for ((key, title) in listOf("serial" to "دستگاه", "panel" to "پنل", "agent" to "عاملین فروش")) {
                     val rows = catalogPriceRows(key).filter { product.obj("prices").l(it.first) > 0L }
                     if (rows.isNotEmpty()) {
-                        Surface(color = ApprovedPalette.secondary, shape = RoundedCornerShape(8.dp)) {
-                            Text(title, Modifier.fillMaxWidth().padding(8.dp), fontWeight = FontWeight.Bold,
-                                color = ApprovedPalette.ink)
-                        }
-                        rows.forEach { (priceKey, label) ->
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(label, color = ApprovedPalette.ink, modifier = Modifier.weight(1f))
-                                Text(if (available) formatMoney(product.obj("prices").l(priceKey)) + " تومان" else "—",
-                                    color = ApprovedPalette.ink, fontWeight = FontWeight.Bold)
+                        Surface(color = ApprovedPalette.surface, shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, ApprovedPalette.border)) {
+                            Column {
+                                Surface(color = ApprovedPalette.secondary) {
+                                    Text(title, Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+                                        fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ApprovedPalette.ink)
+                                }
+                                rows.forEach { (priceKey, label) ->
+                                    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(label, color = ApprovedPalette.ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                        Text(if (available) formatMoney(product.obj("prices").l(priceKey)) + " تومان" else "—",
+                                            color = ApprovedPalette.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    HorizontalDivider(color = ApprovedPalette.border)
+                                }
                             }
-                            HorizontalDivider(color = ApprovedPalette.border)
                         }
                     }
                 }
             }
-            ApprovedButton("افزودن به سفارش", onOrder, enabled = available &&
+            ApprovedButton("افزودن به سفارش", onOrder, modifier = Modifier.fillMaxWidth(), enabled = available &&
                 catalogPriceRows(group).any { product.obj("prices").l(it.first) > 0L })
         }
     }
