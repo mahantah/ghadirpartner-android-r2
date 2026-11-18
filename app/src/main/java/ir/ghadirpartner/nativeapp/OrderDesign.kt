@@ -82,17 +82,6 @@ internal fun LoginStepHeader(title: String, subtitle: String, icon: ImageVector)
     }
 }
 
-/** Group existing order operations while preserving their own permission predicates. */
-@Composable
-internal fun ApprovedDetailSection(title: String, content: @Composable ColumnScope.() -> Unit) {
-    ApprovedSurface {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(title, color = ApprovedPalette.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            content()
-        }
-    }
-}
-
 /** Present immutable order identity and customer facts above financial and delivery sections. */
 @Composable
 internal fun ApprovedOrderSummary(order: JSONObject, me: JSONObject, total: Long) {

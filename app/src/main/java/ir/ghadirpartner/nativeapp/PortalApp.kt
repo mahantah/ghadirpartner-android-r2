@@ -645,7 +645,7 @@ private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->
             item { IranKishOrderPaymentActions(api, order, onConfirmed = { refreshOrder() }) }
             if (correction.s("status") != "requested") item { OrderProofActions(api, order) { refreshOrder() } }
             item { CustomerCreditRepayment(api, order) }
-            item {ApprovedDetailSection("روند سفارش") {OrderDeliveryTimeline(order.s("status"),order.s("approval_status"))}}
+            item {OrderDeliveryTimeline(order.s("status"),order.s("approval_status"))}
             item(key = "shipping-receipts") { OrderShippingReceipts(api, order.i("id")) }
             item {GhadirButton(if(refreshing)"در حال به‌روزرسانی…" else "به‌روزرسانی وضعیت",{refreshOrder()},enabled=!refreshing,secondary=true)}
             if(order.s("rejection_reason").isNotBlank())item {DesignNotice("علت عدم تأیید شرکت\n\n"+order.s("rejection_reason"))}
@@ -662,11 +662,11 @@ private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->
             if(delivered)item {GhadirButton("دریافت PDF سریال‌ها",onSerials)}
             item {GhadirButton("مشاهده پیش‌فاکتور",onProforma,secondary=true)}
             if(canCancel&&!cancelSent)item {GhadirButton("درخواست لغو سفارش",{cancelView=true;error=""},secondary=true)}
-                if(order.s("notes").isNotBlank())item {DesignNotice(order.s("notes"))}
-                items(order.arr("history").objects().takeLast(8).reversed()) {h->GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text(h.s("action"),color=Ink,fontSize=12.sp)
-                    Text(formatDateFa(h.s("at"))+" • "+h.s("by"),color=Muted,fontSize=12.sp)
-                }}}
+            if(order.s("notes").isNotBlank())item {DesignNotice(order.s("notes"))}
+            items(order.arr("history").objects().takeLast(8).reversed()) {h->ApprovedSurface {Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                Text(h.s("action"),color=Ink,fontSize=12.sp)
+                Text(formatDateFa(h.s("at"))+" • "+h.s("by"),color=Muted,fontSize=12.sp)
+            }}}
         }
     }
 }

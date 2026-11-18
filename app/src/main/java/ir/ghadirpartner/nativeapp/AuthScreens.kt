@@ -166,8 +166,8 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
                             catch(e:Exception){error=e.message?:"کد تأیید نشد"}finally{loading=false}
                         }
                     },enabled=otp.length==6&&!loading)
-                    GhadirButton(if(countdown>0)"ارسال مجدد پس از "+faNumber(countdown)+" ثانیه" else "ارسال مجدد کد",{requestOtp()},enabled=countdown==0&&!loading,secondary=true)
-                    GhadirButton("ویرایش شماره همراه",{view="login";otp=""},enabled=!loading,secondary=true)
+                    WebLoginButton(if(countdown>0)"ارسال مجدد پس از "+faNumber(countdown)+" ثانیه" else "ارسال مجدد کد",{requestOtp()},enabled=countdown==0&&!loading,secondary=true)
+                    WebLoginButton("ویرایش شماره همراه",{view="login";otp=""},enabled=!loading,secondary=true)
                 }
                 "biometric"->{
                     DesignState(if(biometricFailed)"هویت تأیید نشد" else "تأیید هویت دستگاه",
