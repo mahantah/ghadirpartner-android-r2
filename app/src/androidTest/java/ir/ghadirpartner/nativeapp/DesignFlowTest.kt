@@ -217,6 +217,12 @@ class DesignFlowTest {
         clearFloatingBarOverlap(compose.onAllNodesWithText(text).onLast())
     }
     private fun showField(description:String) {
+        // The fixed summary is a sibling of the list and must never be searched by scrolling it.
+        if(compose.onAllNodes(hasContentDescription("خلاصه ثابت سفارش") and
+            hasAnyDescendant(hasContentDescription(description))).fetchSemanticsNodes().isNotEmpty()) {
+            compose.onNodeWithContentDescription(description).assertIsDisplayed()
+            return
+        }
         val lists=compose.onAllNodes(hasScrollToIndexAction())
         if(lists.fetchSemanticsNodes().size==1)lists.onFirst().performScrollToNode(hasContentDescription(description))
         compose.onNodeWithContentDescription(description).performScrollTo()
