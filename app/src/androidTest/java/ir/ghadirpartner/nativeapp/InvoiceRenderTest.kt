@@ -11,7 +11,42 @@ import org.json.JSONArray
 import org.junit.Test
 import java.io.File
 
+/** Verify real PDF rendering, pagination and the absence of printed order notes. */
 class InvoiceRenderTest {
+    /** Changing stored notes must never affect either invoice type or its pagination. */
+    @Test fun printedInvoicesIgnoreNotes() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val customer=JSONObject("""{"name":"مشتری آزمایشی","address":"تهران"}""")
+        val order=JSONObject("""{"number":"NO-NOTES","created_at":"2026-11-18","estimated_total":1000000,"items":[{"product":"کارتخوان","qty":1,"unit_price":1000000,"line_total":1000000}]}""")
+        fun raster(note:String):Bitmap {
+            order.put("notes",note)
+            val file=File(context.filesDir,"invoice-notes-regression.pdf")
+            val pdf=PdfDocument()
+            try {
+                OfficialInvoice.render(pdf,order,customer,context)
+                check(pdf.pages.size==1)
+                file.outputStream().use{pdf.writeTo(it)}
+            } finally {pdf.close()}
+            ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY).use {fd ->
+                PdfRenderer(fd).use {renderer ->
+                    renderer.openPage(0).use {page ->
+                        return Bitmap.createBitmap(page.width*2,page.height*2,Bitmap.Config.ARGB_8888).also {
+                            it.eraseColor(Color.WHITE)
+                            page.render(it,null,null,PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+                        }
+                    }
+                }
+            }
+        }
+        for(type in listOf("رسمی","غیررسمی"))for(method in listOf("cash","check","mixed")) {
+            order.put("invoice_type",type).put("requested_payment_method",method)
+            val before=raster("")
+            val after=raster("این یادداشت فقط برای اتوماسیون است و نباید روی فاکتور چاپ شود. ".repeat(100))
+            try {check(before.sameAs(after)) {"Printed invoice must not contain stored notes"}}
+            finally {before.recycle();after.recycle()}
+        }
+    }
+    /** Preserve the seller stamp, readable fields and multi-page item tables. */
     @Test fun referenceAndPagination() {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val customer=JSONObject("""{"company":"مشتری نمونه — داده آزمایشی","national_id":"—","economic_code":"—","province":"تهران","city":"تهران","address":"نشانی نمونه برای بررسی قالب چاپ","postal_code":"—","mobile":"—"}""")
@@ -47,7 +82,7 @@ class InvoiceRenderTest {
         val official=write("invoice-official.pdf")
         check(OfficialInvoice.isOfficial(order));check(bluePixels(official)>100) {"Official invoice must contain the blue sales stamp"}
         for(type in listOf("غیر رسمی","غیر‌رسمی","unofficial","", "null")){order.put("invoice_type",type);check(!OfficialInvoice.isOfficial(order))}
-        // Wrapped customer details/notes must still leave room for totals and signatures.
+        // Wrapped customer details must still leave room for totals and signatures.
         order.put("invoice_type","غیررسمی").put("notes","توضیحات ثبت شده مشتری برای بررسی چاپ و ارسال سفارش. ".repeat(9))
         customer.put("address","تهران، خیابان نمونه، ساختمان آزمایشی با نشانی طولانی برای بررسی سطرهای چاپی و جلوگیری از همپوشانی متن، واحد دوازده. ".repeat(2))
         write("invoice-long-fields.pdf")
