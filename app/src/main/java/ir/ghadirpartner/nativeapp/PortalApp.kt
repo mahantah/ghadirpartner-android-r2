@@ -1075,7 +1075,7 @@ private fun PortalNewOrder(
                 if(selected!=null&&qty>(selected?.i("stock")?:0))Text("تعداد از موجودی کالا بیشتر است",color=Danger,fontSize=12.sp)
                 DetailLine("قیمت واحد",if(unit>0)formatMoney(unit)+" تومان" else "—")
                 ApprovedButton("افزودن کالا",{
-                    val product=selected?:return@GhadirButton
+                    val product=selected?:return@ApprovedButton
                     try {
                         cart=cartService.add(cart,catalogEntry(product),qty,priceKey,if(group=="panel")panelSwitch else "")
                         panelSwitch=""
@@ -1276,7 +1276,14 @@ private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,Stri
         item { Text("قیمت‌ها", color=ApprovedPalette.ink, fontSize=24.sp, fontWeight=FontWeight.Bold) }
         item { ApprovedSearchBox(query, {query=it}, "جست‌وجوی نام یا مدل کالا") }
         item { ApprovedButton(if(expandAll) "بستن همه قیمت‌ها" else "نمایش همه قیمت‌ها", {expandAll=!expandAll}, modifier=Modifier.fillMaxWidth(), secondary=true) }
-        item {DesignChoices(listOf("serial" to "دستگاه‌ها","panel" to "پنل","agent" to "عاملین فروش"),group,{group=it})}
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                listOf("serial" to "دستگاه‌ها","panel" to "پنل","agent" to "عاملین فروش").forEach { (key,label) ->
+                    FilterChip(selected=group==key,onClick={group=key},label={Text(label)},
+                        modifier=Modifier.weight(1f).semantics {contentDescription="دسته قیمت "+label})
+                }
+            }
+        }
         when {
             loading-> {
                 item {Text("در حال دریافت قیمت‌ها…",color=ApprovedPalette.muted,fontSize=12.sp)}

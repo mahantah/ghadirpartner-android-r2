@@ -103,7 +103,7 @@ internal fun ApprovedPriceCard(product: JSONObject, group: String, expandAll: Bo
                         rows.forEach { (priceKey, label) ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(label, color = ApprovedPalette.ink, modifier = Modifier.weight(1f))
-                                Text(formatMoney(product.obj("prices").l(priceKey)) + " تومان",
+                                Text(if (available) formatMoney(product.obj("prices").l(priceKey)) + " تومان" else "—",
                                     color = ApprovedPalette.ink, fontWeight = FontWeight.Bold)
                             }
                             HorizontalDivider(color = ApprovedPalette.border)

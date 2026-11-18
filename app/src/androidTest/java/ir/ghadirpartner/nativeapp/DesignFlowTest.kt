@@ -181,9 +181,9 @@ class DesignFlowTest {
             }
             showText("نمایش همه قیمت‌ها");compose.onNodeWithText("نمایش همه قیمت‌ها").performClick()
             shot("design-catalog-serial.png")
-            compose.onNodeWithText("پنل").performClick()
+            compose.onNodeWithContentDescription("دسته قیمت پنل").performClick()
             compose.onNodeWithText("۱۱٬۰۰۰٬۰۰۰ تومان").assertExists();shot("design-catalog-panel.png")
-            compose.onNodeWithText("عاملین فروش").performClick()
+            compose.onNodeWithContentDescription("دسته قیمت عاملین فروش").performClick()
             compose.onAllNodesWithText("۱۱٬۲۰۰٬۰۰۰ تومان").onLast().assertExists();shot("design-catalog-agent.png")
             compose.onAllNodesWithText("ثبت سفارش").onLast().performClick()
             compose.waitUntil(15000){compose.onAllNodesWithContentDescription("مدل دستگاه").fetchSemanticsNodes().isNotEmpty()}
