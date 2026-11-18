@@ -14,6 +14,7 @@ import java.util.Locale
 
 /** Vector A4 landscape form, measured in points from the customer's reference PDF.
  * Both invoice types use this form; only an explicitly official order receives the stamp.
+ * Printed forms deliberately omit order notes and payment instructions.
  * Amounts come from the order, never from a sample or an assumed tax percentage.
  */
 internal object OfficialInvoice {
@@ -99,17 +100,10 @@ internal object OfficialInvoice {
         val net=if(officialRows) money(computed.sumOf{it.netAfterAdjustments}) else money(computed.sumOf{it.invoiceNet})
         val totalWords=words(Math.multiplyExact(total,multiplier))+" ریال"
         val paymentHeight=maxOf(27.6f,measure.layout(totalWords,537.27f).height+8f)
-        val bankNotes="همکار عزیز نسبت به تسویه مبلغ فاکتور به صورت نقدی به حساب زیر واریز گردد:\n*بانک مهرایران* حقوقی\n*شماره شبا:* \u2066IR200600000000100438838749\u2069\n*نام صاحب حساب:* هوشمند پرداز پویا تجارت قدیر"
-        val method=value(order,"requested_payment_method","payment_method")
-        val checkNote=if(officialRows&&(method=="check"||method=="mixed"||value(order,"requested_payment_method_label").contains("چک")))
-            "چک به نام سلمان بوربور فرون‌آباد — کد ملی ۰۴۹۳۳۹۱۷۶۲"
-        else null
-        val notes=listOf(bankNotes,checkNote,order.optString("notes").takeUnless{it.isBlank()||it=="null"}).filterNotNull().joinToString("\n")
-        val noteHeight=maxOf(71.64f,measure.layout(notes,680f,8f,align=Layout.Alignment.ALIGN_NORMAL).height+20f)
-        val footerHeight=ROW+paymentHeight+noteHeight+35.4f
+        val footerHeight=ROW+paymentHeight+35.4f
         val available=550f-bodyY-footerHeight
         require(available>=ROW*3 && heights.all{it<=available}) {"اطلاعات فاکتور برای یک صفحه چاپی بیش از حد طولانی است"}
-        // Reserve the complete totals/payment/notes/signature block on every page.
+        // Reserve the complete totals/payment/signature block on every page.
         // This keeps long invoices inside the paper and repeats the reference header.
         val groups=mutableListOf<List<Int>>()
         var group=mutableListOf<Int>();var used=0f
@@ -187,10 +181,6 @@ internal object OfficialInvoice {
                     checkBox(574.19f,"غیر نقدی",method in listOf("check","credit")||paymentLabel in listOf("چک","اعتباری"))
                     f.text(totalWords,LEFT,y,537.27f,paymentHeight,8.6f,right=true)
                     y+=paymentHeight
-                    f.box(LEFT,y,WIDTH,noteHeight)
-                    f.text("توضیحات:",752f,y,59f,noteHeight,right=true)
-                    f.text(notes,65f,y+8f,685f,noteHeight-16f,8f,right=true)
-                    y+=noteHeight
                     f.box(LEFT,y,389.88f,35.4f)
                     f.box(418.31f,y,RIGHT-418.31f,35.4f)
                     f.text("مهر و امضاء خریدار",325f,y,91f,35.4f,8f,right=true)

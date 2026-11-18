@@ -9,3 +9,10 @@ validation/ci-run-*/
 
 *.p12
 signing.properties
+
+# Private release tooling output and Python caches
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+release-output/

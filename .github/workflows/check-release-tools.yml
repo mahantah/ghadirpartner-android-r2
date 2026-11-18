@@ -1,0 +1,23 @@
+name: Check Bazaar publication tooling
+on:
+  pull_request:
+    branches: [main, fix/portal-checkout-navigation-latency]
+    paths:
+      - release_tools/**
+      - tests/release_tools/**
+      - config/bazaar-release.yaml
+      - config/order-flow.yaml
+      - validation/check-release-tools.sh
+      - .github/workflows/*release*.yml
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r release_tools/requirements-dev.txt
+      - run: bash validation/check-release-tools.sh
