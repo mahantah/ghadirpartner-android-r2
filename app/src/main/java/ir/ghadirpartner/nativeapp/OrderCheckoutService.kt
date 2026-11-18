@@ -1,5 +1,7 @@
 package ir.ghadirpartner.nativeapp
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -28,7 +30,17 @@ internal class OrderRepository(
     }
 
     /** Submit once; retries remain a deliberate customer action after an API failure. */
-    suspend fun create(checkout: OrderCheckout): JSONObject {
+    suspend fun create(checkout: OrderCheckout, mode: String = "", paymentId: String = ""): JSONObject {
+        val body = withContext(Dispatchers.Default) {
+            requestBody(checkout).apply {
+                if (mode.isNotEmpty()) put("online_checkout_mode", mode)
+                if (paymentId.isNotEmpty()) put("online_checkout_id", paymentId)
+            }
+        }
+        return api.post("/api/orders/add", body) as JSONObject
+    }
+
+    private fun requestBody(checkout: OrderCheckout): JSONObject {
         val items: JSONArray = JSONArray()
         checkout.lines.forEach { line ->
             val item = JSONObject().put("product", line.product).put("qty", line.qty).put("price_key", line.priceKey)
@@ -51,7 +63,7 @@ internal class OrderRepository(
         if (checkout.revisionOrderId > 0) {
             body.put("revision_order_id", checkout.revisionOrderId).put("revision_version", checkout.revisionVersion)
         }
-        return api.post("/api/orders/add", body) as JSONObject
+        return body
     }
 }
 
@@ -76,11 +88,18 @@ internal class OrderCheckoutService(
             else -> settlementError(checkout.paymentMethod, checkout.settlement)
         }
 
+    /** Validate and price the draft before requesting the bank handoff. */
+    suspend fun preparePayment(checkout: OrderCheckout): JSONObject {
+        val error = validation(checkout)
+        require(error.isBlank()) { error }
+        return repository.create(checkout, "prepare")
+    }
+
     /** Validate again before sending the customer order for company review. */
-    suspend fun submit(checkout: OrderCheckout): JSONObject {
+    suspend fun submit(checkout: OrderCheckout, paymentId: String = ""): JSONObject {
         val error: String = validation(checkout)
         require(error.isBlank()) { error }
-        return repository.create(checkout)
+        return repository.create(checkout, if (checkout.settlement.b("cash_online") && checkout.settlement.b("cash_enabled")) "finalize" else "", paymentId)
     }
 }
 

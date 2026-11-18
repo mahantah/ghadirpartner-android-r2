@@ -76,7 +76,7 @@ internal fun SettlementForm(
             onlineAvailable = false
         }
     }
-    LaunchedEffect(busy, creditLoading) { onBusyChanged(busy || creditLoading) }
+    LaunchedEffect(busy) { onBusyChanged(busy) }
     DisposableEffect(Unit) { onDispose { onBusyChanged(false) } }
     LaunchedEffect(retry) {
         error = ""

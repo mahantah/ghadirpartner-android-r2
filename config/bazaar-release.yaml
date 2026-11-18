@@ -1,0 +1,25 @@
+api_base: https://api.pishkhan.cafebazaar.ir/v1/
+api_secret: ${CAFEBAZAAR_PISHKHAN_API_SECRET}
+auth_header: CAFEBAZAAR-PISHKHAN-API-SECRET
+package_name: ir.ghadirpartner.portalapp
+certificate_sha256: ddf5d951e0f1352e11465c863a73dbf06475c655af3581786d7b2ba4cb5915b4
+architecture: all
+timeout_seconds: 120
+maximum_apk_bytes: 104857600
+staged_rollout_percentage: 100
+changelog_fa: |
+  طراحی جدید کیف پول، قیمت‌ها، سفارش‌ها و ثبت سفارش
+  نمایش بازشونده همه رده‌های قیمت و بهبود جست‌وجو
+  حذف کادر توضیحات از برگه‌های فاکتور
+changelog_en: |
+  Updated wallet, catalog, order list and checkout layouts.
+  Expandable price tiers and improved search.
+  Removed the notes section from invoice PDFs.
+developer_note: به‌روزرسانی رابط کاربری و حذف توضیحات فاکتورها؛ بدون تغییر مجوزهای برنامه.
+endpoints:
+  create: apps/releases/
+  upload: apps/releases/upload/
+  commit: apps/releases/commit/
+  draft: apps/releases/last-uncommitted/
+  committed: apps/releases/last-committed/
+  published: apps/releases/last-published/
