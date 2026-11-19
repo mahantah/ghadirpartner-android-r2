@@ -29,7 +29,7 @@ internal class OrderRepository(
             ?: throw IllegalArgumentException("سفارش در دسترس نیست")
     }
 
-    /** Submit once; retries remain a deliberate customer action after an API failure. */
+    /** Send one request; only the facade may recover a server-deduplicated preparation failure. */
     suspend fun create(checkout: OrderCheckout, mode: String = "", paymentId: String = ""): JSONObject {
         val body = withContext(Dispatchers.Default) {
             requestBody(checkout).apply {
