@@ -7,7 +7,6 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
-import android.view.WindowManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -26,7 +25,6 @@ class IranKishPaymentActivity : Activity() {
             finish()
             return
         }
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         val web = WebView(this)
         bankView = web
         setContentView(web)
