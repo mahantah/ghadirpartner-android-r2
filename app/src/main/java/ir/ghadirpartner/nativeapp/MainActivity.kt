@@ -24,7 +24,6 @@ import org.json.JSONObject
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if(!BuildConfig.DEBUG)window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
         enableEdgeToEdge()
         if(android.os.Build.VERSION.SDK_INT>=29)window.isNavigationBarContrastEnforced=false
         AppAppearance.restore(this)

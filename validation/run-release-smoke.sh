@@ -28,6 +28,7 @@ for mode in portal automation; do
     if grep -q 'خوش آمدید' "$reports/$mode-window.xml"; then ready=true; break; fi
   done
   test "$ready" = true
+  adb exec-out screencap -p > "$reports/$mode-screenshot.png"
   adb shell pidof "$package"
   adb shell input keyevent KEYCODE_HOME
   adb shell am start -W -n "$package/ir.ghadirpartner.nativeapp.MainActivity"
