@@ -29,7 +29,7 @@ internal class OrderRepository(
             ?: throw IllegalArgumentException("سفارش در دسترس نیست")
     }
 
-    /** Submit once; retries remain a deliberate customer action after an API failure. */
+    /** Send one request; only the facade may recover a server-deduplicated preparation failure. */
     suspend fun create(checkout: OrderCheckout, mode: String = "", paymentId: String = ""): JSONObject {
         val body = withContext(Dispatchers.Default) {
             requestBody(checkout).apply {
@@ -92,7 +92,10 @@ internal class OrderCheckoutService(
     suspend fun preparePayment(checkout: OrderCheckout): JSONObject {
         val error = validation(checkout)
         require(error.isBlank()) { error }
-        return repository.create(checkout, "prepare")
+        // The server reuses the checkout fingerprint. No order or bank debit is submitted here.
+        return PaymentPreparationRecovery(BuildConfig.PAYMENT_PREPARATION_RETRY_MS).prepare {
+            repository.create(checkout, "prepare")
+        }
     }
 
     /** Validate again before sending the customer order for company review. */

@@ -52,3 +52,5 @@ banks:
   - کاسپین
   - ثامن
 portal_heartbeat_retry_ms: 60000
+background_lock_grace_ms: 300000
+payment_preparation_retry_ms: 1500
