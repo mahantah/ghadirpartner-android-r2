@@ -95,7 +95,7 @@ internal fun ApprovedPriceCard(product: JSONObject, group: String, expandAll: Bo
                     tint = ApprovedPalette.accent)
             }
             if (expanded) {
-                for ((key, title) in listOf("serial" to "دستگاه", "panel" to "پنل", "agent" to "عاملین فروش")) {
+                for ((key, title) in listOf("serial" to "سریال آزاد", "panel" to "پنل", "agent" to "عاملین فروش")) {
                     val rows = catalogPriceRows(key).filter { product.obj("prices").l(it.first) > 0L }
                     if (rows.isNotEmpty()) {
                         Surface(color = ApprovedPalette.surface, shape = RoundedCornerShape(8.dp),
