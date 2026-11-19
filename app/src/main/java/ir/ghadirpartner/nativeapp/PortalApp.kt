@@ -1312,7 +1312,7 @@ private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,Stri
             Text("جست‌وجو و فیلتر قیمت‌ها",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold,fontSize=20.sp)
             DesignField("جستجوی مدل یا شرکت سازنده",query,{query=it},"مدل یا سازنده را وارد کنید",R.drawable.design_search)
             Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                listOf("serial" to "دستگاه‌ها","panel" to "پنل","agent" to "عاملین فروش").forEach { (key,label) ->
+                listOf("serial" to "سریال آزاد","panel" to "پنل","agent" to "عاملین فروش").forEach { (key,label) ->
                     FilterChip(selected=group==key,onClick={group=key},label={Text(label)},
                         modifier=Modifier.weight(1f).semantics {contentDescription="دسته قیمت "+label},
                         colors=FilterChipDefaults.filterChipColors(containerColor=ApprovedPalette.surface,
