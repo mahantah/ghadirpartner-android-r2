@@ -58,15 +58,18 @@ private fun NativeAppRoot() {
     val context = LocalContext.current
     val api = remember { ApiClient(context) }
     var checking by remember { mutableStateOf(true) }
+    var authenticationError by remember { mutableStateOf("") }
     var me by remember { mutableStateOf<JSONObject?>(null) }
     var authNonce by remember { mutableIntStateOf(0) }
     var biometricChecked by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val biometricRequired=rememberBiometricEnabled(context,me?.s("username").orEmpty())
+    val backgroundLock = remember { BackgroundLock(BuildConfig.BACKGROUND_LOCK_GRACE_MS) { android.os.SystemClock.elapsedRealtime() } }
     DisposableEffect(context) {
         val activity = context as FragmentActivity
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if(event == androidx.lifecycle.Lifecycle.Event.ON_STOP) biometricChecked = false
+            if(event == androidx.lifecycle.Lifecycle.Event.ON_STOP) backgroundLock.stopped()
+            if(event == androidx.lifecycle.Lifecycle.Event.ON_START && backgroundLock.resumed()) biometricChecked = false
         }
         activity.lifecycle.addObserver(observer)
         onDispose { activity.lifecycle.removeObserver(observer) }
@@ -74,6 +77,7 @@ private fun NativeAppRoot() {
 
     LaunchedEffect(authNonce) {
         checking = true
+        authenticationError = ""
         biometricChecked = false
         me = try {
             val current = if (api.hasSession()) api.me() else null
@@ -87,12 +91,23 @@ private fun NativeAppRoot() {
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
-        } catch (_: Exception) { null }
+        } catch (failure: ApiException) {
+            if (failure.status != 401) authenticationError = failure.message
+            null
+        } catch (_: Exception) {
+            authenticationError = "ارتباط با سرور برقرار نشد؛ دوباره تلاش کنید."
+            null
+        }
         checking = false
     }
 
     when {
         checking -> SplashScreen()
+        authenticationError.isNotBlank() -> Column(Modifier.fillMaxSize().portalBackdrop().padding(24.dp),
+            verticalArrangement = Arrangement.Center) {
+            Text(authenticationError, color = Ink)
+            GhadirButton("تلاش دوباره", { authNonce++ })
+        }
         me == null -> LoginScreen(
             api = api,
             onLoggedIn = { account -> biometricChecked = true; me = account }

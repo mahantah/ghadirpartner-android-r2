@@ -92,7 +92,10 @@ internal class OrderCheckoutService(
     suspend fun preparePayment(checkout: OrderCheckout): JSONObject {
         val error = validation(checkout)
         require(error.isBlank()) { error }
-        return repository.create(checkout, "prepare")
+        // The server reuses the checkout fingerprint. No order or bank debit is submitted here.
+        return PaymentPreparationRecovery(BuildConfig.PAYMENT_PREPARATION_RETRY_MS).prepare {
+            repository.create(checkout, "prepare")
+        }
     }
 
     /** Validate again before sending the customer order for company review. */
