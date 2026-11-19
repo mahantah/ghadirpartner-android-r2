@@ -18,6 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -147,7 +148,7 @@ internal fun CustomerWallet(api: ApiClient) {
         )
     }
     Column {
-        Column(Modifier.fillMaxWidth().background(ApprovedPalette.background).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth().background(Color.Transparent).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             creditedAmount?.let { PaymentSuccessCard(it, message = "مبلغ به کیف پول اضافه شد") }
             val snapshot = account
             if (snapshot == null) {

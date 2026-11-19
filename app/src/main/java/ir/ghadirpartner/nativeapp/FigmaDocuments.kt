@@ -105,6 +105,7 @@ fun PortalDocuments(api:ApiClient,me:JSONObject,selected:JSONObject?=null,onOpen
     }
 }
 /** Show the company decision separately from fulfillment; pending and rejected are never completed. */
+/** Present every existing fulfillment stage with compact cards and unchanged review-state rules. */
 @Composable
 fun OrderDeliveryTimeline(status: String, approvalStatus: String = "") {
     val review = CompanyReview.from(approvalStatus, status)
@@ -116,8 +117,8 @@ fun OrderDeliveryTimeline(status: String, approvalStatus: String = "") {
         status.contains("آماده") -> 2
         else -> 1
     }
-    GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        Text("مراحل سفارش",fontWeight=FontWeight.Bold,color=Ink,fontSize=20.sp)
+    ApprovedSurface {Column(Modifier.fillMaxWidth().padding(14.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+        Text("مراحل سفارش",fontWeight=FontWeight.Bold,color=Ink,fontSize=16.sp)
         labels.forEachIndexed {i,label->
             Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                 if(i<=current)DesignGlyph(R.drawable.design_delivered,null,Modifier.size(22.dp))

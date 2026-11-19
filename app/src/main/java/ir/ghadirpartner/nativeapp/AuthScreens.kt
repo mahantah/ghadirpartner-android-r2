@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.MarkEmailRead
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Person
@@ -16,8 +17,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.paint
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -52,6 +53,7 @@ fun SplashScreen() {
     }
 }
 
+/** Render shared login, OTP and biometric views while retaining existing authentication transitions. */
 @Composable
 fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
     val scope=rememberCoroutineScope()
@@ -139,21 +141,22 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
         }
         return
     }
-    Column(Modifier.fillMaxSize().paint(painterResource(R.drawable.ghadir_login_atelier),contentScale=ContentScale.Crop).background(Color(0xFF0B1F3A).copy(alpha=.16f)).statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        if(view=="login")Spacer(Modifier.height(48.dp)) else Surface(color=AppSurface.copy(alpha=.94f)) {
+    Box(Modifier.fillMaxSize().paint(painterResource(R.drawable.brand_login_waves),contentScale=ContentScale.Crop)) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
+        if(view=="login") Spacer(Modifier.height(200.dp)) else Surface(color=AppSurface.copy(alpha=.94f)) {
             PortalBackHeader(when(view){"otp"->"کد تأیید";"biometric"->"ورود امن";else->"ورود به قدیر پارتنر"}) {
                 loginPrompt?.cancelAuthentication();view="login";error=""
             }
         }
         Surface(modifier=Modifier.padding(horizontal=20.dp).widthIn(max=420.dp).fillMaxWidth(),shape=RoundedCornerShape(24.dp),
-            color=AppSurface.copy(alpha=.95f),shadowElevation=6.dp) {
-        Column(Modifier.fillMaxWidth().padding(20.dp).padding(bottom=20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+            color=ApprovedPalette.surface.copy(alpha=.94f),border=androidx.compose.foundation.BorderStroke(1.dp,ApprovedPalette.border)) {
+        Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
             when(view) {
                 "otp"->{
-                    DesignState("کد تأیید را وارد کنید","کد ارسال‌شده به شماره "+faDigits(identity),R.drawable.design_otp)
+                    LoginStepHeader("کد تأیید را وارد کنید", "کد ارسال‌شده به شماره "+faDigits(identity), Icons.Outlined.MarkEmailRead)
                     DesignOtp(otp,{otp=it})
                     Text("کد شش‌رقمی پیامک را وارد کنید.",color=Muted,fontSize=12.sp)
-                    GhadirButton(if(loading)"در حال بررسی…" else "تأیید و ورود",{
+                    WebLoginButton(if(loading)"در حال بررسی…" else "تأیید و ورود",{
                         scope.launch {
                             loading=true;error=""
                             try {
@@ -165,8 +168,8 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
                             catch(e:Exception){error=e.message?:"کد تأیید نشد"}finally{loading=false}
                         }
                     },enabled=otp.length==6&&!loading)
-                    GhadirButton(if(countdown>0)"ارسال مجدد پس از "+faNumber(countdown)+" ثانیه" else "ارسال مجدد کد",{requestOtp()},enabled=countdown==0&&!loading,secondary=true)
-                    GhadirButton("ویرایش شماره همراه",{view="login";otp=""},enabled=!loading,secondary=true)
+                    WebLoginButton(if(countdown>0)"ارسال مجدد پس از "+faNumber(countdown)+" ثانیه" else "ارسال مجدد کد",{requestOtp()},enabled=countdown==0&&!loading,secondary=true)
+                    WebLoginButton("ویرایش شماره همراه",{view="login";otp=""},enabled=!loading,secondary=true)
                 }
                 "biometric"->{
                     DesignState(if(biometricFailed)"هویت تأیید نشد" else "تأیید هویت دستگاه",
@@ -177,12 +180,8 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
                     GhadirButton("ورود با رمز عبور",{loginPrompt?.cancelAuthentication();view="login";error=""},secondary=true)
                 }
                 else->{
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.Center) {
-                        Image(painterResource(R.drawable.brand_logo),"قدیر پارتنر",Modifier.size(88.dp).clip(RoundedCornerShape(16.dp)))
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Text("خوش آمدید",color=Ink,fontSize=24.sp,lineHeight=36.sp,fontWeight=FontWeight.Bold,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
-                    Text(if(api.isPortal)"پرتال همکاران قدیر پرداخت" else "سامانه اتوماسیون فروش عمده",color=Muted,fontSize=14.sp,lineHeight=23.sp,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
+                    Text("خوش آمدید",color=ApprovedPalette.ink,fontSize=24.sp,lineHeight=36.sp,fontWeight=FontWeight.Bold,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
+                    Text(if(api.isPortal)"پرتال همکاران قدیر پرداخت" else "سامانه اتوماسیون فروش عمده",color=ApprovedPalette.muted,fontSize=14.sp,lineHeight=23.sp,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
                     DesignField(if(api.isPortal)"شماره همراه" else "نام کاربری",identity,{val next=asciiDigits(it).take(100);if(next!=identity)password="";identity=next;error=""},
                         if(api.isPortal)"۰۹۱۲…" else "نام کاربری",R.drawable.r54_phone,
                         keyboardType=if(api.isPortal)androidx.compose.ui.text.input.KeyboardType.Phone else androidx.compose.ui.text.input.KeyboardType.Text)
@@ -211,11 +210,13 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
                     Text("فعال‌سازی بیومتریک پس از ورود، از بخش پروفایل.",color=Muted,fontSize=12.sp)
                 }
             }
+            if(loading) LinearProgressIndicator(modifier=Modifier.fillMaxWidth(),color=ApprovedPalette.accent)
             if (api.isPortal) PortalPrivacyLink()
             if(error.isNotBlank()&&view!="biometric")ErrorBanner(error){error=""}
         }
         }
     }
+}
 }
 
 @Composable
@@ -284,7 +285,7 @@ private fun PasswordResetScreen(api:ApiClient,initialIdentity:String,onBack:()->
 @Composable
 private fun WebLoginButton(text:String,onClick:()->Unit,enabled:Boolean=true,secondary:Boolean=false) {
     Button(onClick=onClick,enabled=enabled,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),
-        shape=RoundedCornerShape(10.dp),
+        shape=RoundedCornerShape(12.dp),
         colors=ButtonDefaults.buttonColors(containerColor=if(secondary) {
             if(AppAppearance.dark)AppSecondary else Color(0xFFEDF2F7)
         } else Color(0xFFF58220),contentColor=if(secondary)Ink else Navy)) {

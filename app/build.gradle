@@ -60,8 +60,9 @@ if (!(popupPolicy instanceof Map) || popupPolicy.keySet() != (['enabled'] as Set
 def approvedDesign = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/approved-design.yaml').text)
 def approvedKeys = ['background_light', 'background_dark', 'surface_light', 'surface_dark',
     'secondary_light', 'secondary_dark', 'ink_light', 'ink_dark', 'muted_light', 'muted_dark',
-    'border_light', 'border_dark', 'accent'] as Set
-if (!(approvedDesign instanceof Map) || approvedDesign.keySet() != approvedKeys ||
+    'border_light', 'border_dark', 'accent', 'wallet_start', 'wallet_end'] as Set
+if (!(approvedDesign instanceof Map) || approvedDesign.keySet() != ((approvedKeys + ['wave_day_overlay']) as Set) ||
+    !(approvedDesign.wave_day_overlay instanceof Number) || approvedDesign.wave_day_overlay < 0 || approvedDesign.wave_day_overlay > 1 ||
     !approvedKeys.every { approvedDesign[it] instanceof String && approvedDesign[it] ==~ /#[0-9A-F]{8}/ }) {
     throw new GradleException('Invalid config/approved-design.yaml')
 }
@@ -71,7 +72,8 @@ android {
     compileSdk 36
 
     defaultConfig {
-        approvedDesign.each { key, value ->
+        buildConfigField 'float', 'WAVE_DAY_OVERLAY', approvedDesign.wave_day_overlay.toString() + 'f'
+        approvedDesign.findAll { key, value -> key != 'wave_day_overlay' }.each { key, value ->
             buildConfigField 'String', 'DESIGN_' + key.toUpperCase(Locale.ROOT), groovy.json.JsonOutput.toJson(value)
         }
         buildConfigField 'String', 'BACKGROUND_LIGHT', groovy.json.JsonOutput.toJson(visualPolicy.background_light)

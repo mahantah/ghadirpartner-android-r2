@@ -29,6 +29,8 @@ internal object ApprovedPalette {
     val muted get() = color(BuildConfig.DESIGN_MUTED_LIGHT, BuildConfig.DESIGN_MUTED_DARK)
     val border get() = color(BuildConfig.DESIGN_BORDER_LIGHT, BuildConfig.DESIGN_BORDER_DARK)
     val accent get() = color(BuildConfig.DESIGN_ACCENT, BuildConfig.DESIGN_ACCENT)
+    val walletStart get() = color(BuildConfig.DESIGN_WALLET_START, BuildConfig.DESIGN_WALLET_START)
+    val walletEnd get() = color(BuildConfig.DESIGN_WALLET_END, BuildConfig.DESIGN_WALLET_END)
 }
 
 /** Provide the approved opaque card styling inside the redesigned screens. */
@@ -82,7 +84,7 @@ internal fun ApprovedPriceCard(product: JSONObject, group: String, expandAll: Bo
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth().clickable { expanded = !expanded },
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(Icons.Outlined.PointOfSale, null, tint = ApprovedPalette.ink, modifier = Modifier.size(34.dp))
+                PosTerminalIcon(Modifier.size(34.dp))
                 Column(Modifier.weight(1f)) {
                     Text(shortProductName(product.s("name")), color = ApprovedPalette.ink,
                         fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -93,7 +95,7 @@ internal fun ApprovedPriceCard(product: JSONObject, group: String, expandAll: Bo
                     tint = ApprovedPalette.accent)
             }
             if (expanded) {
-                for ((key, title) in listOf("serial" to "دستگاه", "panel" to "پنل", "agent" to "عاملین فروش")) {
+                for ((key, title) in listOf("serial" to "سریال آزاد", "panel" to "پنل", "agent" to "عاملین فروش")) {
                     val rows = catalogPriceRows(key).filter { product.obj("prices").l(it.first) > 0L }
                     if (rows.isNotEmpty()) {
                         Surface(color = ApprovedPalette.surface, shape = RoundedCornerShape(8.dp),
@@ -164,22 +166,26 @@ internal fun ApprovedOrderCard(order: JSONObject, onClick: () -> Unit) {
 /** Display wallet funds independently of the customer's purchase credit. */
 @Composable
 internal fun ApprovedWalletBalance(wallet: JSONObject) {
-    ApprovedSurface {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = Navy) {
+        Column(Modifier.background(androidx.compose.ui.graphics.Brush.linearGradient(
+            listOf(ApprovedPalette.walletStart, ApprovedPalette.walletEnd)))
+            .padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("موجودی کیف پول", color = ApprovedPalette.ink, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f))
-                Icon(Icons.Outlined.AccountBalanceWallet, null, tint = ApprovedPalette.accent, modifier = Modifier.size(36.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("قدیر پارتنر", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("موجودی کیف پول", color = Color.White.copy(alpha = .8f), fontSize = 12.sp)
+                }
+                Icon(Icons.Outlined.CreditCard, null, tint = ApprovedPalette.accent, modifier = Modifier.size(36.dp))
             }
-            Text(formatMoney(wallet.l("balance")) + " تومان", color = ApprovedPalette.ink,
-                fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text(formatMoney(wallet.l("balance")) + " تومان", color = Color.White,
+                fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            HorizontalDivider(color = ApprovedPalette.accent.copy(alpha = .7f))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 for ((key, label) in listOf("available" to "قابل استفاده", "reserved" to "رزروشده")) {
-                    Surface(Modifier.weight(1f), color = ApprovedPalette.secondary, shape = RoundedCornerShape(14.dp)) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(label, color = ApprovedPalette.muted, fontSize = 12.sp)
-                            Text(formatMoney(wallet.l(key)) + " تومان", color = ApprovedPalette.ink, fontWeight = FontWeight.Bold)
-                        }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(label, color = Color.White.copy(alpha = .8f), fontSize = 12.sp)
+                        Text(formatMoney(wallet.l(key)) + " تومان", color = Color.White,
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
