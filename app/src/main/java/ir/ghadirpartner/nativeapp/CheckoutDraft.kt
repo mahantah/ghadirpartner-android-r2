@@ -76,11 +76,18 @@ internal fun draftFromReturnedOrder(order: JSONObject): JSONObject {
         }
         settlement.put("${part}_amount", amount).put("${part}_enabled", amount > 0L)
     }
+    val terms = order.obj("customer_correction").optJSONObject("settlement_amounts")
+    if (terms != null) {
+        for (part in listOf("cash", "check", "credit", "wallet")) {
+            val amount = terms.l("${part}_amount")
+            settlement.put("${part}_amount", amount).put("${part}_enabled", amount > 0L)
+        }
+    }
     for (field in listOf("check_number", "tracking_number", "bank_name", "due_date")) {
         settlement.put(field, previous.s(field))
     }
     return checkoutDraftFromState(
-        lines, 0, order.s("address_id").ifBlank { order.obj("delivery_address").s("id") },
+        lines, if (terms == null) 0 else 1, order.s("address_id").ifBlank { order.obj("delivery_address").s("id") },
         order.s("invoice_type"), settlement, order.s("notes"), order.s("promo_code"), null,
     ).put("shippingMethod",order.s("shipping_type"))
 }

@@ -160,7 +160,11 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
     fun goBack() {
         if(checkoutBusy||profileBusy)return
         when (screen) {
-            "revision" -> if (checkoutTitle != "ثبت سفارش") checkoutBackRequest++ else screen="order-detail"
+            "revision" -> {
+                val termsLocked = selectedOrder?.obj("customer_correction")?.has("settlement_amounts") == true
+                if (checkoutTitle == "ثبت سفارش" || (termsLocked && checkoutTitle == "نحوه تسویه")) screen="order-detail"
+                else checkoutBackRequest++
+            }
             "new" -> if (checkoutTitle != "ثبت سفارش") checkoutBackRequest++ else {parkActiveCheckout();screen="home"}
             "profile" -> if (profileTitle != "پروفایل") profileBackRequest++ else screen="home"
             "order-detail" -> if(cancelView) orderBackRequest++ else screen=orderOrigin
@@ -630,7 +634,8 @@ private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->
             val correction = order.obj("customer_correction")
             if (correction.s("status") == "requested") {
                 item { DesignNotice("درخواست اصلاح سفارش\n\n" + correction.s("reason")) }
-                item { GhadirButton("اصلاح و ارسال دوباره", { onRevise(order) }) }
+                val label = if (correction.has("settlement_amounts")) "ادامه خرید با شرایط اعلام‌شده" else "اصلاح و ارسال دوباره"
+                item { GhadirButton(label, { onRevise(order) }) }
                 val proofs = order.obj("native_settlement").arr("proofs").objects()
                 if (proofs.isNotEmpty()) item {
                     val repository = remember(api) { OrderFollowupRepository(api) }
@@ -740,6 +745,8 @@ private fun PortalNewOrder(
     onSuccess:(JSONObject)->Unit,
 ) {
     val checkoutService = remember(api) { OrderCheckoutService(OrderRepository(api)) }
+    val agentTermsLocked = revisionOrder?.obj("customer_correction")?.has("settlement_amounts") == true
+    val lockedTotal = if (agentTermsLocked) revisionOrder?.l("estimated_total") else null
     val cartService = remember { OrderCartService(OrderPolicy(BuildConfig.ORDER_MAXIMUM_QUANTITY, BuildConfig.ORDER_SERIAL_TIER_THRESHOLD)) }
     val scope=rememberCoroutineScope()
     val listState=androidx.compose.foundation.lazy.rememberLazyListState()
@@ -832,7 +839,8 @@ private fun PortalNewOrder(
     val unit=selected?.obj("prices")?.l(priceKey)?:0L
     val subtotal=cart.sumOf {it.unit*it.qty}
     val discount=discountForOfferNative(appliedOffer,cart)
-    val total=(subtotal-discount).coerceAtLeast(0L)
+    val total=lockedTotal ?: (subtotal-discount).coerceAtLeast(0L)
+    val agentReviewRequired = revisionOrder == null && cart.any { it.priceKey == "sales_agent" }
     LaunchedEffect(cart,step,selectedAddressId,invoiceType,settlement,notes,promoCode,appliedOffer,total,paymentId,shippingMethod) {
         if (revisionOrder == null) onDraftSnapshot(
             if (cart.isEmpty()) null else checkoutDraftFromState(cart,step,selectedAddressId,invoiceType,settlement,notes,promoCode,appliedOffer).put("shippingMethod",shippingMethod)
@@ -848,7 +856,7 @@ private fun PortalNewOrder(
         restoreApplied=true
         cart = cartFromDraft(draft).map { line ->
             val currentPrice = products.firstOrNull { it.s("name") == line.product }?.obj("prices")?.l(line.priceKey)
-            if (revisionOrder == null || currentPrice == null || currentPrice <= 0) line else line.copy(unit = currentPrice)
+            if (revisionOrder == null || agentTermsLocked || currentPrice == null || currentPrice <= 0) line else line.copy(unit = currentPrice)
         }
         step=draft.optInt("step").coerceIn(0,3)
         paymentId = draft.s("online_checkout_id")
@@ -856,7 +864,7 @@ private fun PortalNewOrder(
         invoiceType=draft.s("invoiceType")
         notes=draft.s("notes")
         promoCode=draft.s("promoCode")
-        val restoredTotal=cart.sumOf{it.unit*it.qty}.coerceAtLeast(0L)
+        val restoredTotal=lockedTotal ?: cart.sumOf{it.unit*it.qty}.coerceAtLeast(0L)
         settlement=refreshSettlementTotals(draft.obj("settlement"),restoredTotal)
         val offerRaw=draft.s("appliedOffer")
         appliedOffer=if(offerRaw.isNotBlank())runCatching{JSONObject(offerRaw)}.getOrNull() else null
@@ -878,7 +886,7 @@ private fun PortalNewOrder(
     }
     LaunchedEffect(initialOfferCode,offers,cart) {
         val original = revisionOrder?.s("promo_code") ?: initialOfferCode
-        if (original.isNotBlank() && promoNorm(promoCode) == promoNorm(original) && cart.isNotEmpty()) applyPromo()
+        if (!agentTermsLocked && original.isNotBlank() && promoNorm(promoCode) == promoNorm(original) && cart.isNotEmpty()) applyPromo()
     }
     fun catalogEntry(product: JSONObject): OrderCatalogEntry = OrderCatalogEntry(
         product.s("name"), product.i("stock"),
@@ -886,8 +894,10 @@ private fun PortalNewOrder(
     )
     fun checkout(): OrderCheckout {
         val refreshed=refreshSettlementTotals(settlement,total)
-        return OrderCheckout(cart,selectedAddressId,invoiceType,settlementPrimaryMethod(refreshed),refreshed,notes,appliedOffer?.s("promo_code")?:"",
-            revisionOrderId = revisionOrder?.i("id") ?: 0, revisionVersion = revisionOrder?.obj("customer_correction")?.i("version") ?: 0, shippingMethod=shippingMethod)
+        val checkoutPromoCode = if (agentTermsLocked) promoCode else appliedOffer?.s("promo_code").orEmpty()
+        return OrderCheckout(cart,selectedAddressId,invoiceType,settlementPrimaryMethod(refreshed),refreshed,notes,checkoutPromoCode,
+            revisionOrderId = revisionOrder?.i("id") ?: 0, revisionVersion = revisionOrder?.obj("customer_correction")?.i("version") ?: 0,
+            agentTermsLocked = agentTermsLocked, shippingMethod=shippingMethod)
     }
     fun changeQuantity(line:CartLine, next:Int) {
         val product=products.firstOrNull {it.s("name")==line.product} ?: return
@@ -928,7 +938,7 @@ private fun PortalNewOrder(
     ) { updatePayment() }
 
     fun editOrder(nextStep: Int) {
-        if (submitting || evidenceBusy || paymentConfirmed) return
+        if (submitting || evidenceBusy || paymentConfirmed || (agentTermsLocked && nextStep < 1)) return
         if (paymentId.isBlank()) {
             step = nextStep
             return
@@ -960,17 +970,18 @@ private fun PortalNewOrder(
         if (backRequest != handledBackRequest && step > 0) editOrder(step - 1)
         handledBackRequest=backRequest
     }
-    BackHandler(step > 0 || evidenceBusy) { if (step > 0) editOrder(step - 1) }
+    val firstCheckoutStep = if (agentTermsLocked) 1 else 0
+    BackHandler(step > firstCheckoutStep || evidenceBusy) { if (step > firstCheckoutStep) editOrder(step - 1) }
 
     fun submit() {
         if(submitting)return
         if(addressText.isBlank()||shippingMethod.isBlank()){error="نشانی و روش ارسال را انتخاب کنید";step=2;return}
         if(!paymentConfirmed && cart.any {line -> val p=products.firstOrNull {it.s("name")==line.product};p==null||!catalogInStock(p)||cart.filter{it.product==line.product}.sumOf{it.qty.toLong()}>p.i("stock")}) {
-            error="موجودی سبد را دوباره بررسی کنید";step=0;return
+            error="موجودی سبد را دوباره بررسی کنید";if(!agentTermsLocked)step=0;return
         }
         val validation=checkoutService.validation(checkout())
         if(validation.isNotBlank()){error=validation;step=if(invoiceType.isBlank())0 else 1;return}
-        if(promoCode.isNotBlank()&&(appliedOffer==null||discount<=0)){error="کد تخفیف را ابتدا اعمال و بررسی کنید";step=0;return}
+        if(!agentTermsLocked&&promoCode.isNotBlank()&&(appliedOffer==null||discount<=0)){error="کد تخفیف را ابتدا اعمال و بررسی کنید";step=0;return}
         scope.launch {
             submitting=true;error=""
             try {
@@ -1115,15 +1126,16 @@ private fun PortalNewOrder(
             }
         } else if(step==1) {
             item {Text("نحوه تسویه",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold)}
-            item {SettlementForm(api,total,invoiceType,settlement,onBusyChanged={evidenceBusy=it}){settlement=it}}
-            if(cart.any {it.priceKey=="sales_agent"}) item {
+            if (agentTermsLocked) item { DesignNotice("مبالغ این مرحله را شرکت تعیین کرده است. اطلاعات پرداخت و مدارک را تکمیل کنید.") }
+            item {SettlementForm(api,total,invoiceType,settlement,amountsLocked=agentTermsLocked,agentReviewRequired=agentReviewRequired,onBusyChanged={evidenceBusy=it}){settlement=it}}
+            if(!agentTermsLocked && cart.any {it.priceKey=="sales_agent"}) item {
                 DesignNotice("شرایط عامل فروش: ${faNumber(BuildConfig.AGENT_CASH_PERCENT)}٪ نقد و ${faNumber(100-BuildConfig.AGENT_CASH_PERCENT)}٪ چک. تغییر شرایط فقط پس از بررسی مدیر قابل تأیید است.")
                 if(AgentSettlementPolicy().changed(cart,total,settlement)) DesignField("علت درخواست تغییر شرایط",settlement.s("agent_change_reason"),{settlement=JSONObject(settlement.toString()).put("agent_change_reason",it.take(BuildConfig.REQUEST_NOTE_LIMIT))},"درخواست برای مدیر ارسال می‌شود",singleLine=false)
             }
             item {ApprovedButton("ادامه به نحوه ارسال",{
                 error=checkoutService.validation(checkout());if(error.isBlank())step=2
             },enabled=!evidenceBusy)}
-            item {ApprovedButton("بازگشت و ویرایش",{step=0},secondary=true)}
+            if (!agentTermsLocked) item {ApprovedButton("بازگشت و ویرایش",{step=0},secondary=true)}
         } else if(step==2) {
             item {CheckoutAddressSection(api,customer,addresses,selectedAddressId,{selectedAddressId=it},{addresses=it})}
             item {DesignField("گیرنده",receiver,{},"",enabled=false)}
@@ -1140,6 +1152,7 @@ private fun PortalNewOrder(
                 submitting -> "در حال پردازش…"
                 online && !paymentConfirmed -> "پرداخت آنلاین"
                 revisionOrder != null -> "ارسال سفارش اصلاح‌شده"
+                agentReviewRequired -> "ارسال برای بررسی تسویه"
                 else -> "تأیید و ثبت نهایی"
             }
             if (showPaymentSuccess) {

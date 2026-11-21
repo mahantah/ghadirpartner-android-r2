@@ -16,6 +16,7 @@ internal data class OrderCheckout(
     val promoCode: String,
     val revisionOrderId: Int = 0,
     val revisionVersion: Int = 0,
+    val agentTermsLocked: Boolean = false,
     val shippingMethod: String = "",
 )
 
@@ -82,12 +83,15 @@ internal class OrderCheckoutService(
             checkout.lines.isEmpty() -> "حداقل یک کالا به سفارش اضافه کنید"
             checkout.invoiceType !in listOf("رسمی", "غیررسمی") -> "نوع فاکتور را انتخاب کنید"
             checkout.paymentMethod !in listOf("cash", "check", "credit", "mixed") -> "روش تسویه را انتخاب کنید"
+            checkout.revisionOrderId == 0 && checkout.lines.any { it.priceKey == "sales_agent" } &&
+                ((checkout.settlement.b("cash_enabled") && checkout.settlement.b("cash_online")) || checkout.settlement.l("wallet_amount") > 0L) ->
+                "پرداخت آنلاین و کیف پول پس از بررسی تسویه عامل فروش در دسترس است"
             checkout.settlement.b("credit_enabled") &&
                 checkout.settlement.optLong("credit_amount") > 0L &&
                 checkout.settlement.b("terms_accepted") &&
                 checkout.settlement.s("commitment_sha256") != BuildConfig.ORDER_CREDIT_COMMITMENT_SHA256 ->
                 "متن تعهد جاری را دوباره تأیید کنید"
-            AgentSettlementPolicy().changed(checkout.lines,settlementInvoiceTotal(checkout.settlement,checkout.lines.sumOf {it.unit*it.qty}),checkout.settlement) && checkout.settlement.s("agent_change_reason").isBlank() -> "علت درخواست تغییر شرایط عامل فروش را وارد کنید"
+            !checkout.agentTermsLocked && AgentSettlementPolicy().changed(checkout.lines,settlementInvoiceTotal(checkout.settlement,checkout.lines.sumOf {it.unit*it.qty}),checkout.settlement) && checkout.settlement.s("agent_change_reason").isBlank() -> "علت درخواست تغییر شرایط عامل فروش را وارد کنید"
             else -> settlementError(checkout.paymentMethod, checkout.settlement)
         }
 
