@@ -171,6 +171,7 @@ internal fun CustomerWallet(api: ApiClient) {
                     GhadirButton("به‌روزرسانی موجودی", { retry++ }, secondary = true)
                 }
                 ApprovedWalletCredit(snapshot)
+                WalletRefundSection(api,wallet.l("available"))
                 ApprovedWalletTransactions(wallet.arr("transactions").objects())
             }
         }

@@ -1,7 +1,5 @@
 package ir.ghadirpartner.nativeapp
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
@@ -108,8 +106,8 @@ internal fun CustomerCreditRepayment(api: ApiClient, order: JSONObject) {
         }
     }
     LaunchedEffect(id, order.s("status")) { load() }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+    fun receiveImages(uris: List<android.net.Uri>) {
+        if (uris.isEmpty()) return
         scope.launch {
             busy = true
             error = ""
@@ -211,8 +209,7 @@ internal fun CustomerCreditRepayment(api: ApiClient, order: JSONObject) {
                     return@Column
                 }
                 DetailLine("مبلغ قابل ثبت", formatMoney(remaining) + " تومان")
-                GhadirButton("انتخاب عکس یا PDF فیش", { picker.launch(PaymentProofSelection.mimeTypes) },
-                    enabled = !busy && files.size < BuildConfig.PROOF_MAX_FILES_PER_KIND, secondary = true)
+                ImageUploadButton("بارگذاری فیش",enabled=!busy&&files.size<BuildConfig.PROOF_MAX_FILES_PER_KIND,mimeTypes=PaymentProofSelection.mimeTypes) {receiveImages(it)}
                 SelectedProofReview("فیش", files, { index, note ->
                     files = files.mapIndexed { i, file -> if (i == index) file.copy(note = note) else file }
                 }, onRemove = { index ->

@@ -16,6 +16,7 @@ internal data class OrderCheckout(
     val promoCode: String,
     val revisionOrderId: Int = 0,
     val revisionVersion: Int = 0,
+    val shippingMethod: String = "",
 )
 
 /** Translates checkout data to the existing authenticated orders API. */
@@ -55,6 +56,7 @@ internal class OrderRepository(
             JSONObject()
                 .put("items", items)
                 .put("address_id", checkout.addressId)
+                .put("shipping_type",checkout.shippingMethod)
                 .put("invoice_type", checkout.invoiceType)
                 .put("requested_payment_method", checkout.paymentMethod)
                 .put("settlement_details", settlement)
@@ -85,6 +87,7 @@ internal class OrderCheckoutService(
                 checkout.settlement.b("terms_accepted") &&
                 checkout.settlement.s("commitment_sha256") != BuildConfig.ORDER_CREDIT_COMMITMENT_SHA256 ->
                 "متن تعهد جاری را دوباره تأیید کنید"
+            AgentSettlementPolicy().changed(checkout.lines,settlementInvoiceTotal(checkout.settlement,checkout.lines.sumOf {it.unit*it.qty}),checkout.settlement) && checkout.settlement.s("agent_change_reason").isBlank() -> "علت درخواست تغییر شرایط عامل فروش را وارد کنید"
             else -> settlementError(checkout.paymentMethod, checkout.settlement)
         }
 

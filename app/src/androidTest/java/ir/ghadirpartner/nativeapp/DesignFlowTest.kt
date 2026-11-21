@@ -164,7 +164,8 @@ class DesignFlowTest {
             "/api/addresses"->"""[{"id":"saved-A","title":"دفتر","province":"تهران","city":"تهران","address":"خیابان دفتر"}]"""
             "/api/notifications/staff"->"{\"items\":[]}"
             "/api/portal-activity"->"{\"ok\":true,\"heartbeat_seconds\":60}"
-            "/api/native/panel-switches"->"""{"options":["پرداخت نوین","ایرانکیش","سپهر","فن اوا","پاسارگاد"]}"""
+            "/api/native/order-options"->"""{"policy":{"shipping_methods":["حضوری","تیپاکس"],"agent_cash_percent":40},"products":{"i90":["پرداخت نوین","ایرانکیش","سپهر","فن اوا"]}}"""
+            "/api/wallet/refunds"->"[]"
             "/api/notifications"->if(includeOrderMessage) """{"items":[{"id":"order:1024","kind":"order","order_id":1024,"title":"به‌روزرسانی سفارش","body":"سفارش آماده است","read":false}],"unread":1}""" else "{\"items\":[],\"unread\":0}"
             "/api/notifications/read"->"{\"ok\":true}"
             "/api/password"->"{\"ok\":true}"
@@ -248,6 +249,19 @@ class DesignFlowTest {
             compose.onAllNodesWithContentDescription("خلاصه ثابت سفارش").fetchSemanticsNodes()).minOf {it.boundsInRoot.top}
         assertTrue("Control must be above the floating navigation before tapping",node.fetchSemanticsNode().boundsInRoot.bottom<=top)
     }
+    /** Exercise address and shipping as a distinct stage, independent of payment. */
+    private fun chooseShipping() {
+        waitText("نحوه ارسال")
+        showField("نشانی تحویل");compose.onNodeWithContentDescription("نشانی تحویل").performClick()
+        compose.onNodeWithText("دفتر • خیابان دفتر").performClick()
+        showField("روش ارسال");compose.onNodeWithContentDescription("روش ارسال").performClick()
+        compose.onNodeWithText("حضوری",substring=false).performClick()
+    }
+    /** Continue through the shipping stage only after settlement validation succeeds. */
+    private fun completeShipping() {
+        chooseShipping()
+        showText("مشاهده سبد و ثبت نهایی");compose.onNodeWithText("مشاهده سبد و ثبت نهایی").performClick()
+    }
     private fun chooseInvoice() {
         showText("غیررسمی")
         compose.onNodeWithText("غیررسمی",substring=false).performClick()
@@ -286,20 +300,20 @@ class DesignFlowTest {
             compose.onAllNodesWithText("ثبت سفارش").onLast().performClick()
             compose.waitUntil(15000){compose.onAllNodesWithContentDescription("مدل دستگاه").fetchSemanticsNodes().isNotEmpty()}
             showField("مدل دستگاه");compose.onNodeWithContentDescription("مدل دستگاه").performClick()
-            compose.onNodeWithText("i90 • SZZT").performClick()
-            showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").performClick()
+            compose.onNodeWithText("i90").performClick()
+            showText("افزودن به سبد خرید");compose.onNodeWithText("افزودن به سبد خرید").performClick()
+            showField("مدل دستگاه");compose.onNodeWithContentDescription("مدل دستگاه").performClick()
+            compose.onNodeWithText("i90",substring=false).performClick()
             showText("ثبت در پنل");compose.onNodeWithText("ثبت در پنل").performClick()
             showField("مدل سوئیچ");compose.onNodeWithContentDescription("مدل سوئیچ").performClick()
             compose.onNodeWithText("ایرانکیش").performClick()
-            showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").performClick()
+            showText("افزودن به سبد خرید");compose.onNodeWithText("افزودن به سبد خرید").performClick()
             shot("design-checkout-cart.png")
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
             waitText("نوع فاکتور را انتخاب کنید")
             assertTrue(writes.isEmpty())
             chooseInvoice()
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
-            showField("نشانی تحویل");compose.onNodeWithContentDescription("نشانی تحویل").performClick()
-            compose.onNodeWithText("دفتر • خیابان دفتر").performClick()
             shot("design-checkout-cash.png")
             showField("فعال‌سازی چک");compose.onNodeWithContentDescription("فعال‌سازی چک").performScrollTo().performClick()
             compose.onNodeWithContentDescription("فعال‌سازی نقد").performClick()
@@ -307,7 +321,7 @@ class DesignFlowTest {
             hideKeyboard(scenario)
             compose.waitForIdle()
             showField("شناسه صیادی")
-            showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
+            showText("ادامه به نحوه ارسال");compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
             waitText("شناسه صیادی باید ۱۶ رقم باشد")
             compose.onNodeWithText("شناسه صیادی باید ۱۶ رقم باشد").assertExists()
             assertTrue(writes.isEmpty())
@@ -318,8 +332,9 @@ class DesignFlowTest {
             shot("design-checkout-calendar.png")
             compose.onNodeWithText("تأیید تاریخ").performClick()
             hideKeyboard(scenario);shot("design-checkout-check.png")
-            showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
-            waitText("تأیید نهایی سفارش")
+            showText("ادامه به نحوه ارسال");compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
+            completeShipping()
+            waitText("مشاهده سبد و ثبت نهایی")
             showText("بازگشت و ویرایش");compose.onNodeWithText("بازگشت و ویرایش").performClick()
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
             showField("فعال‌سازی اعتباری");compose.onNodeWithContentDescription("فعال‌سازی اعتباری").performScrollTo().performClick()
@@ -330,9 +345,10 @@ class DesignFlowTest {
             showField("پذیرش تعهد اعتبار");clearFloatingBarOverlap(compose.onNodeWithContentDescription("پذیرش تعهد اعتبار"))
             compose.onNodeWithContentDescription("پذیرش تعهد اعتبار").performScrollTo().performClick()
             shot("design-checkout-credit.png")
-            showText("ادامه به بررسی نهایی")
-            compose.waitUntil(15000){compose.onAllNodes(hasText("ادامه به بررسی نهایی") and isEnabled()).fetchSemanticsNodes().isNotEmpty()}
-            compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
+            showText("ادامه به نحوه ارسال")
+            compose.waitUntil(15000){compose.onAllNodes(hasText("ادامه به نحوه ارسال") and isEnabled()).fetchSemanticsNodes().isNotEmpty()}
+            compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
+            completeShipping()
             waitText("بررسی سفارش")
             shot("design-checkout-review.png")
             showText("تأیید و ثبت نهایی");compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
@@ -371,22 +387,21 @@ class DesignFlowTest {
             compose.onAllNodesWithText("قیمت‌ها").onLast().performClick()
             waitText("افزودن به سفارش")
             showText("افزودن به سفارش");compose.onNodeWithText("افزودن به سفارش").performClick()
-            waitText("افزودن کالا")
-            showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").performClick()
+            waitText("افزودن به سبد خرید")
+            showText("افزودن به سبد خرید");compose.onNodeWithText("افزودن به سبد خرید").performClick()
             showField("افزایش تعداد i90");compose.onNodeWithContentDescription("افزایش تعداد i90").performClick()
             chooseInvoice()
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
-            showField("نشانی تحویل");compose.onNodeWithContentDescription("نشانی تحویل").performClick()
-            compose.onNodeWithText("دفتر • خیابان دفتر").performClick()
+            showText("ادامه به نحوه ارسال");compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
+            chooseShipping()
             compose.onAllNodesWithText("پروفایل").onLast().performClick()
             waitText("تنظیمات")
             assertNotNull("Checkout draft must be stored before leaving the tab", AbandonedOrderService(AbandonedOrderRepository(InstrumentationRegistry.getInstrumentation().targetContext, me.s("username")), DailyDraftPolicy(CheckoutClock { System.currentTimeMillis() }, java.util.TimeZone.getTimeZone(BuildConfig.CHECKOUT_TIME_ZONE))).load())
             compose.onAllNodesWithText("سفارش‌ها").onLast().performClick()
             waitText("سفارشات رها شده")
             showText("ادامه سفارش");compose.onNodeWithText("ادامه سفارش").performClick()
-            waitText("نشانی تحویل")
-            showText("ادامه به بررسی نهایی")
-            compose.onNodeWithText("ادامه به بررسی نهایی").assertIsEnabled().performClick()
+            waitText("نحوه ارسال")
+            completeShipping()
             showText("تأیید و ثبت نهایی")
             compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
             waitText("سفارش با موفقیت ثبت شد")
@@ -441,15 +456,16 @@ class DesignFlowTest {
             waitText("تعداد")
             showField("تعداد کالا");compose.onNodeWithContentDescription("تعداد کالا").performTextReplacement("۱۵۰۶")
             hideKeyboard(scenario)
-            showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").assertIsNotEnabled()
+            showText("افزودن به سبد خرید");compose.onNodeWithText("افزودن به سبد خرید").assertIsNotEnabled()
             showField("تعداد کالا");compose.onNodeWithContentDescription("تعداد کالا").performTextReplacement("۱۰۰۰")
             hideKeyboard(scenario)
-            showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").performClick()
+            showText("افزودن به سبد خرید");compose.onNodeWithText("افزودن به سبد خرید").performClick()
             showField("افزایش تعداد i90");compose.onNodeWithContentDescription("افزایش تعداد i90").performClick()
             chooseInvoice()
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
-            waitText("نشانی تحویل")
-            showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
+            waitText("نحوه تسویه")
+            showText("ادامه به نحوه ارسال");compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
+            completeShipping()
             showText("تأیید و ثبت نهایی");compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
             waitText("سفارش با موفقیت ثبت شد")
             val item=writes.single {it.first=="/api/orders/add"}.second.arr("items").getJSONObject(0)
@@ -553,8 +569,8 @@ class DesignFlowTest {
             compose.onAllNodesWithText("قیمت‌ها").onLast().performClick()
             waitText("افزودن به سفارش")
             showText("افزودن به سفارش");compose.onNodeWithText("افزودن به سفارش").performClick()
-            waitText("افزودن کالا")
-            showText("افزودن کالا");compose.onNodeWithText("افزودن کالا").performClick()
+            waitText("افزودن به سبد خرید")
+            showText("افزودن به سبد خرید");compose.onNodeWithText("افزودن به سبد خرید").performClick()
             showField("تنظیم کد تخفیف");compose.onNodeWithContentDescription("تنظیم کد تخفیف").performClick()
             compose.onNodeWithContentDescription("کد تخفیف").performTextInput("MOCK5")
             hideKeyboard(scenario)
@@ -569,8 +585,9 @@ class DesignFlowTest {
             compose.onNodeWithText("کد طرح").assertDoesNotExist()
             shot("design-checkout-options.png",scrollToTop=false)
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
-            waitText("نشانی تحویل")
-            showText("ادامه به بررسی نهایی");compose.onNodeWithText("ادامه به بررسی نهایی").performClick()
+            waitText("نحوه تسویه")
+            showText("ادامه به نحوه ارسال");compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
+            completeShipping()
             showText("تأیید و ثبت نهایی");compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
             waitText("سفارش با موفقیت ثبت شد")
             val body=writes.single {it.first=="/api/orders/add"}.second

@@ -1,8 +1,6 @@
 package ir.ghadirpartner.nativeapp
 
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.selection.toggleable
@@ -96,7 +94,6 @@ internal fun SettlementForm(
             creditLoading = false
         }
     }
-    var imageTarget by rememberSaveable { mutableStateOf("cash") }
     fun attachFiles(uris: List<Uri>, target: String, temporaryFile: java.io.File? = null) {
         scope.launch {
             busy = true
@@ -116,16 +113,6 @@ internal fun SettlementForm(
                 busy = false
             }
         }
-    }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        if (uris.isNotEmpty()) attachFiles(uris, imageTarget)
-    }
-    val chequePhoto = remember(context) { java.io.File(context.cacheDir, "cheque-capture/cheque.jpg") }
-    val chequePhotoUri = remember(context, chequePhoto) {
-        androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".files", chequePhoto)
-    }
-    val chequeCamera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { captured ->
-        if (captured) attachFiles(listOf(chequePhotoUri), "check", chequePhoto) else chequePhoto.delete()
     }
     val walletAvailable = credit.obj("wallet").l("available")
     val cashFiles = PaymentProofSelection.read(value, "cash").size
@@ -182,12 +169,7 @@ internal fun SettlementForm(
                     }
                 }
                 DesignField("شماره پیگیری", value.s("tracking_number"), { set("tracking_number", asciiDigits(it).take(100)) }, "شماره پیگیری انتقال — در صورت پرداخت", enabled = !busy)
-                GhadirButton(
-                    if (busy) "در حال آماده‌سازی فایل‌ها…" else "افزودن عکس یا PDF رسید",
-                    { imageTarget = "cash"; picker.launch(PaymentProofSelection.mimeTypes) },
-                    enabled = !busy && !deferProof && cashFiles < BuildConfig.PROOF_MAX_FILES_PER_KIND,
-                    secondary = true,
-                )
+                ImageUploadButton("بارگذاری رسید",enabled=!busy&&!deferProof&&cashFiles<BuildConfig.PROOF_MAX_FILES_PER_KIND,mimeTypes=PaymentProofSelection.mimeTypes) { attachFiles(it,"cash") }
                 if (cashFiles > 0) GhadirButton(
                     "${faNumber(cashFiles)} فایل رسید انتخاب شد · پاک کردن انتخاب",
                     { patch { PaymentProofSelection.set(it, "cash", emptyList()) } },
@@ -202,25 +184,7 @@ internal fun SettlementForm(
             DesignField("شناسه صیادی", value.s("check_number"), { set("check_number", asciiDigits(it).filter(Char::isDigit).take(16)) }, "شناسه ۱۶ رقمی", keyboardType = KeyboardType.Number, enabled = !busy)
             BankSelectionField(value.s("bank_name"), !busy) { set("bank_name", it) }
             PersianDateSelectionField("سررسید", value.s("due_date"), !busy) { set("due_date", it) }
-            GhadirButton("گرفتن عکس چک", {
-                error = ""
-                val directory = chequePhoto.parentFile
-                if (directory == null || (!directory.isDirectory && !directory.mkdirs())) {
-                    error = "آماده‌سازی محل عکس ممکن نشد."
-                } else {
-                    try {
-                        chequeCamera.launch(chequePhotoUri)
-                    } catch (_: android.content.ActivityNotFoundException) {
-                        error = "برنامهٔ دوربین در دسترس نیست. تصویر چک را از گالری انتخاب کنید."
-                    }
-                }
-            }, enabled = !busy && !deferProof && checkFiles < BuildConfig.PROOF_MAX_FILES_PER_KIND, secondary = true)
-            GhadirButton(
-                if (busy) "در حال آماده‌سازی فایل‌ها…" else "افزودن عکس یا PDF چک",
-                { imageTarget = "check"; picker.launch(PaymentProofSelection.mimeTypes) },
-                enabled = !busy && !deferProof && checkFiles < BuildConfig.PROOF_MAX_FILES_PER_KIND,
-                secondary = true,
-            )
+            ImageUploadButton("بارگذاری چک",enabled=!busy&&!deferProof&&checkFiles<BuildConfig.PROOF_MAX_FILES_PER_KIND,mimeTypes=PaymentProofSelection.mimeTypes) { attachFiles(it,"check") }
             if (checkFiles > 0) GhadirButton(
                 "${faNumber(checkFiles)} فایل چک انتخاب شد · پاک کردن انتخاب",
                 { patch { PaymentProofSelection.set(it, "check", emptyList()) } },

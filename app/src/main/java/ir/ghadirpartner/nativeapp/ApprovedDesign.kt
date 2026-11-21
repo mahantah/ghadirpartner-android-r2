@@ -63,7 +63,7 @@ internal fun ApprovedButton(
 @Composable
 internal fun ApprovedCheckoutProgress(step: Int) {
     Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        listOf("کالاها", "تحویل و تسویه", "تأیید نهایی").forEachIndexed { index, title ->
+        listOf("ثبت سفارش", "نحوه تسویه", "نحوه ارسال", "ثبت نهایی").forEachIndexed { index, title ->
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(if (index < step) Icons.Outlined.CheckCircle else Icons.Outlined.RadioButtonChecked,
@@ -228,6 +228,7 @@ internal fun ApprovedWalletTransactions(entries: List<JSONObject>) {
             "order_purchase" -> "پرداخت سفارش"
             "credit_repayment" -> "بازپرداخت اعتبار"
             "manual_credit" -> "شارژ کیف پول"
+            "wallet_refund" -> "عودت وجه به حساب"
             "irankish_credit" -> "شارژ آنلاین ایران‌کیش"
             else -> "گردش کیف پول"
         }

@@ -143,14 +143,14 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
     }
     Box(Modifier.fillMaxSize().paint(painterResource(R.drawable.brand_login_waves),contentScale=ContentScale.Crop)) {
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        if(view=="login") Spacer(Modifier.height(200.dp)) else Surface(color=AppSurface.copy(alpha=.94f)) {
+        if(view=="login") Spacer(Modifier.heightIn(min=24.dp,max=130.dp)) else Surface(color=AppSurface.copy(alpha=.94f)) {
             PortalBackHeader(when(view){"otp"->"کد تأیید";"biometric"->"ورود امن";else->"ورود به قدیر پارتنر"}) {
                 loginPrompt?.cancelAuthentication();view="login";error=""
             }
         }
         Surface(modifier=Modifier.padding(horizontal=20.dp).widthIn(max=420.dp).fillMaxWidth(),shape=RoundedCornerShape(24.dp),
             color=ApprovedPalette.surface.copy(alpha=.94f),border=androidx.compose.foundation.BorderStroke(1.dp,ApprovedPalette.border)) {
-        Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
             when(view) {
                 "otp"->{
                     LoginStepHeader("کد تأیید را وارد کنید", "کد ارسال‌شده به شماره "+faDigits(identity), Icons.Outlined.MarkEmailRead)
@@ -202,16 +202,20 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
                             catch(e:Exception){error=e.message?:"ورود ناموفق بود"}finally{loading=false}}
                     },enabled=!loading&&identity.isNotBlank()&&password.isNotBlank())
                     if(api.isPortal) {
-                        WebLoginButton("درخواست عضویت", { view = "membership"; error = "" }, enabled = !loading, secondary = true)
-                        TextButton(onClick={requestOtp()},enabled=!loading&&countdown==0&&identity.matches(Regex("09[0-9]{9}"))) {Text("ورود با کد یک‌بارمصرف",color=Ink)}
-                        if(biometricEnabled(context,canonicalPortalIdentity(identity))) TextButton(onClick={view="biometric";biometricFailed=false;error=""},enabled=!loading) {Text("ورود با اثر انگشت",color=Ink)}
+                        WebLoginButton("ورود با کد یک‌بارمصرف", { requestOtp() }, enabled=!loading&&countdown==0&&identity.matches(Regex("09[0-9]{9}")), secondary=true)
+                        WebLoginButton("درخواست عضویت", { view="membership";error="" },enabled=!loading,secondary=true)
                     }
-                    TextButton(onClick={view="reset"},enabled=!loading) {Text("فراموشی رمز عبور",color=Muted)}
-                    Text("فعال‌سازی بیومتریک پس از ورود، از بخش پروفایل.",color=Muted,fontSize=12.sp)
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                        if(api.isPortal) Box(Modifier.weight(1f)) {
+                            WebLoginButton("ورود با اثر انگشت",{view="biometric";biometricFailed=false;error=""},enabled=!loading&&biometricEnabled(context,canonicalPortalIdentity(identity)),secondary=true)
+                        }
+                        Box(Modifier.weight(1f)) {WebLoginButton("فراموشی رمز",{view="reset"},enabled=!loading,secondary=true)}
+                    }
+
                 }
             }
             if(loading) LinearProgressIndicator(modifier=Modifier.fillMaxWidth(),color=ApprovedPalette.accent)
-            if (api.isPortal) PortalPrivacyLink()
+            if (api.isPortal) Box(Modifier.fillMaxWidth(),contentAlignment=Alignment.Center) {PortalPrivacyLink()}
             if(error.isNotBlank()&&view!="biometric")ErrorBanner(error){error=""}
         }
         }

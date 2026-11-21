@@ -82,5 +82,5 @@ internal fun draftFromReturnedOrder(order: JSONObject): JSONObject {
     return checkoutDraftFromState(
         lines, 0, order.s("address_id").ifBlank { order.obj("delivery_address").s("id") },
         order.s("invoice_type"), settlement, order.s("notes"), order.s("promo_code"), null,
-    )
+    ).put("shippingMethod",order.s("shipping_type"))
 }

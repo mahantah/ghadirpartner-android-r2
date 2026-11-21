@@ -1,7 +1,5 @@
 package ir.ghadirpartner.nativeapp
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -73,8 +71,8 @@ internal fun OrderShippingReceipts(api: ApiClient, orderId: Int, allowUpload: Bo
     }
 
     LaunchedEffect(api, orderId) { load() }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+    fun receiveImages(uris: List<android.net.Uri>) {
+        if (uris.isEmpty()) return
         scope.launch {
             busy = true
             error = ""
@@ -128,9 +126,7 @@ internal fun OrderShippingReceipts(api: ApiClient, orderId: Int, allowUpload: Bo
                 DesignField("توضیحات ارسال", note, {
                     note = it.take(policy.i("max_note_chars")); requestId = ""
                 }, "اختیاری", singleLine = false, enabled = !busy)
-                GhadirButton("انتخاب عکس یا PDF رسید ارسال", {
-                    picker.launch(arrayOf("image/jpeg", "image/png", "application/pdf"))
-                }, enabled = !busy && files.size < BuildConfig.PROOF_MAX_FILES_PER_KIND, secondary = true)
+                ImageUploadButton("بارگذاری رسید ارسال",enabled=!busy&&files.size<BuildConfig.PROOF_MAX_FILES_PER_KIND,mimeTypes=PaymentProofSelection.mimeTypes) {receiveImages(it)}
                 SelectedProofReview("رسید ارسال", files, onNote = { index, value ->
                     files = files.mapIndexed { i, file -> if (i == index) file.copy(note = value) else file }
                     requestId = ""

@@ -85,3 +85,10 @@ fun shortProductName(raw: String): String {
         .replace("دستگاه کش لس ", "")
         .trim()
 }
+
+/** Keep display-only manufacturer removal separate from the product identity sent to the API. */
+internal fun deviceModelLabel(product: JSONObject): String {
+    val maker=product.s("manufacturer").trim()
+    val raw=product.s("name")
+    return shortProductName(if(maker.isBlank()) raw else raw.replace(maker,"",ignoreCase=true)).trim(' ', '—', '-')
+}

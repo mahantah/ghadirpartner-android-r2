@@ -67,11 +67,22 @@ if (!(approvedDesign instanceof Map) || approvedDesign.keySet() != ((approvedKey
     throw new GradleException('Invalid config/approved-design.yaml')
 }
 
+def unifiedOrders = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/unified-orders.yaml').text)
+if (!(unifiedOrders instanceof Map) || unifiedOrders.keySet() != (['shipping_methods','panel_switches','agent_cash_percent','refund_max_amount','request_note_limit'] as Set) ||
+    !['shipping_methods','panel_switches'].every { unifiedOrders[it] instanceof List && !unifiedOrders[it].isEmpty() && unifiedOrders[it].every { entry -> entry instanceof String && !entry.trim().isEmpty() } && unifiedOrders[it].toSet().size()==unifiedOrders[it].size() } ||
+    !(unifiedOrders.agent_cash_percent instanceof Integer) || !(unifiedOrders.agent_cash_percent in 1..99) ||
+    !(unifiedOrders.refund_max_amount instanceof Number) || unifiedOrders.refund_max_amount < 1 ||
+    !(unifiedOrders.request_note_limit instanceof Integer) || !(unifiedOrders.request_note_limit in 1..2000)) throw new GradleException('Invalid config/unified-orders.yaml')
+
 android {
     namespace 'ir.ghadirpartner.nativeapp'
     compileSdk 36
 
     defaultConfig {
+        buildConfigField 'String', 'ORDER_SHIPPING_METHODS', groovy.json.JsonOutput.toJson(unifiedOrders.shipping_methods.join('|'))
+        buildConfigField 'int', 'AGENT_CASH_PERCENT', unifiedOrders.agent_cash_percent.toString()
+        buildConfigField 'int', 'REQUEST_NOTE_LIMIT', unifiedOrders.request_note_limit.toString()
+
         buildConfigField 'float', 'WAVE_DAY_OVERLAY', approvedDesign.wave_day_overlay.toString() + 'f'
         approvedDesign.findAll { key, value -> key != 'wave_day_overlay' }.each { key, value ->
             buildConfigField 'String', 'DESIGN_' + key.toUpperCase(Locale.ROOT), groovy.json.JsonOutput.toJson(value)

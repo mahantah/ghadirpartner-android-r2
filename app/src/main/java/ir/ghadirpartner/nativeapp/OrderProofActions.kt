@@ -1,7 +1,5 @@
 package ir.ghadirpartner.nativeapp
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,11 +44,11 @@ internal fun OrderProofActions(api: ApiClient, order: JSONObject, onChanged: () 
         val stored = if (legacy) 1 else recorded.count { it.s("kind") == kind }
         return maxOf(stored, if (kind == "cash") cashCount else checkCount)
     }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+    fun receiveImages(uris: List<android.net.Uri>) {
         val kind = target
         if (uris.isEmpty() || kind.isBlank()) {
             target = ""
-            return@rememberLauncherForActivityResult
+            return
         }
         scope.launch {
             busy = true
@@ -74,10 +72,7 @@ internal fun OrderProofActions(api: ApiClient, order: JSONObject, onChanged: () 
                 val current = recorded.filter { it.s("kind") == kind }
                 current.forEachIndexed { index, item -> StoredOrderProof(repository, id, item, index + 1) }
                 if (count(kind) < BuildConfig.PROOF_MAX_FILES_PER_KIND && files.isEmpty()) {
-                    GhadirButton("افزودن عکس یا PDF $label", {
-                        target = kind
-                        picker.launch(PaymentProofSelection.mimeTypes)
-                    }, enabled = !busy && target.isEmpty(), secondary = true)
+                    ImageUploadButton("بارگذاری $label", enabled=!busy&&target.isEmpty(),mimeTypes=PaymentProofSelection.mimeTypes) { uris -> target=kind;receiveImages(uris) }
                 }
                 if (kind == target && files.isNotEmpty()) {
                     SelectedProofReview(label, files, { index, note ->
