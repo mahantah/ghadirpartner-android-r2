@@ -2,6 +2,29 @@ package ir.ghadirpartner.nativeapp
 
 import org.json.JSONObject
 
+/** Resolve the two cash methods without changing the total used by checkout and accounting. */
+internal class CashSettlement(private val details: JSONObject) {
+    val online: Boolean get() = details.b("cash_online")
+    val transfer: Boolean get() = details.optBoolean("cash_transfer", !online)
+    val combined: Boolean get() = online && transfer
+    val paysOnline: Boolean get() = online && details.b("cash_enabled") && onlineAmount > 0L
+    val onlineAmount: Long
+        get() = when {
+            !online -> 0L
+            combined -> details.l("cash_online_amount")
+            else -> details.l("cash_amount")
+        }
+    val transferAmount: Long get() = (details.l("cash_amount") - onlineAmount).coerceAtLeast(0L)
+
+    /** Keep the other payment method selected and preserve the bank evidence in the draft. */
+    fun select(onlineMethod: Boolean, enabled: Boolean) {
+        val useOnline = if (onlineMethod) enabled else online || !enabled
+        val useTransfer = if (onlineMethod) transfer || !enabled else enabled
+        details.put("cash_online", useOnline).put("cash_transfer", useTransfer)
+        if (!combined) details.remove("cash_online_amount")
+    }
+}
+
 private val settlementParts = listOf("cash", "check", "credit", "wallet")
 
 internal fun settlementInvoiceTotal(
@@ -92,6 +115,10 @@ internal fun settlementError(
         return "جمع مبلغ‌های تسویه باید برابر مبلغ فاکتور باشد"
     }
     if (allocated > invoiceTotal) return "جمع مبالغ تسویه از مبلغ فاکتور بیشتر است"
+    val cash = CashSettlement(d)
+    if (d.b("cash_enabled") && cash.combined && (cash.onlineAmount <= 0L || cash.transferAmount <= 0L)) {
+        return "برای پرداخت ترکیبی، سهم آنلاین و سهم واریز به حساب باید هر دو بیشتر از صفر باشند"
+    }
     if (d.b("check_enabled") && d.optLong("check_amount") > 0L) {
         if (!d.s("check_number").matches(Regex("[0-9]{16}"))) return "شناسه صیادی باید ۱۶ رقم باشد"
         if (d.s("bank_name").isBlank() || d.s("due_date").isBlank()) return "بانک و سررسید چک را وارد کنید"

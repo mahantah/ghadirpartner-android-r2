@@ -986,7 +986,8 @@ private fun PortalNewOrder(
             submitting=true;error=""
             try {
                 val reviewed = checkout()
-                val online = reviewed.settlement.b("cash_online") && reviewed.settlement.b("cash_enabled")
+                val cash = CashSettlement(reviewed.settlement)
+                val online = cash.paysOnline
                 if (online && !paymentConfirmed) {
                     if (paymentId.isNotBlank()) {
                         val existing = orderPayment.recheckCheckout(paymentId)
@@ -998,8 +999,13 @@ private fun PortalNewOrder(
                     }
                     if (paymentId.isBlank() && !paymentConfirmed) {
                         val result = checkoutService.preparePayment(reviewed)
-                        paymentId = result.s("checkout_id")
-                        checkoutPaymentAmount = reviewed.settlement.l("cash_amount")
+                        val id = result.s("checkout_id")
+                        // Older servers would send the full cash amount to the gateway.
+                        require(!cash.combined || result.l("amount") == cash.onlineAmount) {
+                            "پرداخت ترکیبی روی نسخه فعلی سایت در دسترس نیست."
+                        }
+                        paymentId = id
+                        checkoutPaymentAmount = cash.onlineAmount
                         paymentConfirmed = result.b("confirmed")
                     }
                     if (!paymentConfirmed) {
@@ -1146,7 +1152,7 @@ private fun PortalNewOrder(
             })}
             item {ApprovedButton("بازگشت به تسویه",{step=1},secondary=true)}
         } else {
-            val online = settlement.b("cash_online") && settlement.b("cash_enabled")
+            val online = CashSettlement(settlement).paysOnline
             val showPaymentSuccess = online && paymentConfirmed
             val submitLabel = when {
                 submitting -> "در حال پردازش…"

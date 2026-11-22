@@ -139,6 +139,7 @@ internal fun SettlementForm(
             }
         }
     }
+    val cash = CashSettlement(value)
     val cashFiles = PaymentProofSelection.read(value, "cash").size
     val checkFiles = PaymentProofSelection.read(value, "check").size
     val deferProof = value.b("upload_proof_later")
@@ -183,21 +184,22 @@ internal fun SettlementForm(
         }
         if (value.b("cash_enabled")) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettlementMethodCard("واریز به حساب", !value.b("cash_online"), !busy, Modifier.weight(1f)) {
-                    set("cash_online", false)
+                SettlementMethodCard("واریز به حساب", cash.transfer, !busy && (cash.online || onlineAvailable && !agentReviewRequired), Modifier.weight(1f)) { enabled ->
+                    patch { CashSettlement(it).select(onlineMethod = false, enabled = enabled) }
                 }
-                SettlementMethodCard("پرداخت آنلاین", value.b("cash_online"), onlineAvailable && !busy && !agentReviewRequired, Modifier.weight(1f)) {
-                    patch {
-                        it.put("cash_online", true).remove("tracking_number")
-                        PaymentProofSelection.set(it, "cash", emptyList())
-                    }
+                SettlementMethodCard("پرداخت آنلاین", cash.online, onlineAvailable && !busy && !agentReviewRequired, Modifier.weight(1f)) { enabled ->
+                    patch { CashSettlement(it).select(onlineMethod = true, enabled = enabled) }
                 }
             }
-            val online = value.b("cash_online")
-            SettlementAmountField(if (online) "پرداخت آنلاین" else "نقد", amountText("cash"), !amountsLocked) { setAmount("cash", it) }
-            if (online) {
-                Text("بعد از ثبت سفارش می‌توانید این مبلغ را در درگاه ایران‌کیش پرداخت کنید.", color = Muted)
-            } else {
+            SettlementAmountField("مبلغ نقدی", amountText("cash"), !amountsLocked) { setAmount("cash", it) }
+            if (cash.combined) {
+                SettlementAmountField("سهم پرداخت آنلاین", amountText("cash_online"), !busy) { setAmount("cash_online", it) }
+                DetailLine("سهم واریز به حساب", formatMoney(cash.transferAmount) + " تومان")
+            }
+            if (cash.online) {
+                Text("سهم آنلاین را پیش از ثبت نهایی در درگاه ایران‌کیش پرداخت کنید.", color = Muted)
+            }
+            if (cash.transfer) {
                 when (invoiceType) {
                     "رسمی" -> {
                         DetailLine("صاحب حساب", BuildConfig.CHEQUE_FORMAL_PAYEE)
@@ -232,7 +234,7 @@ internal fun SettlementForm(
                 enabled = !busy, secondary = true,
             )
         }
-        if (listOf("cash", "check").any { value.b("${it}_enabled") }) {
+        if ((value.b("cash_enabled") && cash.transfer) || value.b("check_enabled")) {
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Checkbox(
                     checked = deferProof,
