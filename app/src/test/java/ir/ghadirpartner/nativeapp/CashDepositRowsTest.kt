@@ -49,4 +49,28 @@ class CashDepositRowsTest {
         assertEquals(100_000L, settlement.l("cash_amount"))
         assertTrue(CashDepositRows.error(settlement).contains("جمع مبلغ"))
     }
+
+    /** A receipt can be deferred, but existing evidence must still be sent. */
+    @Test
+    fun deferralPreservesOtherEvidence() {
+        val settlement = defaultSplitSettlement(100_000)
+        assertTrue(CashDepositRows.error(settlement).contains("تصویر"))
+        CashDepositRows.set(settlement, listOf(CashDeposit(50_000, "first"), CashDeposit(50_000)), amountsLocked = false)
+        settlement.put("upload_proof_later", true)
+        assertEquals("", CashDepositRows.error(settlement))
+        assertEquals("first", PaymentProofSelection.active(settlement, "cash").single().second.single().data)
+    }
+
+    /** A registration receipt is optional and does not satisfy the cheque-image requirement. */
+    @Test
+    fun registrationReceiptAndChequeHaveDistinctRoles() {
+        val settlement = JSONObject().put("check_amount", 100_000).put("check_number", "0123456789012345")
+            .put("bank_name", "بانک آزمایشی").put("due_date", "1405/10/01")
+        PaymentProofSelection.set(settlement, "check", listOf("receipt"),
+            mapOf("receipt" to PaymentProofSelection.checkRegistration))
+        assertTrue(SettlementProofRules.checkFields(settlement).containsKey("image"))
+        PaymentProofSelection.set(settlement, "check", listOf("receipt", "cheque"))
+        assertEquals("", SettlementProofRules.checkError(settlement))
+        assertEquals(PaymentProofSelection.checkRegistration, PaymentProofSelection.documents(settlement, "check").first().note)
+    }
 }

@@ -48,7 +48,7 @@ internal fun DesignField(
     transformation: VisualTransformation = VisualTransformation.None,
     enabled: Boolean = true, modifier: Modifier = Modifier, singleLine: Boolean = true,
     textDirection: TextDirection = TextDirection.Unspecified, textAlign: TextAlign = TextAlign.Start,
-    compact: Boolean = false,
+    compact: Boolean = false, fieldError: String = "",
 ) {
     val fieldHeight = if (compact) 46.dp else 52.dp
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 6.dp)) {
@@ -62,7 +62,7 @@ internal fun DesignField(
             modifier=Modifier.fillMaxWidth().heightIn(min=fieldHeight).semantics { contentDescription=label },
             decorationBox={inner ->
                 Row(Modifier.fillMaxWidth().heightIn(min=fieldHeight).clip(RoundedCornerShape(16.dp))
-                    .background(AppSurface).border(1.dp,Border,RoundedCornerShape(16.dp))
+                    .background(AppSurface).border(1.dp,if (fieldError.isBlank()) Border else Danger,RoundedCornerShape(16.dp))
                     .padding(horizontal=14.dp,vertical=if (compact) 7.dp else 12.dp), verticalAlignment=Alignment.CenterVertically,
                     horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     if(icon!=null&&icon!=R.drawable.r54_eye) {
@@ -87,6 +87,7 @@ internal fun DesignField(
                     }
                 }
             })
+        if (fieldError.isNotBlank()) Text(fieldError, color = Danger, fontSize = 12.sp)
     }
 }
 

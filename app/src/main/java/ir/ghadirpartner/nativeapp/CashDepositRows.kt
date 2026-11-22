@@ -61,14 +61,20 @@ internal object CashDepositRows {
         if (!settlement.b("cash_enabled")) return ""
         val online = onlineAmount(settlement)
         if (settlement.b("cash_online") && online <= 0L) return "مبلغ پرداخت آنلاین را وارد کنید."
-        val rows = if (depositEnabled(settlement)) read(settlement) else emptyList()
-        if (!settlement.has(field) && !settlement.has("cash_online_amount")) return ""
+        if (!depositEnabled(settlement) && online != settlement.l("cash_amount"))
+            return "مبلغ پرداخت آنلاین باید برابر سهم نقدی سفارش باشد."
+        return depositError(settlement)
+    }
+
+    /** Validate manual receipts independently of the online editor. */
+    fun depositError(settlement: JSONObject): String {
+        if (!settlement.b("cash_enabled") || !depositEnabled(settlement)) return ""
+        val rows = read(settlement)
         if (rows.size > BuildConfig.PROOF_MAX_FILES_PER_KIND || rows.any { it.amount <= 0L }) {
             return "مبلغ هر ردیف واریز را وارد کنید یا ردیف خالی را حذف کنید."
         }
-        if (rows.sumOf { it.amount } + online != settlement.l("cash_amount")) return "جمع مبلغ واریز و پرداخت آنلاین باید برابر سهم نقدی سفارش باشد."
-        val hasMultipleOrAttached = rows.size > 1 || rows.any { it.image.isNotBlank() }
-        if (hasMultipleOrAttached && !settlement.b("upload_proof_later") && rows.any { it.image.isBlank() }) {
+        if (rows.sumOf { it.amount } + onlineAmount(settlement) != settlement.l("cash_amount")) return "جمع مبلغ واریز و پرداخت آنلاین باید برابر سهم نقدی سفارش باشد."
+        if (!settlement.b("upload_proof_later") && rows.any { it.image.isBlank() }) {
             return "تصویر هر فیش را کنار مبلغ همان واریز بارگذاری کنید."
         }
         return ""

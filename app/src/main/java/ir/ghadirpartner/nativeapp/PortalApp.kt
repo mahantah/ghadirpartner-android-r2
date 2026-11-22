@@ -754,6 +754,10 @@ private fun PortalNewOrder(
     var step by rememberSaveable {mutableIntStateOf(0)}
     var submitting by remember {mutableStateOf(false)}
     var evidenceBusy by remember {mutableStateOf(false)}
+    var settlementAttempt by rememberSaveable { mutableIntStateOf(0) }
+    var settlementDialog by rememberSaveable { mutableStateOf("") }
+    var settlementChoiceError by rememberSaveable { mutableStateOf("") }
+    var shippingAttempted by rememberSaveable { mutableStateOf(false) }
     var error by remember {mutableStateOf("")}
     var retry by remember {mutableIntStateOf(0)}
     var products by remember {mutableStateOf(emptyList<JSONObject>())}
@@ -846,7 +850,7 @@ private fun PortalNewOrder(
     val agentReviewRequired = revisionOrder == null && cart.any { it.priceKey == "sales_agent" }
     LaunchedEffect(cart,step,selectedAddressId,invoiceType,settlement,notes,promoCode,appliedOffer,total,paymentId,shippingMethod) {
         if (revisionOrder == null) onDraftSnapshot(
-            if (cart.isEmpty()) null else checkoutDraftFromState(cart,step,selectedAddressId,invoiceType,settlement,notes,promoCode,appliedOffer).put("shippingMethod",shippingMethod)
+            if (cart.isEmpty()) null else checkoutDraftFromState(cart,step,selectedAddressId,invoiceType,settlement,notes,promoCode,appliedOffer,keepEvidence=true).put("shippingMethod",shippingMethod)
                 .put("online_checkout_id", paymentId),
         )
     }
@@ -976,14 +980,28 @@ private fun PortalNewOrder(
     val firstCheckoutStep = if (agentTermsLocked) 1 else 0
     BackHandler(step > firstCheckoutStep || evidenceBusy) { if (step > firstCheckoutStep) editOrder(step - 1) }
 
+    if (settlementDialog.isNotBlank()) AlertDialog(
+        onDismissRequest={settlementDialog=""},
+        title={Text("بررسی مبلغ تسویه")},
+        text={Text(settlementDialog)},
+        confirmButton={TextButton(onClick={settlementDialog=""}) {Text("متوجه شدم")}},
+    )
+
     fun submit() {
         if(submitting)return
-        if(addressText.isBlank()||shippingMethod.isBlank()){error="نشانی و روش ارسال را انتخاب کنید";step=2;return}
+        if(addressText.isBlank()||shippingMethod.isBlank()){shippingAttempted=true;step=2;return}
         if(!paymentConfirmed && cart.any {line -> val p=products.firstOrNull {it.s("name")==line.product};p==null||!catalogInStock(p)||cart.filter{it.product==line.product}.sumOf{it.qty.toLong()}>p.i("stock")}) {
             error="موجودی سبد را دوباره بررسی کنید";if(!agentTermsLocked)step=0;return
         }
         val validation=checkoutService.validation(checkout())
-        if(validation.isNotBlank()){error=validation;step=if(invoiceType.isBlank())0 else 1;return}
+        if(settlementAllocated(checkout().settlement)!=total){
+            step=1;settlementDialog="جمع مبلغ‌های تسویه باید برابر مبلغ فاکتور باشد.";return
+        }
+        if(validation.isNotBlank()){
+            step=if(invoiceType.isBlank())0 else 1
+            if(step==0) error=validation else {settlementChoiceError=validation;settlementAttempt++}
+            return
+        }
         if(!agentTermsLocked&&promoCode.isNotBlank()&&(appliedOffer==null||discount<=0)){error="کد تخفیف را ابتدا اعمال و بررسی کنید";step=0;return}
         scope.launch {
             submitting=true;error=""
@@ -1130,22 +1148,40 @@ private fun PortalNewOrder(
         } else if(step==1) {
             item {Text("نحوه تسویه",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold)}
             if (agentTermsLocked) item { DesignNotice("مبالغ این مرحله را شرکت تعیین کرده است. اطلاعات پرداخت و مدارک را تکمیل کنید.") }
-            item {SettlementForm(api,total,invoiceType,settlement,amountsLocked=agentTermsLocked,agentReviewRequired=agentReviewRequired,onBusyChanged={evidenceBusy=it}){settlement=it}}
+            item {SettlementForm(api,total,invoiceType,settlement,amountsLocked=agentTermsLocked,agentReviewRequired=agentReviewRequired,onBusyChanged={evidenceBusy=it},validationAttempt=settlementAttempt){settlement=it}}
             if(!agentTermsLocked && cart.any {it.priceKey=="sales_agent"}) item {
                 DesignNotice("شرایط عامل فروش: ${faNumber(BuildConfig.AGENT_CASH_PERCENT)}٪ نقد و ${faNumber(100-BuildConfig.AGENT_CASH_PERCENT)}٪ چک. تغییر شرایط فقط پس از بررسی مدیر قابل تأیید است.")
-                if(AgentSettlementPolicy().changed(cart,total,settlement)) DesignField("علت درخواست تغییر شرایط",settlement.s("agent_change_reason"),{settlement=JSONObject(settlement.toString()).put("agent_change_reason",it.take(BuildConfig.REQUEST_NOTE_LIMIT))},"درخواست برای مدیر ارسال می‌شود",singleLine=false)
+                if(AgentSettlementPolicy().changed(cart,total,settlement)) DesignField("علت درخواست تغییر شرایط",settlement.s("agent_change_reason"),{settlement=JSONObject(settlement.toString()).put("agent_change_reason",it.take(BuildConfig.REQUEST_NOTE_LIMIT))},"درخواست برای مدیر ارسال می‌شود",singleLine=false,
+                    fieldError=if(settlementAttempt>0 && settlement.s("agent_change_reason").isBlank()) "علت تغییر روش تسویه را وارد کنید." else "")
             }
+            if(settlementChoiceError.isNotBlank()) item { Text(settlementChoiceError,color=Danger) }
             item {ApprovedButton("ادامه به نحوه ارسال",{
-                error=checkoutService.validation(checkout());if(error.isBlank())step=2
+                val draft = checkout()
+                val issue = checkoutService.validation(draft)
+                error = ""
+                settlementChoiceError = ""
+                when {
+                    settlementAllocated(draft.settlement) != total -> settlementDialog = "جمع مبلغ‌های تسویه باید برابر مبلغ فاکتور باشد."
+                    issue.isBlank() -> step = 2
+                    issue == CashDepositRows.error(draft.settlement) || issue == SettlementProofRules.checkError(draft.settlement) ||
+                        issue.startsWith("علت درخواست") || issue.startsWith("شرایط درخواست") -> settlementAttempt++
+                    else -> settlementChoiceError = issue
+                }
             },enabled=!evidenceBusy)}
             if (!agentTermsLocked) item {ApprovedButton("بازگشت و ویرایش",{step=0},secondary=true)}
         } else if(step==2) {
-            item {CheckoutAddressSection(api,customer,addresses,selectedAddressId,{selectedAddressId=it},{addresses=it})}
+            item {
+                CheckoutAddressSection(api,customer,addresses,selectedAddressId,{selectedAddressId=it},{addresses=it})
+                if(shippingAttempted && addressText.isBlank()) Text("نشانی تحویل را انتخاب کنید.",color=Danger)
+            }
             item {DesignField("گیرنده",receiver,{},"",enabled=false)}
-            item {DropdownField("روش ارسال",shippingMethod.ifBlank {"انتخاب روش ارسال"},shippingMethods,{it}){shippingMethod=it}}
+            item {
+                DropdownField("روش ارسال",shippingMethod.ifBlank {"انتخاب روش ارسال"},shippingMethods,{it}){shippingMethod=it}
+                if(shippingAttempted && shippingMethod.isBlank()) Text("روش ارسال را انتخاب کنید.",color=Danger)
+            }
             item {ApprovedButton("مشاهده سبد و ثبت نهایی",{
-                error=when {addressText.isBlank()->"نشانی تحویل را انتخاب کنید";shippingMethod.isBlank()->"روش ارسال را انتخاب کنید";else->""}
-                if(error.isBlank())step=3
+                shippingAttempted=true
+                if(addressText.isNotBlank() && shippingMethod.isNotBlank())step=3
             })}
             item {ApprovedButton("بازگشت به تسویه",{step=1},secondary=true)}
         } else {
@@ -1371,8 +1407,9 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
     var province by rememberSaveable(me.toString()){mutableStateOf(initial.s("province"))}
     var city by rememberSaveable(me.toString()){mutableStateOf(initial.s("city"))}
     var address by rememberSaveable(me.toString()){mutableStateOf(initial.s("address"))}
-    var alternate by rememberSaveable(me.toString()){mutableStateOf(me.s("alternate_mobile"))}
-    var postalCode by rememberSaveable(me.toString()){mutableStateOf(initial.s("postal_code"))}
+    val alternate = me.s("alternate_mobile")
+    val postalCode = initial.s("postal_code")
+    var editAttempted by rememberSaveable { mutableStateOf(false) }
     var saving by remember {mutableStateOf(false)}
     var error by remember {mutableStateOf("")}
     var saved by remember {mutableStateOf("")}
@@ -1382,9 +1419,9 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
     val prefs=remember(context){context.getSharedPreferences("ghadir_profile",android.content.Context.MODE_PRIVATE)}
     var photoUri by remember(me.s("username")){mutableStateOf(prefs.getString(photoKey,"")?:"")}
     fun savePhoto(uri:String){photoUri=uri;prefs.edit().putString(photoKey,uri).apply();onPhotoUpdated(uri);view="services"}
-    fun parentView()=when(view){"edit","photo","deleted"->"services";"password","phone"->"settings";else->"profile"}
+    fun parentView()=when(view){"edit","photo","deleted"->"services";"password","users"->"settings";else->"profile"}
     LaunchedEffect(view){onSectionChanged(when(view){
-        "services"->"پروفایل من";"settings"->"تنظیمات";"password"->"تغییر رمز ورود";"phone"->"تغییر شماره تماس";"wallet"->"کیف پول و اعتبار"
+        "services"->"پروفایل من";"settings"->"تنظیمات";"password"->"تغییر رمز ورود";"users"->"دسترسی کاربران";"wallet"->"کیف پول و اعتبار"
         "edit"->"ویرایش اطلاعات مشتری";"photo"->"تصویر پروفایل";"deleted"->"تصویر پروفایل";else->"پروفایل"})}
     var handledBackRequest by rememberSaveable {mutableIntStateOf(backRequest)}
     LaunchedEffect(backRequest){if(backRequest!=handledBackRequest&&!saving)view=parentView();handledBackRequest=backRequest}
@@ -1400,7 +1437,7 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            if(error.isNotBlank())item {ErrorBanner(error){error=""}}
+            if(error.isNotBlank()&&view!="edit")item {ErrorBanner(error){error=""}}
             if(saved.isNotBlank()&&view in setOf("profile","services","settings"))item {DesignNotice(saved)}
             when(view) {
                 "services"->{
@@ -1428,21 +1465,25 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
                     }}
                 }
                 "settings"->{
-                    item {BiometricPreference(me.s("username"))}
                     item {GhadirButton("تغییر رمز ورود",{view="password"},secondary=true)}
-                    item {GhadirButton("تغییر شماره تماس",{view="phone"},secondary=true)}
+                    item {GhadirButton("دسترسی کاربران",{view="users"},secondary=true)}
+                    item {BiometricPreference(me.s("username"))}
                     item {Text("نسخه "+BuildConfig.VERSION_NAME,color=Muted,fontSize=12.sp)}
                 }
                 "password"->{item {AccountPasswordForm(api,me.s("username"),onChanged={saved="رمز ورود با موفقیت تغییر کرد.";view="settings"},onBusyChanged={saving=it})}}
-                "phone"->{item {AccountContactForm(api,me,onUpdated={result->onUpdated(result);saved="شماره تماس جایگزین ذخیره شد.";view="settings"},onBusyChanged={saving=it})}}
-                "wallet" -> item { CustomerWallet(api) }
+                "users"-> item { AccountUsersForm(api, onBusyChanged={saving=it}) }
+                "wallet" -> item { CustomerWallet(api, onEditBank={view="edit"}) }
                 "edit"->{
-                    item {DesignField("نام و نام خانوادگی",name,{name=it;saved=""})}
+                    item {DesignField("نام و نام خانوادگی",name,{name=it;saved="";error=""},
+                        fieldError=if(editAttempted&&name.trim().length<3)"نام و نام خانوادگی را کامل وارد کنید." else "")}
                     item {DesignField("نام شرکت / فروشگاه",company,{company=it;saved=""})}
                     item {DesignField("شماره همراه",faDigits(me.s("username")),{},enabled=false)}
                     item {DesignField("نشانی تحویل",address,{address=it;saved=""},singleLine=false)}
-                    item {DesignNotice("نام، شرکت و نشانی را پیش از ثبت تغییرات بررسی کنید.")}
+                    item { AccountBankForm(api, onBusyChanged={saving=it}) }
+                    if(error.isNotBlank()) item { Text(error,color=Danger) }
                     item {GhadirButton(if(saving)"در حال ذخیره…" else "ثبت تغییرات",{
+                        editAttempted=true
+                        if(name.trim().length<3)return@GhadirButton
                         scope.launch {
                             saving=true;error="";saved=""
                             try {
@@ -1453,7 +1494,7 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
                             }catch(e:kotlinx.coroutines.CancellationException){throw e}
                             catch(e:Exception){error=e.message?:"ذخیره پروفایل ناموفق بود"}finally{saving=false}
                         }
-                    },enabled=!saving&&name.trim().length>=3)}
+                    },enabled=!saving)}
 
                 }
                 "photo"->{

@@ -80,6 +80,7 @@ internal data class SelectedProof(val data: String, val note: String = "", val d
 /** Keep checkout selections and request limits in one place. */
 internal object PaymentProofSelection {
     val mimeTypes: Array<String> get() = arrayOf("image/*", "application/pdf")
+    const val checkRegistration = "رسید ثبت چک"
     val kinds: List<String> = listOf("cash", "check")
     const val field = "payment_files"
     private const val notesField = "payment_file_notes"
@@ -116,7 +117,7 @@ internal object PaymentProofSelection {
 
     /** Return the selected evidence that belongs to the final payment method. */
     fun active(settlement: JSONObject, method: String): List<Pair<String, List<SelectedProof>>> =
-        if (settlement.b("upload_proof_later")) emptyList() else kinds.mapNotNull { kind ->
+        kinds.mapNotNull { kind ->
             val enabled = (method == kind || (method == "mixed" && settlement.l("${kind}_amount") > 0)) &&
                 (kind != "cash" || CashDepositRows.depositEnabled(settlement))
             val files = documents(settlement, kind)
@@ -124,11 +125,11 @@ internal object PaymentProofSelection {
         }
 
     /** Update one kind without losing the selection for the other. */
-    fun set(settlement: JSONObject, kind: String, files: List<String>) {
+    fun set(settlement: JSONObject, kind: String, files: List<String>, addedNotes: Map<String, String> = emptyMap()) {
         val selection = settlement.optJSONObject(field) ?: JSONObject().put(
             "cash", JSONArray(read(settlement, "cash"))
         ).put("check", JSONArray(read(settlement, "check")))
-        val priorNotes = documents(settlement, kind).associate { it.data to it.note }
+        val priorNotes = documents(settlement, kind).associate { it.data to it.note } + addedNotes
         val notes = settlement.optJSONObject(notesField) ?: JSONObject()
         notes.put(kind, JSONArray(files.map { priorNotes[it].orEmpty() }))
         selection.put(kind, JSONArray(files))

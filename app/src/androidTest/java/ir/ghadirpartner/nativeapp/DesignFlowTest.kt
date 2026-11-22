@@ -166,6 +166,11 @@ class DesignFlowTest {
             "/api/portal-activity"->"{\"ok\":true,\"heartbeat_seconds\":60}"
             "/api/native/panel-switches"->"""{"products":{"i90":["پرداخت نوین","ایرانکیش","سپهر","فن اوا"]}}"""
             "/api/wallet/refunds"->"[]"
+            "/api/native/account-bank"->"""{"iban":"","bank_name":""}"""
+            "/api/native/account-users"->if(request.method=="GET")"[]" else JSONObject()
+                .put("id",54).put("name",writes.last().second.s("name")).put("mobile",writes.last().second.s("mobile")).toString()
+            "/api/native/account-users/code"->"""{"ok":true}"""
+
             "/api/notifications"->if(includeOrderMessage) """{"items":[{"id":"order:1024","kind":"order","order_id":1024,"title":"به‌روزرسانی سفارش","body":"سفارش آماده است","read":false}],"unread":1}""" else "{\"items\":[],\"unread\":0}"
             "/api/notifications/read"->"{\"ok\":true}"
             "/api/password"->"{\"ok\":true}"
@@ -262,6 +267,13 @@ class DesignFlowTest {
         chooseShipping()
         showText("مشاهده سبد و ثبت نهایی");compose.onNodeWithText("مشاهده سبد و ثبت نهایی").performClick()
     }
+    private fun deferCashProof() {
+        showField("دستهٔ تسویه");compose.onNodeWithContentDescription("دستهٔ تسویه").performClick()
+        compose.onNodeWithText("نقد",substring=false).performClick()
+        showText("ویرایش واریز به حساب");compose.onNodeWithText("ویرایش واریز به حساب").performClick()
+        showField("ارسال تصویر بعداً");compose.onNodeWithContentDescription("ارسال تصویر بعداً").performClick()
+    }
+
     private fun chooseInvoice() {
         showText("غیررسمی")
         compose.onNodeWithText("غیررسمی",substring=false).performClick()
@@ -315,14 +327,15 @@ class DesignFlowTest {
             chooseInvoice()
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
             shot("design-checkout-cash.png")
-            showField("فعال‌سازی غیر نقد");compose.onNodeWithContentDescription("فعال‌سازی غیر نقد").performClick()
-            showField("فعال‌سازی چک");compose.onNodeWithContentDescription("فعال‌سازی چک").performScrollTo().performClick()
+            showField("دستهٔ تسویه");compose.onNodeWithContentDescription("دستهٔ تسویه").performClick()
+            compose.onNodeWithText("غیر نقد",substring=false).performClick()
+            showText("انتخاب چک");compose.onNodeWithText("انتخاب چک").performClick()
             hideKeyboard(scenario)
             compose.waitForIdle()
             showField("شناسه صیادی")
             showText("ادامه به نحوه ارسال");compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
-            waitText("شناسه صیادی باید ۱۶ رقم باشد")
-            compose.onNodeWithText("شناسه صیادی باید ۱۶ رقم باشد").assertExists()
+            waitText("شناسه صیادی باید ۱۶ رقم باشد.")
+            compose.onNodeWithText("شناسه صیادی باید ۱۶ رقم باشد.").assertExists()
             assertTrue(writes.isEmpty())
             showField("شناسه صیادی");compose.onNodeWithContentDescription("شناسه صیادی").performTextInput("۱۲۳۴۵۶۷۸۹۰۱۲۳۴۵۶")
             showField("بانک");compose.onNodeWithContentDescription("بانک").performClick()
@@ -331,12 +344,15 @@ class DesignFlowTest {
             shot("design-checkout-calendar.png")
             compose.onNodeWithText("تأیید تاریخ").performClick()
             hideKeyboard(scenario);shot("design-checkout-check.png")
+            showField("ارسال تصویر بعداً");compose.onNodeWithContentDescription("ارسال تصویر بعداً").performClick()
             showText("ادامه به نحوه ارسال");compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
             completeShipping()
             waitText("مشاهده سبد و ثبت نهایی")
             showText("بازگشت و ویرایش");compose.onNodeWithText("بازگشت و ویرایش").performClick()
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
-            showField("فعال‌سازی اعتباری");compose.onNodeWithContentDescription("فعال‌سازی اعتباری").performScrollTo().performClick()
+            showField("دستهٔ تسویه");compose.onNodeWithContentDescription("دستهٔ تسویه").performClick()
+            compose.onAllNodesWithText("غیر نقد",substring=false).onLast().performClick()
+            showText("انتخاب اعتبار");compose.onNodeWithText("انتخاب اعتبار").performClick()
             showField("اعتباری — مبلغ (تومان)")
             hideKeyboard(scenario)
             showText("اعتبار حساب شما")
@@ -392,6 +408,7 @@ class DesignFlowTest {
             showField("افزایش تعداد i90");compose.onNodeWithContentDescription("افزایش تعداد i90").performClick()
             chooseInvoice()
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
+            deferCashProof()
             showText("ادامه به نحوه ارسال");compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
             chooseShipping()
             compose.onAllNodesWithText("پروفایل").onLast().performClick()
@@ -464,6 +481,7 @@ class DesignFlowTest {
             chooseInvoice()
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
             waitText("نحوه تسویه")
+            deferCashProof()
             showText("ادامه به نحوه ارسال");compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
             completeShipping()
             showText("تأیید و ثبت نهایی");compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
@@ -498,26 +516,20 @@ class DesignFlowTest {
             waitText("رمز ورود با موفقیت تغییر کرد.")
             val password=writes.single {it.first=="/api/password"}.second
             assertEquals("OldPassword57",password.s("current"));assertEquals("NewPassword57",password.s("new"))
-            showText("تغییر شماره تماس");compose.onNodeWithText("تغییر شماره تماس").performClick()
-            try {
-                compose.waitUntil(5_000L) {
-                    compose.onAllNodesWithContentDescription("شماره تماس جایگزین").fetchSemanticsNodes().isNotEmpty()
-                }
-            } catch (_: androidx.compose.ui.test.ComposeTimeoutException) {
-                // On heavily loaded emulators the first tap can land during a screen transition.
-                compose.onNode(hasText("تغییر شماره تماس") and hasClickAction()).performClick()
-            }
-            compose.waitUntil(uiWaitTimeoutMs) {
-                compose.onAllNodesWithContentDescription("شماره تماس جایگزین").fetchSemanticsNodes().isNotEmpty()
-            }
-            showField("شماره تماس جایگزین");compose.onNodeWithContentDescription("شماره تماس جایگزین").performTextInput("۰۹۱۲۱۱۱۱۱۱۱")
+            showText("دسترسی کاربران");compose.onNodeWithText("دسترسی کاربران").performClick()
+            showField("نام کاربر");compose.onNodeWithContentDescription("نام کاربر").performTextInput("همکار آزمایشی")
+            showField("شماره همراه کاربر");compose.onNodeWithContentDescription("شماره همراه کاربر").performTextInput("۰۹۱۲۱۱۱۱۱۱۱")
             hideKeyboard(scenario)
-            showText("ذخیره شماره تماس");compose.onNodeWithText("ذخیره شماره تماس").performClick()
-            waitText("شماره تماس جایگزین ذخیره شد.")
-            val contact=writes.single {it.first=="/api/profile/update"}.second
-            assertEquals("09121111111",contact.s("alternate_mobile"))
-            assertEquals(me.obj("customer").s("address"),contact.s("address"))
-            assertFalse(contact.has("username"));assertFalse(contact.has("mobile"))
+            showText("ارسال کد تأیید");compose.onNodeWithText("ارسال کد تأیید").performClick()
+            showField("کد پیامکی کاربر");compose.onNodeWithContentDescription("کد پیامکی کاربر").performTextInput("۱۲۳۴۵۶")
+            showField("رمز ورود کاربر");compose.onNodeWithContentDescription("رمز ورود کاربر").performTextInput("FixturePassword57")
+            hideKeyboard(scenario)
+            showText("ثبت دسترسی کاربر");compose.onNodeWithText("ثبت دسترسی کاربر").performClick()
+            waitText("لغو دسترسی همکار آزمایشی")
+            val delegate=writes.single {it.first=="/api/native/account-users"}.second
+            assertEquals("09121111111",delegate.s("mobile"))
+            assertEquals("123456",delegate.s("otp"))
+            assertFalse(delegate.has("customer_id"))
         }
     }
     @Test fun biometricPreferenceChangesAreObserved() {
@@ -586,6 +598,7 @@ class DesignFlowTest {
             shot("design-checkout-options.png",scrollToTop=false)
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
             waitText("نحوه تسویه")
+            deferCashProof()
             showText("ادامه به نحوه ارسال");compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
             completeShipping()
             showText("تأیید و ثبت نهایی");compose.onNodeWithText("تأیید و ثبت نهایی").performClick()

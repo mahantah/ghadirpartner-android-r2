@@ -12,6 +12,7 @@ internal fun checkoutDraftFromState(
     notes: String,
     promoCode: String,
     appliedOffer: JSONObject?,
+    keepEvidence: Boolean = false,
 ): JSONObject {
     val items = JSONArray()
     cart.forEach { line ->
@@ -26,7 +27,7 @@ internal fun checkoutDraftFromState(
         )
     }
     val settlementCopy = JSONObject(settlement.toString())
-    PaymentProofSelection.clear(settlementCopy)
+    if (!keepEvidence) PaymentProofSelection.clear(settlementCopy)
     return JSONObject()
         .put("cart", items)
         .put("step", step)
