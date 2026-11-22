@@ -141,9 +141,23 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
         }
         return
     }
-    Box(Modifier.fillMaxSize().paint(painterResource(R.drawable.brand_login_waves),contentScale=ContentScale.Crop)) {
-    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(8.dp)) {
-        if(view=="login") Spacer(Modifier.height(14.dp)) else Surface(color=AppSurface.copy(alpha=.94f)) {
+    BoxWithConstraints(
+        Modifier.fillMaxSize()
+            .paint(painterResource(R.drawable.brand_login_waves), contentScale = ContentScale.Crop)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .imePadding()
+    ) {
+    val centerLogin = api.isPortal && view == "login"
+    // Center in the visible area while still allowing tall forms to scroll above the keyboard.
+    Column(
+        Modifier.fillMaxWidth().verticalScroll(pageScroll).heightIn(min = if (centerLogin) maxHeight else 0.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+    ) {
+        if (view == "login") {
+            if (!centerLogin) Spacer(Modifier.height(14.dp))
+        } else Surface(color=AppSurface.copy(alpha=.94f)) {
             PortalBackHeader(when(view){"otp"->"کد تأیید";"biometric"->"ورود امن";else->"ورود به قدیر پارتنر"}) {
                 loginPrompt?.cancelAuthentication();view="login";error=""
             }
