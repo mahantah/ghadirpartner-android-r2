@@ -245,32 +245,37 @@ internal fun SettlementForm(
                     }
                 }
                 DesignField("شماره پیگیری", value.s("tracking_number"), { set("tracking_number", asciiDigits(it).take(100)) }, "شماره پیگیری انتقال — در صورت پرداخت", enabled = !busy)
-                deposits.forEachIndexed { index, deposit ->
-                    key(index) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.weight(3f)) {
-                                SettlementAmountField("فیش ${faNumber(index + 1)}", deposit.amount.takeIf { it > 0 }?.toString().orEmpty(), !busy) { raw ->
-                                    val amount = asciiDigits(raw).filter(Char::isDigit).take(15).toLongOrNull() ?: 0L
-                                    editDeposit(index) { it.copy(amount = amount) }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    deposits.forEachIndexed { index, deposit ->
+                        key(index) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.Bottom) {
+                                    Box(Modifier.weight(3f)) {
+                                        SettlementAmountField("فیش ${faNumber(index + 1)}", deposit.amount.takeIf { it > 0 }?.toString().orEmpty(),
+                                            enabled = !busy, compact = true) { raw ->
+                                            val amount = asciiDigits(raw).filter(Char::isDigit).take(15).toLongOrNull() ?: 0L
+                                            editDeposit(index) { it.copy(amount = amount) }
+                                        }
+                                    }
+                                    Box(Modifier.weight(2f)) {
+                                        ImageUploadButton(if (deposit.image.isBlank()) "بارگذاری عکس" else "تعویض عکس",
+                                            enabled = !busy && !deferProof, singleSelection = true) { uris ->
+                                            uris.firstOrNull()?.let { attachCashReceipt(index, it) }
+                                        }
+                                    }
                                 }
-                            }
-                            Box(Modifier.weight(2f)) {
-                                ImageUploadButton(if (deposit.image.isBlank()) "بارگذاری عکس" else "تعویض عکس",
-                                    enabled = !busy && !deferProof, singleSelection = true) { uris ->
-                                    uris.firstOrNull()?.let { attachCashReceipt(index, it) }
-                                }
+                                if (deposit.image.isNotBlank()) ProofThumbnail(deposit.image, "فیش ${faNumber(index + 1)}")
+                                if (deposits.size > 1 || deposit.image.isNotBlank()) TextButton(enabled = !busy, onClick = {
+                                    patch { next ->
+                                        val rows = CashDepositRows.read(next)
+                                        val revised = if (rows.size > 1) rows.filterIndexed { i, _ -> i != index }
+                                            else rows.map { it.copy(image = "") }
+                                        CashDepositRows.set(next, revised, amountsLocked)
+                                    }
+                                }) { Text(if (deposits.size > 1) "حذف این فیش" else "حذف عکس فیش") }
                             }
                         }
-                        if (deposit.image.isNotBlank()) ProofThumbnail(deposit.image, "فیش ${faNumber(index + 1)}")
-                        if (deposits.size > 1 || deposit.image.isNotBlank()) TextButton(enabled = !busy, onClick = {
-                            patch { next ->
-                                val rows = CashDepositRows.read(next)
-                                val revised = if (rows.size > 1) rows.filterIndexed { i, _ -> i != index }
-                                    else rows.map { it.copy(image = "") }
-                                CashDepositRows.set(next, revised, amountsLocked)
-                            }
-                        }) { Text(if (deposits.size > 1) "حذف این فیش" else "حذف عکس فیش") }
                     }
                 }
                 DetailLine("جمع مبلغ فیش‌ها", formatMoney(deposits.sumOf { it.amount }) + " تومان")
@@ -378,7 +383,13 @@ private fun SettlementMethodCard(
 }
 
 @Composable
-private fun SettlementAmountField(label: String, amount: String, enabled: Boolean = true, onAmount: (String) -> Unit) {
+private fun SettlementAmountField(
+    label: String,
+    amount: String,
+    enabled: Boolean = true,
+    compact: Boolean = false,
+    onAmount: (String) -> Unit,
+) {
     DesignField(
         "$label — مبلغ (تومان)",
         amount,
@@ -388,6 +399,7 @@ private fun SettlementAmountField(label: String, amount: String, enabled: Boolea
         enabled = enabled,
         transformation = SettlementAmountTransformation,
         textDirection = TextDirection.Ltr,
+        compact = compact,
         textAlign = TextAlign.Right,
     )
 }
