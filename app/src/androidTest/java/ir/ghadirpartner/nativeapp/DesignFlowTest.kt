@@ -164,7 +164,7 @@ class DesignFlowTest {
             "/api/addresses"->"""[{"id":"saved-A","title":"دفتر","province":"تهران","city":"تهران","address":"خیابان دفتر"}]"""
             "/api/notifications/staff"->"{\"items\":[]}"
             "/api/portal-activity"->"{\"ok\":true,\"heartbeat_seconds\":60}"
-            "/api/native/order-options"->"""{"policy":{"shipping_methods":["حضوری","تیپاکس"],"agent_cash_percent":40},"products":{"i90":["پرداخت نوین","ایرانکیش","سپهر","فن اوا"]}}"""
+            "/api/native/panel-switches"->"""{"products":{"i90":["پرداخت نوین","ایرانکیش","سپهر","فن اوا"]}}"""
             "/api/wallet/refunds"->"[]"
             "/api/notifications"->if(includeOrderMessage) """{"items":[{"id":"order:1024","kind":"order","order_id":1024,"title":"به‌روزرسانی سفارش","body":"سفارش آماده است","read":false}],"unread":1}""" else "{\"items\":[],\"unread\":0}"
             "/api/notifications/read"->"{\"ok\":true}"

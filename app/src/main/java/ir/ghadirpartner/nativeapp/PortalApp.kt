@@ -768,12 +768,15 @@ private fun PortalNewOrder(
     var productSwitches by remember { mutableStateOf(JSONObject()) }
     val panelSwitches=productSwitches.arr(selected?.s("name").orEmpty()).strings()
     var switchLoadFailed by remember { mutableStateOf(false) }
+    var switchOptionsLoaded by remember { mutableStateOf(false) }
     var switchRetry by remember { mutableIntStateOf(0) }
     LaunchedEffect(api, switchRetry) {
         switchLoadFailed = false
+        switchOptionsLoaded = false
         try {
-            val response = api.request("GET","/api/native/order-options",null) as JSONObject
+            val response = api.request("GET", "/api/native/panel-switches", null) as JSONObject
             productSwitches=response.obj("products")
+            switchOptionsLoaded = true
             switchLoadFailed=false
         } catch (failure: kotlinx.coroutines.CancellationException) {
             throw failure
@@ -1057,9 +1060,7 @@ private fun PortalNewOrder(
                     DropdownField("نوع خرید پنل",catalogPriceRows("panel").first {it.first==panelTier}.second,catalogPriceRows("panel"),{it.second}){panelTier=it.first}
                     if (switchLoadFailed) {
                         ApprovedButton("دریافت دوبارهٔ سوئیچ‌ها", { switchRetry++ }, secondary = true)
-                    } else if (panelSwitches.isEmpty()) {
-                        Text(if(selected==null)"ابتدا دستگاه را انتخاب کنید" else "این دستگاه سوئیچ ثبت در پنل ندارد", color = Muted)
-                    } else {
+                    } else if (panelSwitches.isNotEmpty()) {
                         DropdownField("مدل سوئیچ", panelSwitch.takeIf { it in panelSwitches } ?: "انتخاب سوئیچ", panelSwitches, { it }) { panelSwitch = it }
                     }
                 }
@@ -1078,11 +1079,13 @@ private fun PortalNewOrder(
                 ApprovedButton("افزودن به سبد خرید",{
                     val product=selected?:return@ApprovedButton
                     try {
-                        cart=cartService.add(cart,catalogEntry(product),qty,priceKey,if(group=="panel")panelSwitch else "")
+                        val selectedSwitch = panelSwitch.takeIf { group == "panel" && it in panelSwitches }.orEmpty()
+                        cart=cartService.add(cart,catalogEntry(product),qty,priceKey,selectedSwitch)
                         selected=null;qtyText="1";panelSwitch="";productQuery=""
                         settlement=AgentSettlementPolicy().defaults(cart,total);error=""
                     } catch(e:IllegalArgumentException) { error=e.message?:"افزودن کالا ناموفق بود" }
-                },enabled=selected!=null&&unit>0&&qty>0&&qty<=(selected?.i("stock")?:0)&&(group!="panel"||panelSwitch in panelSwitches),secondary=true)
+                },enabled=selected!=null&&unit>0&&qty>0&&qty<=(selected?.i("stock")?:0)&&
+                    (group!="panel"||(switchOptionsLoaded&&(panelSwitches.isEmpty()||panelSwitch in panelSwitches))),secondary=true)
             }}}
             item {ApprovedSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 Text("سبد سفارش",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold)
