@@ -20,6 +20,7 @@ internal fun ImageUploadButton(
     label: String = "بارگذاری تصویر",
     enabled: Boolean = true,
     mimeTypes: Array<String> = arrayOf("image/*"),
+    singleSelection: Boolean = false,
     onSelected: (List<Uri>) -> Unit,
 ) {
     val context = LocalContext.current
@@ -31,12 +32,16 @@ internal fun ImageUploadButton(
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { captured ->
         if (captured) deliver(listOf(uri)) else photo.delete()
     }
-    val gallery = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { selected ->
+    val receiveGallery: (List<Uri>) -> Unit = { selected ->
         selected.forEach { item ->
             try { context.contentResolver.takePersistableUriPermission(item, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             catch (_: SecurityException) { /* Some providers grant only temporary access. */ }
         }
         if (selected.isNotEmpty()) deliver(selected)
+    }
+    val gallery = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments(), receiveGallery)
+    val singlePhoto = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { selected ->
+        if (selected != null) receiveGallery(listOf(selected))
     }
     GhadirButton(label, { choosing = true; error = "" }, enabled = enabled, secondary = true)
     if (choosing) AlertDialog(
@@ -50,7 +55,10 @@ internal fun ImageUploadButton(
             } else try { camera.launch(uri) }
             catch (_: ActivityNotFoundException) { error = "برنامه دوربین در دسترس نیست؛ از گالری انتخاب کنید." }
         }) { Text("دوربین") } },
-        dismissButton = { TextButton(onClick = { choosing = false; gallery.launch(mimeTypes) }) { Text("گالری و فایل‌ها") } },
+        dismissButton = { TextButton(onClick = {
+            choosing = false
+            if (singleSelection) singlePhoto.launch(mimeTypes) else gallery.launch(mimeTypes)
+        }) { Text("گالری و فایل‌ها") } },
     )
     if (error.isNotBlank()) ErrorBanner(error) { error = "" }
 }

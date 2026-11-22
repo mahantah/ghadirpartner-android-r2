@@ -139,7 +139,29 @@ internal fun SettlementForm(
             }
         }
     }
-    val cashFiles = PaymentProofSelection.read(value, "cash").size
+    val deposits = CashDepositRows.read(value)
+    fun editDeposit(index: Int, edit: (CashDeposit) -> CashDeposit) {
+        patch { next ->
+            val revised = CashDepositRows.read(next).mapIndexed { i, row -> if (i == index) edit(row) else row }
+            CashDepositRows.set(next, revised, amountsLocked)
+        }
+    }
+    fun attachCashReceipt(index: Int, uri: Uri) {
+        scope.launch {
+            busy = true
+            error = ""
+            try {
+                val image = PaymentProofEncoder(context.contentResolver).encode(listOf(uri), 1).single()
+                editDeposit(index) { it.copy(image = image) }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                error = failure.message ?: "انتخاب تصویر فیش ناموفق بود"
+            } finally {
+                busy = false
+            }
+        }
+    }
     val checkFiles = PaymentProofSelection.read(value, "check").size
     val deferProof = value.b("upload_proof_later")
     val remaining = settlementRemaining(value, invoiceTotal)
@@ -190,12 +212,13 @@ internal fun SettlementForm(
                     patch {
                         it.put("cash_online", true).remove("tracking_number")
                         PaymentProofSelection.set(it, "cash", emptyList())
+                        it.remove(CashDepositRows.field)
                     }
                 }
             }
             val online = value.b("cash_online")
-            SettlementAmountField(if (online) "پرداخت آنلاین" else "نقد", amountText("cash"), !amountsLocked) { setAmount("cash", it) }
             if (online) {
+                SettlementAmountField("پرداخت آنلاین", amountText("cash"), !amountsLocked) { setAmount("cash", it) }
                 Text("بعد از ثبت سفارش می‌توانید این مبلغ را در درگاه ایران‌کیش پرداخت کنید.", color = Muted)
             } else {
                 when (invoiceType) {
@@ -210,12 +233,38 @@ internal fun SettlementForm(
                     }
                 }
                 DesignField("شماره پیگیری", value.s("tracking_number"), { set("tracking_number", asciiDigits(it).take(100)) }, "شماره پیگیری انتقال — در صورت پرداخت", enabled = !busy)
-                ImageUploadButton("بارگذاری رسید",enabled=!busy&&!deferProof&&cashFiles<BuildConfig.PROOF_MAX_FILES_PER_KIND,mimeTypes=PaymentProofSelection.mimeTypes) { attachFiles(it,"cash") }
-                if (cashFiles > 0) GhadirButton(
-                    "${faNumber(cashFiles)} فایل رسید انتخاب شد · پاک کردن انتخاب",
-                    { patch { PaymentProofSelection.set(it, "cash", emptyList()) } },
-                    enabled = !busy, secondary = true,
-                )
+                deposits.forEachIndexed { index, deposit ->
+                    key(index) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.weight(3f)) {
+                                SettlementAmountField("فیش ${faNumber(index + 1)}", deposit.amount.takeIf { it > 0 }?.toString().orEmpty(), !busy) { raw ->
+                                    val amount = asciiDigits(raw).filter(Char::isDigit).take(15).toLongOrNull() ?: 0L
+                                    editDeposit(index) { it.copy(amount = amount) }
+                                }
+                            }
+                            Box(Modifier.weight(2f)) {
+                                ImageUploadButton(if (deposit.image.isBlank()) "بارگذاری عکس" else "تعویض عکس",
+                                    enabled = !busy && !deferProof, singleSelection = true) { uris ->
+                                    uris.firstOrNull()?.let { attachCashReceipt(index, it) }
+                                }
+                            }
+                        }
+                        if (deposit.image.isNotBlank()) ProofThumbnail(deposit.image, "فیش ${faNumber(index + 1)}")
+                        if (deposits.size > 1 || deposit.image.isNotBlank()) TextButton(enabled = !busy, onClick = {
+                            patch { next ->
+                                val rows = CashDepositRows.read(next)
+                                val revised = if (rows.size > 1) rows.filterIndexed { i, _ -> i != index }
+                                    else rows.map { it.copy(image = "") }
+                                CashDepositRows.set(next, revised, amountsLocked)
+                            }
+                        }) { Text(if (deposits.size > 1) "حذف این فیش" else "حذف عکس فیش") }
+                    }
+                }
+                DetailLine("جمع مبلغ فیش‌ها", formatMoney(deposits.sumOf { it.amount }) + " تومان")
+                OutlinedButton(enabled = !busy && deposits.size < BuildConfig.PROOF_MAX_FILES_PER_KIND, onClick = {
+                    patch { next -> CashDepositRows.set(next, CashDepositRows.read(next) + CashDeposit(), amountsLocked) }
+                }) { Text("+ افزودن فیش") }
             }
         }
         if (nonCashOpen && checkActive && !awaitingCredit) {

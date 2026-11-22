@@ -92,7 +92,9 @@ internal class OrderCheckoutService(
                 checkout.settlement.s("commitment_sha256") != BuildConfig.ORDER_CREDIT_COMMITMENT_SHA256 ->
                 "متن تعهد جاری را دوباره تأیید کنید"
             !checkout.agentTermsLocked && AgentSettlementPolicy().changed(checkout.lines,settlementInvoiceTotal(checkout.settlement,checkout.lines.sumOf {it.unit*it.qty}),checkout.settlement) && checkout.settlement.s("agent_change_reason").isBlank() -> "علت درخواست تغییر شرایط عامل فروش را وارد کنید"
-            else -> settlementError(checkout.paymentMethod, checkout.settlement)
+            else -> CashDepositRows.error(checkout.settlement).ifBlank {
+                settlementError(checkout.paymentMethod, checkout.settlement)
+            }
         }
 
     /** Validate and price the draft before requesting the bank handoff. */

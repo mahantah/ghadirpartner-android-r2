@@ -1193,7 +1193,7 @@ private fun PortalNewOrder(
                     SelectedProofReview(
                         if (kind == "cash") "رسید" else "چک", files,
                         onNote = { index, note -> settlement = PaymentProofSelection.note(settlement, kind, index, note) },
-                        onRemove = { index ->
+                        onRemove = if (kind == "cash" && settlement.has(CashDepositRows.field)) null else { index ->
                             settlement = JSONObject(settlement.toString()).also { next ->
                                 PaymentProofSelection.set(next, kind, files.filterIndexed { i, _ -> i != index }.map { it.data })
                             }
