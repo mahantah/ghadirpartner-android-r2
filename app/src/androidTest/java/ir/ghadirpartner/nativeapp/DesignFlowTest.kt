@@ -113,9 +113,9 @@ class DesignFlowTest {
                     }
                 } }
             } }
-            waitText("خوش آمدید")
+            waitText("ورود به قدیر پارتنر")
             compose.onNodeWithContentDescription("شماره همراه").performScrollTo().performTextReplacement("۰۹۱۲۱۲۳۴۵۶۷")
-            compose.onNodeWithText("ورود با کد یک‌بارمصرف").performScrollTo().assertIsDisplayed().performClick()
+            compose.onNodeWithText("ورود با کد پیامکی").performScrollTo().assertIsDisplayed().performClick()
             waitText("کد تأیید را وارد کنید")
             compose.onNodeWithContentDescription("کد شش‌رقمی").performScrollTo().performTextInput("۱۲۳۴۵۶")
             compose.onNodeWithText("تأیید و ورود").performScrollTo().assertIsDisplayed().performClick()
@@ -553,7 +553,7 @@ class DesignFlowTest {
                 waitText("ورود امن")
                 // CI emulator has no enrolled biometric. Password fallback must remain reachable.
                 compose.onNodeWithText("ورود با رمز عبور").performScrollTo().performClick()
-                waitText("خوش آمدید")
+                waitText("ورود به قدیر پارتنر")
                 compose.waitForIdle()
                 compose.onNodeWithText("ورود امن").assertDoesNotExist()
             }
@@ -665,10 +665,10 @@ class DesignFlowTest {
                 if(AppAppearance.dark)AppAppearance.toggle(activity)
                 activity.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){LoginScreen(ApiClient(activity,client())){logged.incrementAndGet()}}}}
             }
-            waitText("خوش آمدید");shot("design-login.png")
+            waitText("ورود به قدیر پارتنر");shot("design-login.png")
             compose.onNodeWithContentDescription("شماره همراه").performTextInput("۰۹۱۲۱۲۳۴۵۶۷")
             hideKeyboard(scenario)
-            compose.onNodeWithText("ورود با کد یک‌بارمصرف").performScrollTo().performClick()
+            compose.onNodeWithText("ورود با کد پیامکی").performScrollTo().performClick()
             waitText("کد تأیید را وارد کنید");shot("design-otp.png")
             compose.onNodeWithContentDescription("کد شش‌رقمی").performTextInput("۱۲۳۴۵۶")
             hideKeyboard(scenario)

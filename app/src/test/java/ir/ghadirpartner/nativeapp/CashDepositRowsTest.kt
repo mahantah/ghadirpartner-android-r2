@@ -7,6 +7,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CashDepositRowsTest {
+    /** Keep bank-bound funds separate from the attached deposit even though both count as cash. */
+    @Test
+    fun separatesOnlineAmountFromManualProof() {
+        val settlement = defaultSplitSettlement(100_000)
+        CashDepositRows.set(settlement, listOf(CashDeposit(30_000, "first")), amountsLocked = false)
+        CashDepositRows.setMethods(settlement, deposit = true, online = true, amount = 70_000, locked = false)
+        assertEquals(100_000L, settlement.l("cash_amount"))
+        assertEquals(70_000L, CashDepositRows.onlineAmount(settlement))
+        assertEquals("", CashDepositRows.error(settlement))
+        assertEquals(30_000L, PaymentProofSelection.active(settlement, "cash").single().second.single().depositAmount!!)
+    }
+
     /** Keep the image and amount together from settlement review to the existing proof API. */
     @Test
     fun serializesEachDepositWithItsOwnAmount() {

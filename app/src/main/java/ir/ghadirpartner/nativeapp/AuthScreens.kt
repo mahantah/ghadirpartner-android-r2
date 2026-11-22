@@ -142,15 +142,15 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
         return
     }
     Box(Modifier.fillMaxSize().paint(painterResource(R.drawable.brand_login_waves),contentScale=ContentScale.Crop)) {
-    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        if(view=="login") Spacer(Modifier.heightIn(min=24.dp,max=130.dp)) else Surface(color=AppSurface.copy(alpha=.94f)) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(8.dp)) {
+        if(view=="login") Spacer(Modifier.height(14.dp)) else Surface(color=AppSurface.copy(alpha=.94f)) {
             PortalBackHeader(when(view){"otp"->"کد تأیید";"biometric"->"ورود امن";else->"ورود به قدیر پارتنر"}) {
                 loginPrompt?.cancelAuthentication();view="login";error=""
             }
         }
-        Surface(modifier=Modifier.padding(horizontal=20.dp).widthIn(max=420.dp).fillMaxWidth(),shape=RoundedCornerShape(24.dp),
+        Surface(modifier=Modifier.padding(horizontal=16.dp).widthIn(max=360.dp).fillMaxWidth(),shape=RoundedCornerShape(18.dp),
             color=ApprovedPalette.surface.copy(alpha=.94f),border=androidx.compose.foundation.BorderStroke(1.dp,ApprovedPalette.border)) {
-        Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal=14.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
             when(view) {
                 "otp"->{
                     LoginStepHeader("کد تأیید را وارد کنید", "کد ارسال‌شده به شماره "+faDigits(identity), Icons.Outlined.MarkEmailRead)
@@ -180,13 +180,14 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
                     GhadirButton("ورود با رمز عبور",{loginPrompt?.cancelAuthentication();view="login";error=""},secondary=true)
                 }
                 else->{
-                    Text("خوش آمدید",color=ApprovedPalette.ink,fontSize=24.sp,lineHeight=36.sp,fontWeight=FontWeight.Bold,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
-                    Text(if(api.isPortal)"پرتال همکاران قدیر پرداخت" else "سامانه اتوماسیون فروش عمده",color=ApprovedPalette.muted,fontSize=14.sp,lineHeight=23.sp,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
+                    Text(if(api.isPortal)"ورود به قدیر پارتنر" else "ورود به اتوماسیون",color=ApprovedPalette.ink,fontSize=19.sp,lineHeight=27.sp,fontWeight=FontWeight.Bold,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
                     DesignField(if(api.isPortal)"شماره همراه" else "نام کاربری",identity,{val next=asciiDigits(it).take(100);if(next!=identity)password="";identity=next;error=""},
                         if(api.isPortal)"۰۹۱۲…" else "نام کاربری",R.drawable.r54_phone,
-                        keyboardType=if(api.isPortal)androidx.compose.ui.text.input.KeyboardType.Phone else androidx.compose.ui.text.input.KeyboardType.Text)
+                        keyboardType=if(api.isPortal)androidx.compose.ui.text.input.KeyboardType.Phone else androidx.compose.ui.text.input.KeyboardType.Text,
+                        compact=true)
                     DesignField("رمز عبور",password,{password=it;error=""},"رمز عبور",R.drawable.r54_eye,onIcon={visible=!visible},
-                        transformation=if(visible)androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation())
+                        transformation=if(visible)androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
+                        compact=true)
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                         Checkbox(rememberLogin,{rememberLogin=it;if(!it)loginStore.clear()},enabled=!loading)
                         Text("مرا به خاطر بسپار",color=Ink,fontSize=14.sp)
@@ -201,9 +202,13 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
                             catch(e:kotlinx.coroutines.CancellationException){throw e}
                             catch(e:Exception){error=e.message?:"ورود ناموفق بود"}finally{loading=false}}
                     },enabled=!loading&&identity.isNotBlank()&&password.isNotBlank())
-                    if(api.isPortal) {
-                        WebLoginButton("ورود با کد یک‌بارمصرف", { requestOtp() }, enabled=!loading&&countdown==0&&identity.matches(Regex("09[0-9]{9}")), secondary=true)
-                        WebLoginButton("درخواست عضویت", { view="membership";error="" },enabled=!loading,secondary=true)
+                    if(api.isPortal) Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                        Box(Modifier.weight(1f)) {
+                            WebLoginButton("ورود با کد پیامکی", { requestOtp() }, enabled=!loading&&countdown==0&&identity.matches(Regex("09[0-9]{9}")), secondary=true)
+                        }
+                        Box(Modifier.weight(1f)) {
+                            WebLoginButton("درخواست عضویت", { view="membership";error="" },enabled=!loading,secondary=true)
+                        }
                     }
                     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         if(api.isPortal) Box(Modifier.weight(1f)) {
@@ -288,12 +293,13 @@ private fun PasswordResetScreen(api:ApiClient,initialIdentity:String,onBack:()->
 
 @Composable
 private fun WebLoginButton(text:String,onClick:()->Unit,enabled:Boolean=true,secondary:Boolean=false) {
-    Button(onClick=onClick,enabled=enabled,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),
+    Button(onClick=onClick,enabled=enabled,modifier=Modifier.fillMaxWidth().heightIn(min=44.dp),
+        contentPadding=PaddingValues(horizontal=8.dp,vertical=4.dp),
         shape=RoundedCornerShape(12.dp),
         colors=ButtonDefaults.buttonColors(containerColor=if(secondary) {
             if(AppAppearance.dark)AppSecondary else Color(0xFFEDF2F7)
         } else Color(0xFFF58220),contentColor=if(secondary)Ink else Navy)) {
-        Text(text,fontSize=14.sp,lineHeight=23.sp,fontWeight=FontWeight.Bold)
+        Text(text,fontSize=13.sp,lineHeight=18.sp,fontWeight=FontWeight.Bold,textAlign=TextAlign.Center)
     }
 }
 

@@ -209,7 +209,7 @@ class SecurityAndInboxTest {
                 compose.onNodeWithContentDescription("شماره همراه").assertTextContains("09121234567")
                 compose.onNode(isToggleable()).assertIsOn()
                 compose.onNodeWithText("ورود").assertIsEnabled()
-                compose.onNodeWithText("خوش آمدید").performScrollTo()
+                compose.onNodeWithText("ورود به قدیر پارتنر").performScrollTo()
                 shot("design-login-remembered.png")
                 compose.onNodeWithText("فراموشی رمز عبور").performScrollTo().performClick()
                 compose.onNodeWithText("بازگشت به ورود").performScrollTo().performClick()

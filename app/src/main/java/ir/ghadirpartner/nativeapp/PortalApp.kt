@@ -1002,7 +1002,7 @@ private fun PortalNewOrder(
                     if (paymentId.isBlank() && !paymentConfirmed) {
                         val result = checkoutService.preparePayment(reviewed)
                         paymentId = result.s("checkout_id")
-                        checkoutPaymentAmount = reviewed.settlement.l("cash_amount")
+                        checkoutPaymentAmount = CashDepositRows.onlineAmount(reviewed.settlement)
                         paymentConfirmed = result.b("confirmed")
                     }
                     if (!paymentConfirmed) {

@@ -48,8 +48,10 @@ internal fun DesignField(
     transformation: VisualTransformation = VisualTransformation.None,
     enabled: Boolean = true, modifier: Modifier = Modifier, singleLine: Boolean = true,
     textDirection: TextDirection = TextDirection.Unspecified, textAlign: TextAlign = TextAlign.Start,
+    compact: Boolean = false,
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val fieldHeight = if (compact) 46.dp else 52.dp
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 6.dp)) {
         if(label.isNotBlank()) Text(label, color=Muted, fontSize=12.sp, lineHeight=20.sp,
             modifier=Modifier.fillMaxWidth(), textAlign=TextAlign.Start)
         BasicTextField(value=value, onValueChange=onChange, enabled=enabled,
@@ -57,11 +59,11 @@ internal fun DesignField(
             keyboardOptions=KeyboardOptions(keyboardType=keyboardType),
             textStyle=MaterialTheme.typography.bodyMedium.copy(color=Ink, fontSize=14.sp, lineHeight=23.sp, textAlign=textAlign, textDirection=textDirection),
             cursorBrush=SolidColor(Orange),
-            modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).semantics { contentDescription=label },
+            modifier=Modifier.fillMaxWidth().heightIn(min=fieldHeight).semantics { contentDescription=label },
             decorationBox={inner ->
-                Row(Modifier.fillMaxWidth().heightIn(min=52.dp).clip(RoundedCornerShape(16.dp))
+                Row(Modifier.fillMaxWidth().heightIn(min=fieldHeight).clip(RoundedCornerShape(16.dp))
                     .background(AppSurface).border(1.dp,Border,RoundedCornerShape(16.dp))
-                    .padding(horizontal=14.dp,vertical=12.dp), verticalAlignment=Alignment.CenterVertically,
+                    .padding(horizontal=14.dp,vertical=if (compact) 7.dp else 12.dp), verticalAlignment=Alignment.CenterVertically,
                     horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     if(icon!=null&&icon!=R.drawable.r54_eye) {
                         val svg=when(icon){R.drawable.r54_phone->"phone";R.drawable.r54_eye->"eye";R.drawable.design_search->"search";R.drawable.design_calendar->"calendar";R.drawable.design_map_pin->"map_pin";R.drawable.design_chevron->"chevron";else->null}

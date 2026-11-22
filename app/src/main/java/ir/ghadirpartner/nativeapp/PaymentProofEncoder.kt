@@ -117,7 +117,8 @@ internal object PaymentProofSelection {
     /** Return the selected evidence that belongs to the final payment method. */
     fun active(settlement: JSONObject, method: String): List<Pair<String, List<SelectedProof>>> =
         if (settlement.b("upload_proof_later")) emptyList() else kinds.mapNotNull { kind ->
-            val enabled = method == kind || (method == "mixed" && settlement.l("${kind}_amount") > 0)
+            val enabled = (method == kind || (method == "mixed" && settlement.l("${kind}_amount") > 0)) &&
+                (kind != "cash" || CashDepositRows.depositEnabled(settlement))
             val files = documents(settlement, kind)
             if (enabled && files.isNotEmpty()) kind to files else null
         }

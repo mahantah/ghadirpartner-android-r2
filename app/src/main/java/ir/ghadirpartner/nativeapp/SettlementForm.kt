@@ -78,9 +78,12 @@ internal fun SettlementForm(
     }
     val orderPayment = remember(api) { IranKishOrderPayment(api) }
     var onlineAvailable by remember(api) { mutableStateOf(false) }
+    var mixedCashAvailable by remember(api) { mutableStateOf(false) }
     LaunchedEffect(orderPayment) {
         try {
-            onlineAvailable = orderPayment.available()
+            val availability = orderPayment.availability()
+            onlineAvailable = availability.b("enabled")
+            mixedCashAvailable = availability.b("mixed_cash")
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -204,27 +207,36 @@ internal fun SettlementForm(
             if (awaitingCredit && creditLoading) Text("در حال دریافت اعتبار…", color = Muted)
         }
         if (value.b("cash_enabled")) {
+            val online = value.b("cash_online")
+            val deposit = CashDepositRows.depositEnabled(value)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettlementMethodCard("واریز به حساب", !value.b("cash_online"), !busy, Modifier.weight(1f)) {
-                    set("cash_online", false)
+                SettlementMethodCard("واریز به حساب", deposit, !busy, Modifier.weight(1f)) { checked ->
+                    if (checked || online) patch {
+                        val keepOnline = online && (!checked || mixedCashAvailable)
+                        CashDepositRows.setMethods(it, checked, keepOnline, CashDepositRows.onlineAmount(it), amountsLocked)
+                    }
                 }
-                SettlementMethodCard("پرداخت آنلاین", value.b("cash_online"), onlineAvailable && !busy && !agentReviewRequired, Modifier.weight(1f)) {
+                SettlementMethodCard("پرداخت آنلاین", online, onlineAvailable && !busy && !agentReviewRequired, Modifier.weight(1f)) { checked ->
                     patch {
-                        it.put("cash_online", true).remove("tracking_number")
-                        PaymentProofSelection.set(it, "cash", emptyList())
-                        it.remove(CashDepositRows.field)
+                        val keepDeposit = deposit && (!checked || mixedCashAvailable)
+                        val amount = if (keepDeposit) CashDepositRows.onlineAmount(it) else it.l("cash_amount")
+                        CashDepositRows.setMethods(it, keepDeposit || !checked, checked, amount, amountsLocked)
                     }
                 }
             }
-            val online = value.b("cash_online")
             if (online) {
-                SettlementAmountField("پرداخت آنلاین", amountText("cash"), !amountsLocked) { setAmount("cash", it) }
+                SettlementAmountField("پرداخت آنلاین", CashDepositRows.onlineAmount(value).takeIf { it > 0 }?.toString().orEmpty(),
+                    !busy && (!amountsLocked || deposit)) { raw ->
+                    val amount = asciiDigits(raw).filter(Char::isDigit).take(15).toLongOrNull() ?: 0L
+                    patch { CashDepositRows.setMethods(it, deposit, true, amount, amountsLocked) }
+                }
                 Text("بعد از ثبت سفارش می‌توانید این مبلغ را در درگاه ایران‌کیش پرداخت کنید.", color = Muted)
-            } else {
+            }
+            if (deposit) {
                 when (invoiceType) {
                     "رسمی" -> {
                         DetailLine("صاحب حساب", BuildConfig.CHEQUE_FORMAL_PAYEE)
-                        Text("شمارهٔ حساب شرکت در اپ ثبت نشده است.", color = Muted)
+                        DetailLine("شماره شبا", "\u2066${BuildConfig.FORMAL_CASH_IBAN}\u2069")
                     }
                     "غیررسمی" -> {
                         DetailLine("صاحب حساب", BuildConfig.CHEQUE_INFORMAL_PAYEE)

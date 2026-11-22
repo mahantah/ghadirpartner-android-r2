@@ -33,6 +33,9 @@ internal class OrderRepository(
 
     /** Send one request; only the facade may recover a server-deduplicated preparation failure. */
     suspend fun create(checkout: OrderCheckout, mode: String = "", paymentId: String = ""): JSONObject {
+        if (mode.isNotEmpty() && CashDepositRows.onlineAmount(checkout.settlement) != checkout.settlement.l("cash_amount")) {
+            require(IranKishOrderPayment(api).availability().b("mixed_cash")) { "پرداخت ترکیبی در سرور هنوز فعال نیست." }
+        }
         val body = withContext(Dispatchers.Default) {
             requestBody(checkout).apply {
                 if (mode.isNotEmpty()) put("online_checkout_mode", mode)
@@ -51,6 +54,8 @@ internal class OrderRepository(
         }
         val settlement = JSONObject(checkout.settlement.toString())
         PaymentProofSelection.prepare(settlement, checkout.paymentMethod)
+        settlement.remove("cash_deposit_enabled")
+        if (!settlement.b("cash_online") || !settlement.b("cash_enabled")) settlement.remove("cash_online_amount")
         settlement.remove("upload_proof_later")
         if (!settlement.b("cash_enabled") || settlement.l("cash_amount") <= 0L) settlement.remove("cash_online")
         val body: JSONObject =
