@@ -50,9 +50,17 @@ internal class OrderRepository(
             items.put(item)
         }
         val settlement = JSONObject(checkout.settlement.toString())
+        val cash = CashSettlement(settlement)
+        val cashActive = settlement.b("cash_enabled") && settlement.l("cash_amount") > 0L
+        if (!cashActive || !cash.transfer) {
+            settlement.remove("tracking_number")
+            PaymentProofSelection.set(settlement, "cash", emptyList())
+        }
         PaymentProofSelection.prepare(settlement, checkout.paymentMethod)
+        if (!cashActive) settlement.remove("cash_online")
+        if (!cashActive || !cash.combined) settlement.remove("cash_online_amount")
+        settlement.remove("cash_transfer")
         settlement.remove("upload_proof_later")
-        if (!settlement.b("cash_enabled") || settlement.l("cash_amount") <= 0L) settlement.remove("cash_online")
         val body: JSONObject =
             JSONObject()
                 .put("items", items)
@@ -84,7 +92,7 @@ internal class OrderCheckoutService(
             checkout.invoiceType !in listOf("رسمی", "غیررسمی") -> "نوع فاکتور را انتخاب کنید"
             checkout.paymentMethod !in listOf("cash", "check", "credit", "mixed") -> "روش تسویه را انتخاب کنید"
             checkout.revisionOrderId == 0 && checkout.lines.any { it.priceKey == "sales_agent" } &&
-                ((checkout.settlement.b("cash_enabled") && checkout.settlement.b("cash_online")) || checkout.settlement.l("wallet_amount") > 0L) ->
+                (CashSettlement(checkout.settlement).paysOnline || checkout.settlement.l("wallet_amount") > 0L) ->
                 "پرداخت آنلاین و کیف پول پس از بررسی تسویه عامل فروش در دسترس است"
             checkout.settlement.b("credit_enabled") &&
                 checkout.settlement.optLong("credit_amount") > 0L &&
@@ -109,7 +117,7 @@ internal class OrderCheckoutService(
     suspend fun submit(checkout: OrderCheckout, paymentId: String = ""): JSONObject {
         val error: String = validation(checkout)
         require(error.isBlank()) { error }
-        return repository.create(checkout, if (checkout.settlement.b("cash_online") && checkout.settlement.b("cash_enabled")) "finalize" else "", paymentId)
+        return repository.create(checkout, if (CashSettlement(checkout.settlement).paysOnline) "finalize" else "", paymentId)
     }
 }
 

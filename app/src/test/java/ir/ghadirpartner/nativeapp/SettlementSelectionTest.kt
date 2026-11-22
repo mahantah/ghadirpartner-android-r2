@@ -7,6 +7,25 @@ import org.junit.Test
 
 /** Verify the default allocations without touching the payment gateway or device. */
 class SettlementSelectionTest {
+
+    @Test
+    fun combinedCashKeepsTransferEvidenceAndValidatesEachShare() {
+        val details = defaultSplitSettlement(100L).put("tracking_number", "123")
+        val cash = CashSettlement(details)
+        cash.select(onlineMethod = true, enabled = true)
+        assertEquals(true, cash.combined)
+        assertEquals("123", details.optString("tracking_number"))
+        assertEquals(false, settlementError("cash", details).isEmpty())
+        details.put("cash_online_amount", 30L)
+        assertEquals(30L, cash.onlineAmount)
+        assertEquals(70L, cash.transferAmount)
+        assertEquals("", settlementError("cash", details))
+        cash.select(onlineMethod = false, enabled = false)
+        assertEquals(false, cash.combined)
+        assertEquals(100L, cash.onlineAmount)
+        assertEquals("123", details.optString("tracking_number"))
+    }
+
     private val total = 1_000L
     private val selection = SettlementSelection(total)
 
