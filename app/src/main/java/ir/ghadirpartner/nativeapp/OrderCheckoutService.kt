@@ -56,9 +56,11 @@ internal class OrderRepository(
         PaymentProofSelection.prepare(settlement, checkout.paymentMethod)
         settlement.remove("cash_deposit_enabled")
         settlement.remove("draft_non_cash_amounts")
-        if (!settlement.b("cash_online") || !settlement.b("cash_enabled")) settlement.remove("cash_online_amount")
+        if (!CashDepositRows.requiresOnline(settlement)) {
+            settlement.remove("cash_online_amount")
+            settlement.remove("cash_online")
+        }
         settlement.remove("upload_proof_later")
-        if (!settlement.b("cash_enabled") || settlement.l("cash_amount") <= 0L) settlement.remove("cash_online")
         val body: JSONObject =
             JSONObject()
                 .put("items", items)
@@ -90,7 +92,7 @@ internal class OrderCheckoutService(
             checkout.invoiceType !in listOf("رسمی", "غیررسمی") -> "نوع فاکتور را انتخاب کنید"
             checkout.paymentMethod !in listOf("cash", "check", "credit", "mixed") -> "روش تسویه را انتخاب کنید"
             checkout.revisionOrderId == 0 && checkout.lines.any { it.priceKey == "sales_agent" } &&
-                ((checkout.settlement.b("cash_enabled") && checkout.settlement.b("cash_online")) || checkout.settlement.l("wallet_amount") > 0L) ->
+                (CashDepositRows.requiresOnline(checkout.settlement) || checkout.settlement.l("wallet_amount") > 0L) ->
                 "پرداخت آنلاین و کیف پول پس از بررسی تسویه عامل فروش در دسترس است"
             checkout.settlement.b("credit_enabled") &&
                 checkout.settlement.optLong("credit_amount") > 0L &&
@@ -117,7 +119,7 @@ internal class OrderCheckoutService(
     suspend fun submit(checkout: OrderCheckout, paymentId: String = ""): JSONObject {
         val error: String = validation(checkout)
         require(error.isBlank()) { error }
-        return repository.create(checkout, if (checkout.settlement.b("cash_online") && checkout.settlement.b("cash_enabled")) "finalize" else "", paymentId)
+        return repository.create(checkout, if (CashDepositRows.requiresOnline(checkout.settlement)) "finalize" else "", paymentId)
     }
 }
 

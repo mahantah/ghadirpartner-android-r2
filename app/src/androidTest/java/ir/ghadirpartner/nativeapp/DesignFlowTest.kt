@@ -270,7 +270,7 @@ class DesignFlowTest {
     private fun deferCashProof() {
         showField("دستهٔ تسویه");compose.onNodeWithContentDescription("دستهٔ تسویه").performClick()
         compose.onNodeWithText("نقد",substring=false).performClick()
-        showText("ویرایش واریز به حساب");compose.onNodeWithText("ویرایش واریز به حساب").performClick()
+        showText("واریز به حساب");compose.onNodeWithText("واریز به حساب").performClick()
         showField("ارسال تصویر بعداً");compose.onNodeWithContentDescription("ارسال تصویر بعداً").performClick()
     }
 
@@ -329,7 +329,7 @@ class DesignFlowTest {
             shot("design-checkout-cash.png")
             showField("دستهٔ تسویه");compose.onNodeWithContentDescription("دستهٔ تسویه").performClick()
             compose.onNodeWithText("غیر نقد",substring=false).performClick()
-            showText("انتخاب چک");compose.onNodeWithText("انتخاب چک").performClick()
+            showText("چک");compose.onNodeWithText("چک").performClick()
             hideKeyboard(scenario)
             compose.waitForIdle()
             showField("شناسه صیادی")
@@ -352,7 +352,7 @@ class DesignFlowTest {
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
             showField("دستهٔ تسویه");compose.onNodeWithContentDescription("دستهٔ تسویه").performClick()
             compose.onAllNodesWithText("غیر نقد",substring=false).onLast().performClick()
-            showText("انتخاب اعتبار");compose.onNodeWithText("انتخاب اعتبار").performClick()
+            showText("اعتبار");compose.onNodeWithText("اعتبار").performClick()
             showField("اعتباری — مبلغ (تومان)")
             hideKeyboard(scenario)
             showText("اعتبار حساب شما")

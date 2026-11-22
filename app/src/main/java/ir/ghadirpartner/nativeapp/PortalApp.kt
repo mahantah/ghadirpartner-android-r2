@@ -1007,7 +1007,7 @@ private fun PortalNewOrder(
             submitting=true;error=""
             try {
                 val reviewed = checkout()
-                val online = reviewed.settlement.b("cash_online") && reviewed.settlement.b("cash_enabled")
+                val online = CashDepositRows.requiresOnline(reviewed.settlement)
                 if (online && !paymentConfirmed) {
                     if (paymentId.isNotBlank()) {
                         val existing = orderPayment.recheckCheckout(paymentId)
@@ -1185,7 +1185,7 @@ private fun PortalNewOrder(
             })}
             item {ApprovedButton("بازگشت به تسویه",{step=1},secondary=true)}
         } else {
-            val online = settlement.b("cash_online") && settlement.b("cash_enabled")
+            val online = CashDepositRows.requiresOnline(settlement)
             val showPaymentSuccess = online && paymentConfirmed
             val submitLabel = when {
                 submitting -> "در حال پردازش…"
@@ -1404,9 +1404,7 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
     var view by remember {mutableStateOf("profile")}
         var name by rememberSaveable(me.toString()){mutableStateOf(initial.s("name"))}
     var company by rememberSaveable(me.toString()){mutableStateOf(initial.s("company"))}
-    var province by rememberSaveable(me.toString()){mutableStateOf(initial.s("province"))}
-    var city by rememberSaveable(me.toString()){mutableStateOf(initial.s("city"))}
-    var address by rememberSaveable(me.toString()){mutableStateOf(initial.s("address"))}
+
     val alternate = me.s("alternate_mobile")
     val postalCode = initial.s("postal_code")
     var editAttempted by rememberSaveable { mutableStateOf(false) }
@@ -1450,7 +1448,7 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
                             }
                         }
                     }}
-                    item {ProfileServiceTile("ویرایش اطلاعات مشتری","مشخصات، فروشگاه و نشانی تحویل",Icons.Default.ManageAccounts,Modifier.fillMaxWidth(),wide=true){view="edit"}}
+                    item {ProfileServiceTile("ویرایش اطلاعات مشتری","مشخصات فروشگاه و اطلاعات بانکی",Icons.Default.ManageAccounts,Modifier.fillMaxWidth(),wide=true){view="edit"}}
                     item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                         ProfileServiceTile("آدرس‌های منتخب","نشانی‌های ذخیره‌شده",Icons.Default.LocationOn,Modifier.weight(1f)){onNavigate("addresses")}
                         ProfileServiceTile("فاکتورهای من","مشاهده و دریافت PDF",Icons.Default.ReceiptLong,Modifier.weight(1f)){onProforma()}
@@ -1478,7 +1476,6 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
                         fieldError=if(editAttempted&&name.trim().length<3)"نام و نام خانوادگی را کامل وارد کنید." else "")}
                     item {DesignField("نام شرکت / فروشگاه",company,{company=it;saved=""})}
                     item {DesignField("شماره همراه",faDigits(me.s("username")),{},enabled=false)}
-                    item {DesignField("نشانی تحویل",address,{address=it;saved=""},singleLine=false)}
                     item { AccountBankForm(api, onBusyChanged={saving=it}) }
                     if(error.isNotBlank()) item { Text(error,color=Danger) }
                     item {GhadirButton(if(saving)"در حال ذخیره…" else "ثبت تغییرات",{
@@ -1487,8 +1484,8 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
                         scope.launch {
                             saving=true;error="";saved=""
                             try {
-                                val body=JSONObject().put("name",name.trim()).put("company",company.trim()).put("province",province.trim())
-                                    .put("city",city.trim()).put("address",address.trim()).put("postal_code",postalCode).put("alternate_mobile",alternate)
+                                val body=JSONObject().put("name",name.trim()).put("company",company.trim()).put("province",initial.s("province"))
+                                    .put("city",initial.s("city")).put("address",initial.s("address")).put("postal_code",postalCode).put("alternate_mobile",alternate)
                                 val result=api.post("/api/profile/update",body) as JSONObject
                                 onUpdated(result);view="services";saved="اطلاعات پروفایل با موفقیت به‌روزرسانی شد."
                             }catch(e:kotlinx.coroutines.CancellationException){throw e}

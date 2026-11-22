@@ -4,3 +4,4 @@ background_light: "#FFE9EFF5"
 background_dark: "#FF0C131D"
 cart_surface_light: "#FFE9F6EF"
 cart_surface_dark: "#FF16382D"
+login_logo_clearance: 0.34

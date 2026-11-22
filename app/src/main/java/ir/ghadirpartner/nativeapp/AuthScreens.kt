@@ -148,15 +148,17 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
             .navigationBarsPadding()
             .imePadding()
     ) {
-    val centerLogin = api.isPortal && view == "login"
-    // Center in the visible area while still allowing tall forms to scroll above the keyboard.
+    val portalLogin = api.isPortal && view == "login"
+    val keyboardVisible = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+    // Reserve the part of the artwork occupied by the logo while the keyboard is closed.
+    val logoClearance = if (portalLogin && !keyboardVisible) maxHeight * BuildConfig.LOGIN_LOGO_CLEARANCE else 14.dp
     Column(
-        Modifier.fillMaxWidth().verticalScroll(pageScroll).heightIn(min = if (centerLogin) maxHeight else 0.dp),
+        Modifier.fillMaxWidth().verticalScroll(pageScroll),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (view == "login") {
-            if (!centerLogin) Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(logoClearance))
         } else Surface(color=AppSurface.copy(alpha=.94f)) {
             PortalBackHeader(when(view){"otp"->"کد تأیید";"biometric"->"ورود امن";else->"ورود به قدیر پارتنر"}) {
                 loginPrompt?.cancelAuthentication();view="login";error=""

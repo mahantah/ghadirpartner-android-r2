@@ -73,4 +73,14 @@ class CashDepositRowsTest {
         assertEquals("", SettlementProofRules.checkError(settlement))
         assertEquals(PaymentProofSelection.checkRegistration, PaymentProofSelection.documents(settlement, "check").first().note)
     }
+
+    /** A zero-value gateway selection in a saved mixed draft must not block a completed bank deposit. */
+    @Test
+    fun completedDepositDoesNotRequireOnlinePayment() {
+        val settlement = defaultSplitSettlement(100_000)
+        CashDepositRows.set(settlement, listOf(CashDeposit(100_000, "receipt")), amountsLocked = false)
+        CashDepositRows.setMethods(settlement, deposit = true, online = true, amount = 0L, locked = false)
+        assertFalse(CashDepositRows.requiresOnline(settlement))
+        assertEquals("", CashDepositRows.error(settlement))
+    }
 }

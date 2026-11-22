@@ -17,6 +17,10 @@ internal object CashDepositRows {
     fun onlineAmount(settlement: JSONObject): Long =
         if (!settlement.b("cash_online")) 0L else settlement.optLong("cash_online_amount", settlement.l("cash_amount"))
 
+    /** A selected method needs a gateway only when it carries a positive cash allocation. */
+    fun requiresOnline(settlement: JSONObject): Boolean =
+        settlement.b("cash_enabled") && onlineAmount(settlement) > 0L
+
     /** Store the two cash options and recalculate the editable cash total. */
     fun setMethods(settlement: JSONObject, deposit: Boolean, online: Boolean, amount: Long, locked: Boolean) {
         val rows = read(settlement).let {
@@ -60,7 +64,6 @@ internal object CashDepositRows {
     fun error(settlement: JSONObject): String {
         if (!settlement.b("cash_enabled")) return ""
         val online = onlineAmount(settlement)
-        if (settlement.b("cash_online") && online <= 0L) return "مبلغ پرداخت آنلاین را وارد کنید."
         if (!depositEnabled(settlement) && online != settlement.l("cash_amount"))
             return "مبلغ پرداخت آنلاین باید برابر سهم نقدی سفارش باشد."
         return depositError(settlement)

@@ -219,9 +219,33 @@ internal fun SettlementForm(
     }
     val deferProof = value.b("upload_proof_later")
     val remaining = settlementRemaining(value, invoiceTotal)
+    fun disableMethod(method: SettlementEditor) {
+        patch {
+            when (method) {
+                SettlementEditor.Deposit -> {
+                    if (CashDepositRows.requiresOnline(it)) CashDepositRows.setMethods(it, false, true, CashDepositRows.onlineAmount(it), false)
+                    else {
+                        CashDepositRows.setMethods(it, false, false, 0L, false)
+                        toggleSettlementPart(it, "cash", false, currentTotal)
+                    }
+                }
+                SettlementEditor.Online -> {
+                    val keepDeposit = CashDepositRows.depositEnabled(it)
+                    CashDepositRows.setMethods(it, keepDeposit, false, 0L, false)
+                    if (!keepDeposit) toggleSettlementPart(it, "cash", false, currentTotal)
+                }
+                SettlementEditor.Check -> it.put("check_enabled", false).put("check_amount", 0L)
+                SettlementEditor.Credit -> it.put("credit_enabled", false).put("credit_amount", 0L)
+            }
+        }
+        if (editor == method) editor = null
+    }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         DetailLine("مبلغ فاکتور", formatMoney(invoiceTotal) + " تومان")
-        DetailLine("مانده فاکتور (برای واحد مالی)", formatMoney(remaining) + " تومان")
+        DetailLine("مانده فاکتور", formatMoney(remaining) + " تومان")
+        if (remaining > 0L && onlineAvailable && !agentReviewRequired) {
+            Text("برای پرداخت مانده، می‌توانید از گزینهٔ پرداخت آنلاین استفاده کنید.", color = Muted)
+        }
         if (invoiceType == "رسمی") {
             DesignNotice("فاکتور رسمی — فروشنده: هوشمند پرداز پویا تجارت قدیر — شناسه ملی ۱۴۰۱۰۳۶۶۳۹۵")
         }
@@ -243,43 +267,50 @@ internal fun SettlementForm(
             }
         }
         if (section == SettlementSection.NonCash) {
-            GhadirButton(if (checkActive) "ویرایش چک" else "انتخاب چک", {
+            GhadirButton("چک", {
                 if (!checkActive) selectNonCash("check")
                 awaitingCredit = false
                 openEditor(SettlementEditor.Check)
             }, enabled = !busy && (checkActive || !amountsLocked), secondary = true)
-            GhadirButton(if (creditActive) "ویرایش اعتبار" else "انتخاب اعتبار", {
+            if (checkActive && !amountsLocked) SettlementDisableAction(!busy) { disableMethod(SettlementEditor.Check) }
+            GhadirButton("اعتبار", {
                 if (!creditActive) awaitingCredit = true
                 openEditor(SettlementEditor.Credit)
             }, enabled = !busy && (creditActive || !amountsLocked), secondary = true)
+            if (creditActive && !amountsLocked) SettlementDisableAction(!busy) { disableMethod(SettlementEditor.Credit) }
             if (awaitingCredit && creditLoading) Text("در حال دریافت اعتبار…", color = Muted)
         }
         if (section == SettlementSection.Cash) {
-            val online = value.b("cash_online")
+            val online = CashDepositRows.requiresOnline(value)
             val deposit = CashDepositRows.depositEnabled(value)
-            GhadirButton(if (value.b("cash_enabled") && deposit) "ویرایش واریز به حساب" else "واریز به حساب", {
+            GhadirButton("واریز به حساب", {
                 patch {
                     if (!it.b("cash_enabled")) toggleSettlementPart(it, "cash", true, currentTotal)
                     if (it.has(CashDepositRows.field) || !deposit) CashDepositRows.setMethods(it, true, online && mixedCashAvailable, CashDepositRows.onlineAmount(it), amountsLocked)
                 }
                 openEditor(SettlementEditor.Deposit)
             }, enabled = !busy && (!amountsLocked || value.b("cash_enabled")), secondary = true)
-            GhadirButton(if (value.b("cash_enabled") && online) "ویرایش پرداخت آنلاین" else "پرداخت آنلاین", {
+            if (value.b("cash_enabled") && deposit && !amountsLocked)
+                SettlementDisableAction(!busy) { disableMethod(SettlementEditor.Deposit) }
+            val combine = deposit && mixedCashAvailable &&
+                (value.has(CashDepositRows.field) || PaymentProofSelection.read(value, "cash").isNotEmpty())
+            fun updateOnline(amount: Long) {
                 patch {
                     if (!it.b("cash_enabled")) toggleSettlementPart(it, "cash", true, currentTotal)
-                    if (!online) {
-                        val combine = deposit && mixedCashAvailable
-                        CashDepositRows.setMethods(it, combine, true, if (combine) 0L else it.l("cash_amount"), amountsLocked)
-                    }
+                    val keepDeposit = combine || (amount == 0L && deposit)
+                    CashDepositRows.setMethods(it, keepDeposit, amount > 0L, amount, amountsLocked)
                 }
+            }
+            GhadirButton("پرداخت آنلاین", {
+                if (!online && remaining > 0L) updateOnline(remaining)
                 openEditor(SettlementEditor.Online)
             }, enabled = !busy && (online || (onlineAvailable && !agentReviewRequired)) &&
                 (!amountsLocked || value.b("cash_enabled")), secondary = true)
-            if (online && editor == SettlementEditor.Online) {
+            if (online && !amountsLocked) SettlementDisableAction(!busy) { disableMethod(SettlementEditor.Online) }
+            if (editor == SettlementEditor.Online) {
                 SettlementAmountField("پرداخت آنلاین", CashDepositRows.onlineAmount(value).takeIf { it > 0 }?.toString().orEmpty(),
-                    !busy && (!amountsLocked || deposit), fieldError = if (validateEditor && CashDepositRows.onlineAmount(value) <= 0L) "مبلغ پرداخت آنلاین را وارد کنید." else "") { raw ->
-                    val amount = asciiDigits(raw).filter(Char::isDigit).take(15).toLongOrNull() ?: 0L
-                    patch { CashDepositRows.setMethods(it, deposit, true, amount, amountsLocked) }
+                    !busy && (!amountsLocked || deposit), fieldError = if (validateEditor && !online) "مبلغ پرداخت آنلاین را وارد کنید." else "") { raw ->
+                    updateOnline(asciiDigits(raw).filter(Char::isDigit).take(15).toLongOrNull() ?: 0L)
                 }
                 Text("بعد از ثبت سفارش می‌توانید این مبلغ را در درگاه ایران‌کیش پرداخت کنید.", color = Muted)
             }
@@ -416,23 +447,7 @@ internal fun SettlementForm(
                 if (issue.isBlank()) confirmation = true
                 else if (openEditor == SettlementEditor.Deposit && issue.contains("جمع مبلغ")) amountWarning = issue
             }, enabled = !busy && (openEditor != SettlementEditor.Credit || creditLoaded))
-            if (!amountsLocked) TextButton(enabled = !busy, onClick = {
-                patch {
-                    when (openEditor) {
-                        SettlementEditor.Deposit -> {
-                            if (it.b("cash_online")) CashDepositRows.setMethods(it, false, true, CashDepositRows.onlineAmount(it), false)
-                            else toggleSettlementPart(it, "cash", false, currentTotal)
-                        }
-                        SettlementEditor.Online -> {
-                            if (CashDepositRows.depositEnabled(it)) CashDepositRows.setMethods(it, true, false, 0L, false)
-                            else toggleSettlementPart(it, "cash", false, currentTotal)
-                        }
-                        SettlementEditor.Check -> it.put("check_enabled", false).put("check_amount", 0L)
-                        SettlementEditor.Credit -> it.put("credit_enabled", false).put("credit_amount", 0L)
-                    }
-                }
-                editor = null
-            }) { Text("غیرفعال کردن این روش") }
+
         }
         if (amountWarning.isNotBlank()) AlertDialog(
             onDismissRequest = { amountWarning = "" },
@@ -470,6 +485,11 @@ internal fun SettlementForm(
         }
         if (!creditLoaded && (creditActive || awaitingCredit || walletNeedsBalance) && error.isNotBlank()) Text(error, color = Danger)
     }
+}
+
+@Composable
+private fun SettlementDisableAction(enabled: Boolean, onClick: () -> Unit) {
+    TextButton(enabled = enabled, onClick = onClick) { Text("غیرفعال کردن این روش") }
 }
 
 @Composable
