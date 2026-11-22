@@ -573,3 +573,24 @@ private fun SettlementAmountField(
         textAlign = TextAlign.Right,
     )
 }
+
+/** Keep the displayed commitment and the submitted explicit consent in the same state. */
+@Composable
+internal fun CreditCommitment(value: JSONObject, onChange: (JSONObject) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        DesignNotice("تعهد تسویه\n\n" + BuildConfig.ORDER_CREDIT_COMMITMENT)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Checkbox(
+                checked = value.b("terms_accepted"),
+                onCheckedChange = { accepted ->
+                    onChange(
+                        JSONObject(value.toString()).put("terms_accepted", accepted)
+                            .put("commitment_sha256", if (accepted) BuildConfig.ORDER_CREDIT_COMMITMENT_SHA256 else ""),
+                    )
+                },
+                modifier = Modifier.semantics { contentDescription = "پذیرش تعهد اعتبار" },
+            )
+            Text("متن تعهد بالا را خواندم و تأیید می‌کنم.", color = Ink, modifier = Modifier.weight(1f))
+        }
+    }
+}
