@@ -10,16 +10,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -42,9 +50,9 @@ private val SettlementEditor.design: MethodDesign
     get() = when (this) {
         SettlementEditor.Wallet -> MethodDesign("کیف پول", "استفاده از موجودی کیف پول", R.drawable.payment_ref_wallet, Color(0xFF008577), Color(0xFFDEF8EF))
         SettlementEditor.Online -> MethodDesign("پرداخت آنلاین", "پرداخت با کارت بانکی", R.drawable.payment_ref_card, Color(0xFF1769CC), Color(0xFFE8F4FF))
-        SettlementEditor.Deposit -> MethodDesign("واریز به حساب", "انتقال بانکی و ثبت فیش", R.drawable.payment_ref_bank, Color(0xFF643CC2), Color(0xFFF1E9FF))
+        SettlementEditor.Deposit -> MethodDesign("واریز به حساب", "انتقال بانکی و ثبت فیش", R.drawable.payment_method_deposit, Color(0xFF643CC2), Color(0xFFF1E9FF))
         SettlementEditor.Credit -> MethodDesign("اعتبار", "استفاده از اعتبار خرید", R.drawable.payment_ref_credit, Color(0xFFB56900), Color(0xFFFFF3DD))
-        SettlementEditor.Check -> MethodDesign("چک", "ثبت مشخصات و تصویر چک", R.drawable.payment_ref_receipt, Color(0xFF374C93), Color(0xFFE9EDFF))
+        SettlementEditor.Check -> MethodDesign("چک", "ثبت مشخصات و تصویر چک", R.drawable.payment_method_cheque, Color(0xFF374C93), Color(0xFFE9EDFF))
     }
 
 /** Reuse the payment palette on other app actions. */
@@ -57,21 +65,37 @@ internal fun PaymentArtwork(icon: Int, modifier: Modifier = Modifier) {
     Image(painterResource(icon), contentDescription = null, modifier = modifier)
 }
 
-/** Visually separate the two groups while keeping their payment controls directly accessible. */
+/** Let users reveal one set of payment controls without changing selected allocations. */
 @Composable
 internal fun SettlementMethodGroup(title: String, icon: Int, content: @Composable ColumnScope.() -> Unit) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         color = ApprovedPalette.surface,
         border = BorderStroke(1.dp, ApprovedPalette.border),
     ) {
-        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column {
+            Row(
+                Modifier.fillMaxWidth()
+                    .clickable(role = Role.Button, onClickLabel = if (expanded) "بستن روش‌ها" else "نمایش روش‌ها") {
+                        expanded = !expanded
+                    }
+                    .semantics { stateDescription = if (expanded) "باز" else "بسته" }
+                    .heightIn(min = 48.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 PaymentArtwork(icon, Modifier.size(28.dp))
-                Text(title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(title, modifier = Modifier.weight(1f), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Icon(if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = null, tint = Ink)
             }
-            content()
+            if (expanded) {
+                Column(Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+            }
         }
     }
 }
@@ -90,8 +114,8 @@ internal fun PaymentMethodCard(
             if (horizontal) {
                 Row(content.padding(start = 52.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Surface(shape = RoundedCornerShape(12.dp), color = design.accent) {
-                        PaymentArtwork(design.icon, Modifier.padding(8.dp).size(30.dp))
+                    Surface(shape = RoundedCornerShape(12.dp), color = ApprovedPalette.surface) {
+                        PaymentArtwork(design.icon, Modifier.padding(6.dp).size(34.dp))
                     }
                     Column {
                         Text(design.title, color = Ink, fontWeight = FontWeight.Bold)
@@ -124,7 +148,7 @@ internal fun PaymentMethodDialog(method: SettlementEditor, busy: Boolean, onClos
             Column(Modifier.heightIn(max = height).imePadding().padding(16.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Surface(shape = RoundedCornerShape(14.dp), color = if (method == SettlementEditor.Check) design.accent else design.surface) {
+                    Surface(shape = RoundedCornerShape(14.dp), color = design.surface) {
                         PaymentArtwork(design.icon, Modifier.size(48.dp).padding(5.dp))
                     }
                     Column(Modifier.weight(1f)) {

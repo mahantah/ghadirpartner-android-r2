@@ -250,9 +250,18 @@ class DesignFlowTest {
         showText("مشاهده سبد و ثبت نهایی");compose.onNodeWithText("مشاهده سبد و ثبت نهایی").performClick()
     }
     private fun deferCashProof() {
+        openSettlementGroup("تسویه نقدی", "واریز به حساب")
         showText("واریز به حساب");compose.onNodeWithText("واریز به حساب").performClick()
         compose.onNodeWithContentDescription("ارسال تصویر بعداً").performScrollTo().performClick()
         compose.onNodeWithText("ثبت و بازگشت").performScrollTo().performClick()
+    }
+
+    private fun openSettlementGroup(title: String, methodLabel: String) {
+        showText(title)
+        val collapsed = SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription, "بسته")
+        val header = hasText(title) and collapsed
+        if (compose.onAllNodes(header).fetchSemanticsNodes().isNotEmpty()) compose.onNode(header).performClick()
+        showText(methodLabel)
     }
 
     private fun chooseInvoice() {
@@ -306,10 +315,18 @@ class DesignFlowTest {
             chooseInvoice()
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
             shot("design-checkout-cash.png")
+            compose.onNodeWithText("واریز به حساب").assertDoesNotExist()
+            compose.onNodeWithContentDescription("فعال‌سازی چک").assertDoesNotExist()
+            openSettlementGroup("تسویه غیرنقدی", "چک")
             showField("فعال‌سازی چک")
             val checkToggle = compose.onNodeWithContentDescription("فعال‌سازی چک")
             checkToggle.assertIsOff().performClick()
             compose.onNodeWithContentDescription("بستن").performClick()
+            showText("تسویه غیرنقدی")
+            compose.onNodeWithText("تسویه غیرنقدی").performClick()
+            checkToggle.assertDoesNotExist()
+            openSettlementGroup("تسویه غیرنقدی", "چک")
+            showField("فعال‌سازی چک")
             checkToggle.assertIsOn().performClick()
             compose.onNodeWithContentDescription("شناسه صیادی").assertDoesNotExist()
             checkToggle.assertIsOff().performClick()
@@ -334,7 +351,8 @@ class DesignFlowTest {
             waitText("مشاهده سبد و ثبت نهایی")
             showText("بازگشت و ویرایش");compose.onNodeWithText("بازگشت و ویرایش").performClick()
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
-            showText("اعتبار");compose.onNodeWithText("اعتبار").performClick()
+            openSettlementGroup("تسویه غیرنقدی", "اعتبار")
+            compose.onNodeWithText("اعتبار").performClick()
             showField("اعتباری — مبلغ (تومان)")
             hideKeyboard(scenario)
             showText("اعتبار حساب شما")

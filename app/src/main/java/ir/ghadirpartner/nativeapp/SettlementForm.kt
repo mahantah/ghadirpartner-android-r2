@@ -310,6 +310,9 @@ internal fun SettlementForm(
                 !busy && !amountsLocked, Modifier.fillMaxWidth(), ::openDeposit, horizontal = true) {
                 if (it) openDeposit() else disableMethod(SettlementEditor.Deposit)
             }
+            if (remaining > 0L && onlineEditable && !amountsLocked) {
+                TextButton(onClick = ::openOnline) { Text("پرداخت آنلاین مانده") }
+            }
         }
         SettlementMethodGroup("تسویه غیرنقدی", R.drawable.payment_ref_credit) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -320,8 +323,6 @@ internal fun SettlementForm(
             }
         }
         if (agentReviewRequired) Text("پرداخت آنلاین و کیف پول پس از بررسی تسویه عامل فروش در دسترس است.", color = Muted)
-        if (remaining > 0L && onlineEditable && !amountsLocked)
-            TextButton(onClick = ::openOnline) { Text("پرداخت آنلاین مانده") }
         CheckoutAmountFooter(chosenTotal, remaining)
     }
 
