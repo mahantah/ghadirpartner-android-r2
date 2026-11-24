@@ -19,6 +19,14 @@ internal fun settlementRemaining(
     invoiceTotal: Long,
 ): Long = (invoiceTotal - settlementAllocated(d)).coerceAtLeast(0L)
 
+/** Count selected methods instead of treating an untouched cash placeholder as allocated. */
+internal fun outstandingSettlementBalance(value: JSONObject, total: Long, fixedTerms: Boolean): Long {
+    val implicitCash = if (value.b("cash_enabled") && !fixedTerms && !CashDepositRows.hasExplicitMethod(value)) {
+        value.l("cash_amount")
+    } else 0L
+    return (total - (settlementAllocated(value) - implicitCash).coerceAtLeast(0L)).coerceAtLeast(0L)
+}
+
 internal fun settlementPrimaryMethod(d: JSONObject): String {
     val parts =
         settlementParts.filter { part ->

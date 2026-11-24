@@ -38,6 +38,9 @@ internal fun SettlementForm(
     agentReviewRequired: Boolean = false,
     onBusyChanged: (Boolean) -> Unit = {},
     validationAttempt: Int = 0,
+    openOnlineBalance: Boolean = false,
+    onOnlineBalanceHandled: () -> Unit = {},
+    onOnlineBalanceAvailable: (Boolean) -> Unit = {},
     onChange: (JSONObject) -> Unit,
 ) {
     val context = LocalContext.current
@@ -215,9 +218,10 @@ internal fun SettlementForm(
     }
     val deferProof = value.b("upload_proof_later")
     val hasChosenCash = CashDepositRows.hasExplicitMethod(value) || amountsLocked || agentReviewRequired
-    val implicitCash = if (value.b("cash_enabled") && !hasChosenCash) value.l("cash_amount") else 0L
-    val chosenTotal = (settlementAllocated(value) - implicitCash).coerceAtLeast(0L)
-    val remaining = (invoiceTotal - chosenTotal).coerceAtLeast(0L)
+    val remaining = outstandingSettlementBalance(value, invoiceTotal, amountsLocked || agentReviewRequired)
+    val chosenTotal = settlementAllocated(value).let {
+        if (value.b("cash_enabled") && !hasChosenCash) (it - value.l("cash_amount")).coerceAtLeast(0L) else it
+    }
     fun disableMethod(method: SettlementEditor) {
         patch {
             when (method) {
@@ -280,6 +284,18 @@ internal fun SettlementForm(
         }
         openEditor(SettlementEditor.Online)
     }
+    val canOfferBalance = onlineEditable && !amountsLocked && (!depositSelected || keepDepositWithOnline)
+    LaunchedEffect(canOfferBalance) { onOnlineBalanceAvailable(canOfferBalance) }
+    DisposableEffect(Unit) { onDispose { onOnlineBalanceAvailable(false) } }
+    LaunchedEffect(openOnlineBalance) {
+        if (openOnlineBalance) {
+            onOnlineBalanceHandled()
+            if (canOfferBalance && remaining > 0L) {
+                updateOnline(CashDepositRows.onlineAmount(value) + remaining)
+                openEditor(SettlementEditor.Online)
+            }
+        }
+    }
     fun openCheck() {
         if (!checkActive) selectNonCash("check")
         awaitingCredit = false
@@ -309,9 +325,6 @@ internal fun SettlementForm(
             PaymentMethodCard(SettlementEditor.Deposit, depositSelected, !busy && (!amountsLocked || depositSelected),
                 !busy && !amountsLocked, Modifier.fillMaxWidth(), ::openDeposit, horizontal = true) {
                 if (it) openDeposit() else disableMethod(SettlementEditor.Deposit)
-            }
-            if (remaining > 0L && onlineEditable && !amountsLocked) {
-                TextButton(onClick = ::openOnline) { Text("پرداخت آنلاین مانده") }
             }
         }
         SettlementMethodGroup("تسویه غیرنقدی", R.drawable.payment_ref_credit) {

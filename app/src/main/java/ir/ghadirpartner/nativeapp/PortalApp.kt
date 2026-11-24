@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -100,6 +101,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
     var profilePhotoUri by remember { mutableStateOf(profilePrefs.getString(photoKey, "") ?: "") }
     var screen by rememberSaveable { mutableStateOf("home") }
     var selectedOrder by rememberSaveable(stateSaver = NullableJsonSaver) { mutableStateOf<JSONObject?>(null) }
+    var inboxOrigin by rememberSaveable { mutableStateOf("home") }
     var proformaOrigin by rememberSaveable {mutableStateOf("documents")}
     var currentMe by rememberSaveable(stateSaver=JsonSaver) { mutableStateOf(JSONObject(me.toString())) }
     val customerName = currentMe.obj("customer").s("name").ifBlank { currentMe.s("username") }
@@ -167,6 +169,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
             }
             "new" -> if (checkoutTitle != "ثبت سفارش") checkoutBackRequest++ else {parkActiveCheckout();screen="home"}
             "profile" -> if (profileTitle != "پروفایل") profileBackRequest++ else screen="home"
+            "inbox" -> screen=inboxOrigin
             "catalog" -> screen=catalogOrigin
             "order-detail" -> if(cancelView) orderBackRequest++ else screen=orderOrigin
             "serial-detail" -> screen="order-detail"
@@ -206,12 +209,12 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
     ))) { Scaffold(
         containerColor = Color.Transparent,
         topBar = {
-            val backScreen=baseScreen in setOf("documents","proforma","success","addresses","serial-detail","revision") || (baseScreen=="offers"&&selectedOffer!=null) || (baseScreen=="new"&&checkoutTitle!="ثبت سفارش") || (baseScreen=="profile"&&profileTitle!="پروفایل")
+            val backScreen=baseScreen in setOf("profile","inbox","documents","proforma","success","addresses","serial-detail","revision") || (baseScreen=="offers"&&selectedOffer!=null) || (baseScreen=="new"&&checkoutTitle!="ثبت سفارش") || (baseScreen=="profile"&&profileTitle!="پروفایل")
             val title=if(baseScreen=="serial-detail")"سریال دستگاه‌ها" else if(baseScreen=="profile")profileTitle else if(baseScreen=="revision"&&checkoutTitle=="ثبت سفارش")"اصلاح سفارش" else if(baseScreen in setOf("new","revision"))checkoutTitle else if(baseScreen=="offers"&&selectedOffer!=null)"جزئیات آفر" else titles[baseScreen]?:"قدیر پارتنر"
             if(backScreen) PortalBackHeader(if(title=="نحوه تسویه") "تسویه حساب" else title) {
                 goBack()
             } else PortalGlassHeader(title,baseScreen=="home",inbox.unread,onOffers={if(!checkoutBusy&&!profileBusy){if(baseScreen=="new")parkActiveCheckout();offersOrigin=baseScreen;selectedOffer=null;screen="offers"}}) {
-                if(!checkoutBusy&&!profileBusy){if(baseScreen=="new")parkActiveCheckout();screen="inbox";appScope.launch {inbox.refresh()}}
+                if(!checkoutBusy&&!profileBusy){if(baseScreen=="new")parkActiveCheckout();inboxOrigin=baseScreen;screen="inbox";appScope.launch {inbox.refresh()}}
             }
         },
         bottomBar = {
@@ -317,7 +320,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                             runCatching {java.io.File(context.cacheDir,"checkout-state").deleteRecursively()}
                             onLogout()
                         },
-                        onProforma = { screen="documents" }, onNavigate = {if(it=="serials")serialsOrigin="profile";if(it=="offers")offersOrigin="profile";screen=it},
+                        onProforma = { screen="documents" }, onNavigate = {if(it=="serials")serialsOrigin="profile";if(it=="offers")offersOrigin="profile";if(it=="inbox")inboxOrigin="profile";screen=it},
                         onSectionChanged={profileTitle=it},onBusyChanged={profileBusy=it},backRequest=profileBackRequest
                     )
                 }
@@ -786,6 +789,9 @@ private fun PortalNewOrder(
     var evidenceBusy by remember {mutableStateOf(false)}
     var settlementAttempt by rememberSaveable { mutableIntStateOf(0) }
     var settlementDialog by rememberSaveable { mutableStateOf("") }
+    var offerOnlineBalance by rememberSaveable { mutableStateOf(false) }
+    var canOfferOnlineBalance by remember { mutableStateOf(false) }
+    var openOnlineBalance by remember { mutableStateOf(false) }
     var settlementChoiceError by rememberSaveable { mutableStateOf("") }
     var shippingAttempted by rememberSaveable { mutableStateOf(false) }
     var error by remember {mutableStateOf("")}
@@ -1011,10 +1017,19 @@ private fun PortalNewOrder(
     BackHandler(step > firstCheckoutStep || evidenceBusy) { if (step > firstCheckoutStep) editOrder(step - 1) }
 
     if (settlementDialog.isNotBlank()) AlertDialog(
-        onDismissRequest={settlementDialog=""},
-        title={Text("بررسی مبلغ تسویه")},
-        text={Text(settlementDialog)},
-        confirmButton={TextButton(onClick={settlementDialog=""}) {Text("متوجه شدم")}},
+        onDismissRequest = { settlementDialog = "" },
+        icon = { Icon(Icons.Default.WarningAmber, contentDescription = "اخطار", tint = Orange) },
+        title = { Text(if (offerOnlineBalance) "ماندهٔ قابل پرداخت" else "بررسی مبلغ تسویه") },
+        text = { Text(settlementDialog) },
+        confirmButton = {
+            TextButton(onClick = {
+                if (offerOnlineBalance && canOfferOnlineBalance) openOnlineBalance = true
+                settlementDialog = ""
+            }) { Text(if (offerOnlineBalance && canOfferOnlineBalance) "پرداخت آنلاین مانده" else "متوجه شدم") }
+        },
+        dismissButton = if (offerOnlineBalance && canOfferOnlineBalance) {
+            { TextButton(onClick = { settlementDialog = "" }) { Text("ویرایش تسویه") } }
+        } else null,
     )
 
     fun submit() {
@@ -1025,7 +1040,7 @@ private fun PortalNewOrder(
         }
         val validation=checkoutService.validation(checkout())
         if(settlementAllocated(checkout().settlement)!=total){
-            step=1;settlementDialog="جمع مبلغ‌های تسویه باید برابر مبلغ فاکتور باشد.";return
+            step=1;offerOnlineBalance=false;settlementDialog="جمع مبلغ‌های تسویه باید برابر مبلغ فاکتور باشد.";return
         }
         if(validation.isNotBlank()){
             step=if(invoiceType.isBlank())0 else 1
@@ -1178,7 +1193,9 @@ private fun PortalNewOrder(
         } else if(step==1) {
             item {Text("نحوه تسویه",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold)}
             if (agentTermsLocked) item { DesignNotice("مبالغ این مرحله را شرکت تعیین کرده است. اطلاعات پرداخت و مدارک را تکمیل کنید.") }
-            item {SettlementForm(api,total,invoiceType,settlement,amountsLocked=agentTermsLocked,agentReviewRequired=agentReviewRequired,onBusyChanged={evidenceBusy=it},validationAttempt=settlementAttempt){settlement=it}}
+            item {SettlementForm(api,total,invoiceType,settlement,amountsLocked=agentTermsLocked,agentReviewRequired=agentReviewRequired,onBusyChanged={evidenceBusy=it},validationAttempt=settlementAttempt,
+                openOnlineBalance=openOnlineBalance, onOnlineBalanceHandled={openOnlineBalance=false},
+                onOnlineBalanceAvailable={canOfferOnlineBalance=it}){settlement=it}}
             if(!agentTermsLocked && cart.any {it.priceKey=="sales_agent"}) item {
                 DesignNotice("شرایط عامل فروش: ${faNumber(BuildConfig.AGENT_CASH_PERCENT)}٪ نقد و ${faNumber(100-BuildConfig.AGENT_CASH_PERCENT)}٪ چک. تغییر شرایط فقط پس از بررسی مدیر قابل تأیید است.")
                 if(AgentSettlementPolicy().changed(cart,total,settlement)) DesignField("علت درخواست تغییر شرایط",settlement.s("agent_change_reason"),{settlement=JSONObject(settlement.toString()).put("agent_change_reason",it.take(BuildConfig.REQUEST_NOTE_LIMIT))},"درخواست برای مدیر ارسال می‌شود",singleLine=false,
@@ -1190,7 +1207,14 @@ private fun PortalNewOrder(
                 val issue = checkoutService.validation(draft)
                 error = ""
                 settlementChoiceError = ""
+                val balance = outstandingSettlementBalance(draft.settlement, total, agentTermsLocked || agentReviewRequired)
+                offerOnlineBalance = false
                 when {
+                    balance > 0L -> {
+                        offerOnlineBalance = canOfferOnlineBalance
+                        settlementDialog = "ماندهٔ فاکتور " + formatMoney(balance) + " تومان است. " +
+                            if (offerOnlineBalance) "می‌توانید مانده را آنلاین پرداخت کنید." else "مبلغ روش‌های تسویه را تکمیل کنید."
+                    }
                     settlementAllocated(draft.settlement) != total -> settlementDialog = "جمع مبلغ‌های تسویه باید برابر مبلغ فاکتور باشد."
                     issue.isBlank() -> step = 2
                     issue == CashDepositRows.error(draft.settlement) || issue == SettlementProofRules.checkError(draft.settlement) ||
@@ -1447,8 +1471,34 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
     val initial=me.obj("customer")
     val scope=rememberCoroutineScope()
     val context=LocalContext.current
-    var view by remember {mutableStateOf("profile")}
-        var name by rememberSaveable(me.toString()){mutableStateOf(initial.s("name"))}
+    var view by rememberSaveable {mutableStateOf("profile")}
+    var detailOrigin by rememberSaveable {mutableStateOf("profile")}
+    var photoOrigin by rememberSaveable {mutableStateOf("profile")}
+    fun openProfileDetail(destination: String) {
+        if (destination == "photo") photoOrigin = view else detailOrigin = view
+        view = destination
+    }
+    var orderCount by remember(api) {mutableStateOf<Int?>(null)}
+    var walletBalance by remember(api) {mutableStateOf<Long?>(null)}
+    LaunchedEffect(api, view) {
+        if (view != "profile") return@LaunchedEffect
+        try {
+            orderCount = (api.get("/api/orders") as JSONArray).objects().count {
+                it.s("status") !in setOf("لغو شد", "تحویل شد") && it.s("approval_status") != "رد شده"
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { orderCount = null }
+    }
+    LaunchedEffect(api, view) {
+        if (view != "profile") return@LaunchedEffect
+        try {
+            val wallet = (api.get("/api/native/credit") as JSONObject).optJSONObject("wallet")
+            walletBalance = wallet?.optLong("balance", -1L)?.takeIf { it >= 0L }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { walletBalance = null }
+    }
+    val roleLabel = if ("sales_agent" in me.arr("roles").strings()) "عامل فروش" else "همکار"
+    var name by rememberSaveable(me.toString()){mutableStateOf(initial.s("name"))}
     var company by rememberSaveable(me.toString()){mutableStateOf(initial.s("company"))}
 
     val alternate = me.s("alternate_mobile")
@@ -1462,11 +1512,11 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
     val photoKey="photo_uri:"+me.s("username")
     val prefs=remember(context){context.getSharedPreferences("ghadir_profile",android.content.Context.MODE_PRIVATE)}
     var photoUri by remember(me.s("username")){mutableStateOf(prefs.getString(photoKey,"")?:"")}
-    fun savePhoto(uri:String){photoUri=uri;prefs.edit().putString(photoKey,uri).apply();onPhotoUpdated(uri);view="services"}
-    fun parentView()=when(view){"edit","photo","deleted"->"services";"password","users"->"settings";else->"profile"}
+    fun savePhoto(uri:String){photoUri=uri;prefs.edit().putString(photoKey,uri).apply();onPhotoUpdated(uri);view=photoOrigin}
+    fun parentView()=when(view){"edit","bank"->detailOrigin;"photo","deleted"->photoOrigin;"password","users"->"settings";else->"profile"}
     LaunchedEffect(view){onSectionChanged(when(view){
         "services"->"پروفایل من";"settings"->"تنظیمات";"password"->"تغییر رمز ورود";"users"->"دسترسی کاربران";"wallet"->"کیف پول و اعتبار"
-        "edit"->"ویرایش اطلاعات مشتری";"photo"->"تصویر پروفایل";"deleted"->"تصویر پروفایل";else->"پروفایل"})}
+        "edit"->"اطلاعات شخصی";"bank"->"اطلاعات بانکی (شبا)";"photo"->"تصویر پروفایل";"deleted"->"تصویر پروفایل";else->"پروفایل"})}
     var handledBackRequest by rememberSaveable {mutableIntStateOf(backRequest)}
     LaunchedEffect(backRequest){if(backRequest!=handledBackRequest&&!saving)view=parentView();handledBackRequest=backRequest}
     BackHandler(view!="profile"){if(!saving)view=parentView()}
@@ -1478,7 +1528,7 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
                 top = 12.dp,
                 bottom = if (isOverview) 12.dp else 28.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(if (isOverview) 9.dp else 16.dp),
         ) {
             if(error.isNotBlank()&&view!="edit")item {ErrorBanner(error){error=""}}
             if(saved.isNotBlank()&&view in setOf("profile","services","settings"))item {DesignNotice(saved)}
@@ -1493,7 +1543,7 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
                             }
                         }
                     }}
-                    item {ProfileServiceTile("ویرایش اطلاعات مشتری","مشخصات فروشگاه و اطلاعات بانکی",Icons.Default.ManageAccounts,Modifier.fillMaxWidth(),wide=true){view="edit"}}
+                    item {ProfileServiceTile("ویرایش اطلاعات مشتری","مشخصات فروشگاه و اطلاعات بانکی",Icons.Default.ManageAccounts,Modifier.fillMaxWidth(),wide=true){openProfileDetail("edit")}}
                     item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                         ProfileServiceTile("آدرس‌های منتخب","نشانی‌های ذخیره‌شده",Icons.Default.LocationOn,Modifier.weight(1f)){onNavigate("addresses")}
                         ProfileServiceTile("فاکتورهای من","مشاهده و دریافت PDF",Icons.Default.ReceiptLong,Modifier.weight(1f)){onProforma()}
@@ -1503,7 +1553,7 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
                         ProfileServiceTile("آفرهای من","طرح‌ها و پیشنهادها",Icons.Default.LocalOffer,Modifier.weight(1f)){onNavigate("offers")}
                     }}
                     item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        ProfileServiceTile("تصویر پروفایل","انتخاب یا تغییر تصویر",Icons.Default.PhotoCamera,Modifier.weight(1f)){view="photo"}
+                        ProfileServiceTile("تصویر پروفایل","انتخاب یا تغییر تصویر",Icons.Default.PhotoCamera,Modifier.weight(1f)){openProfileDetail("photo")}
                         ProfileServiceTile("گزارش خرید","مرور سفارش‌های شما",Icons.Default.BarChart,Modifier.weight(1f)){onNavigate("summary")}
                     }}
                 }
@@ -1515,24 +1565,33 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
                 }
                 "password"->{item {AccountPasswordForm(api,me.s("username"),onChanged={saved="رمز ورود با موفقیت تغییر کرد.";view="settings"},onBusyChanged={saving=it})}}
                 "users"-> item { AccountUsersForm(api, onBusyChanged={saving=it}) }
-                "wallet" -> item { CustomerWallet(api, onEditBank={view="edit"}) }
+                "wallet" -> item { CustomerWallet(api, onEditBank={openProfileDetail("bank")}) }
+                "bank" -> item { AccountBankForm(api, onBusyChanged={saving=it}) }
                 "edit"->{
+                    item {
+                        ProfileIdentityCard(name, roleLabel, initial.s("code"), onPhotoClick = { openProfileDetail("photo") }, photoActionIcon = Icons.Default.PhotoCamera) {
+                            ProfilePhoto(photoUri, 72.dp, avatar = true)
+                        }
+                    }
                     item {DesignField("نام و نام خانوادگی",name,{name=it;saved="";error=""},
-                        fieldError=if(editAttempted&&name.trim().length<3)"نام و نام خانوادگی را کامل وارد کنید." else "")}
-                    item {DesignField("نام شرکت / فروشگاه",company,{company=it;saved=""})}
-                    item {DesignField("شماره همراه",faDigits(me.s("username")),{},enabled=false)}
-                    item { AccountBankForm(api, onBusyChanged={saving=it}) }
+                        pill=true, fieldGlyph=Icons.Default.PersonOutline, fieldError=if(editAttempted&&name.trim().length<3)"نام و نام خانوادگی را کامل وارد کنید." else "")}
+                    item {DesignField("نام شرکت / فروشگاه",company,{company=it;saved=""}, pill=true, fieldGlyph=Icons.Default.Storefront)}
+                    item {DesignField("شماره همراه",faDigits(me.s("username")),{},enabled=false, pill=true, fieldGlyph=Icons.Default.PhoneAndroid)}
+                    if (initial.s("national_id").isNotBlank()) {
+                        item { DesignField("کد ملی", faDigits(initial.s("national_id")), {}, enabled = false, pill=true, fieldGlyph=Icons.Default.Badge) }
+                    }
+                    item { DesignField("نقش کاربری", roleLabel, {}, enabled = false, pill=true, fieldGlyph=Icons.Default.Groups) }
                     if(error.isNotBlank()) item { Text(error,color=Danger) }
-                    item {GhadirButton(if(saving)"در حال ذخیره…" else "ثبت تغییرات",{
+                    item {ProfileSaveButton(if(saving)"در حال ذخیره…" else "ذخیره تغییرات",{
                         editAttempted=true
-                        if(name.trim().length<3)return@GhadirButton
+                        if(name.trim().length<3)return@ProfileSaveButton
                         scope.launch {
                             saving=true;error="";saved=""
                             try {
                                 val body=JSONObject().put("name",name.trim()).put("company",company.trim()).put("province",initial.s("province"))
                                     .put("city",initial.s("city")).put("address",initial.s("address")).put("postal_code",postalCode).put("alternate_mobile",alternate)
                                 val result=api.post("/api/profile/update",body) as JSONObject
-                                onUpdated(result);view="services";saved="اطلاعات پروفایل با موفقیت به‌روزرسانی شد."
+                                onUpdated(result);view=detailOrigin;saved="اطلاعات پروفایل با موفقیت به‌روزرسانی شد."
                             }catch(e:kotlinx.coroutines.CancellationException){throw e}
                             catch(e:Exception){error=e.message?:"ذخیره پروفایل ناموفق بود"}finally{saving=false}
                         }
@@ -1548,7 +1607,7 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
                     item {GhadirButton("حذف عکس و بازگشت به لوگو",{
                         photoUri="";prefs.edit().remove(photoKey).apply();onPhotoUpdated("");view="deleted"
                     },secondary=true,enabled=photoUri.isNotBlank())}
-                    item {GhadirButton("انصراف",{view="services"},secondary=true)}
+                    item {GhadirButton("انصراف",{view=photoOrigin},secondary=true)}
                 }
                 "deleted"->{
                     item {GlassSurface {Column(Modifier.fillMaxWidth().padding(40.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(20.dp)){
@@ -1561,30 +1620,37 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
                         }
                     }}
                     item {GhadirButton("انتخاب عکس جدید",{view="photo"},secondary=true)}
-                    item {GhadirButton("بازگشت به پروفایل",{view="services"},secondary=true)}
+                    item {GhadirButton("بازگشت به پروفایل",{view=photoOrigin},secondary=true)}
                 }
                 else->{
-                    item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-                        Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(14.dp)){
-                            ProfilePhoto(photoUri)
-                            Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally){
-                                Text(initial.s("name").ifBlank {me.s("username")},textAlign=TextAlign.Center,color=Ink,fontSize=24.sp,lineHeight=40.sp,fontWeight=FontWeight.Bold)
-                                Text(initial.s("company")+" • کد همکار "+faDigits(initial.s("code")),textAlign=TextAlign.Center,color=Muted,fontSize=12.sp)
-                            }
-                        }
-                        HorizontalDivider(color=Border)
-                        Text("شماره همراه: "+faDigits(me.s("username")),color=Ink,textAlign=TextAlign.Center,modifier=Modifier.fillMaxWidth())
-                    }}}
-                    item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        ProfileServiceTile("پروفایل من","اطلاعات و خدمات مشتری",Icons.Default.PersonOutline,Modifier.weight(1f)){view="services"}
-                        ProfileServiceTile("تنظیمات","امنیت و اطلاعات تماس",Icons.Default.Settings,Modifier.weight(1f)){view="settings"}
-                    }}
-                    item {ProfileServiceTile("کیف پول و اعتبار","موجودی، سقف اعتبار و گردش پرداخت",Icons.Default.ReceiptLong,Modifier.fillMaxWidth(),wide=true){view="wallet"}}
-                    item {ProfileServiceTile("تماس با پشتیبانی ۰۲۱۷۷۲۴۷۰۷۰","همراه شما در خرید و خدمات",Icons.Default.HeadsetMic,Modifier.fillMaxWidth(),wide=true) {
-                        try{context.startActivity(android.content.Intent(android.content.Intent.ACTION_DIAL,Uri.parse("tel:02177247070")))}
-                        catch(_:Exception){error="برنامه تماس روی این دستگاه در دسترس نیست"}
-                    }}
-                    item {ProfileServiceTile("خروج از حساب","پایان نشست فعلی",Icons.Default.Logout,Modifier.fillMaxWidth(),wide=true,onClick=onLogout)}
+                    val blue = Color(0xFF1769CC)
+                    val violet = SettlementEditor.Deposit.paymentAccent
+                    val green = SettlementEditor.Wallet.paymentAccent
+                    item {
+                        ProfileIdentityCard(name.ifBlank { me.s("username") }, roleLabel, initial.s("code"),
+                            onPhotoClick = { openProfileDetail("photo") }) { ProfilePhoto(photoUri, 64.dp, avatar = true) }
+                    }
+                    item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ProfileShortcut("سفارش‌های من", Icons.Default.ShoppingCart, Orange, Modifier.weight(1f),
+                            orderCount?.let { faNumber(it) + " سفارش فعال" } ?: "پیگیری سفارش‌ها") { onNavigate("orders") }
+                        ProfileShortcut("کیف پول", Icons.Default.AccountBalanceWallet, violet, Modifier.weight(1f),
+                            walletBalance?.let { formatMoney(it) + " تومان" } ?: "موجودی و اعتبار") { view = "wallet" }
+                    } }
+                    item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ProfileShortcut("گزارش خرید", Icons.Default.BarChart, blue, Modifier.weight(1f), "سفارش‌ها و خریدها") { onNavigate("summary") }
+                        ProfileShortcut("سریال‌های من", Icons.Default.QrCode2, green, Modifier.weight(1f), "دستگاه‌های خریداری‌شده") { onNavigate("serials") }
+                    } }
+                    item { ProfileShortcut("اطلاعات شخصی", Icons.Default.PersonOutline, blue, Modifier.fillMaxWidth()) { openProfileDetail("edit") } }
+                    item { ProfileShortcut("اطلاعات بانکی (شبا)", Icons.Default.CreditCard, violet, Modifier.fillMaxWidth()) { openProfileDetail("bank") } }
+                    item { ProfileShortcut("مدارک و مستندات", Icons.Default.Description, Orange, Modifier.fillMaxWidth(), onClick = onProforma) }
+                    item { ProfileShortcut("تنظیمات", Icons.Default.Settings, green, Modifier.fillMaxWidth()) { view = "settings" } }
+                    item { ProfileShortcut("اعلان‌ها", Icons.Default.Notifications, Danger, Modifier.fillMaxWidth()) { onNavigate("inbox") } }
+                    item { ProfileShortcut("پروفایل من", Icons.Default.ManageAccounts, blue, Modifier.fillMaxWidth()) { view = "services" } }
+                    item { ProfileShortcut("تماس با پشتیبانی ۰۲۱۷۷۲۴۷۰۷۰", Icons.Default.HeadsetMic, blue, Modifier.fillMaxWidth()) {
+                        try { context.startActivity(android.content.Intent(android.content.Intent.ACTION_DIAL, Uri.parse("tel:02177247070"))) }
+                        catch (_: Exception) { error = "برنامه تماس روی این دستگاه در دسترس نیست" }
+                    } }
+                    item { ProfileShortcut("خروج از حساب", Icons.AutoMirrored.Filled.Logout, Danger, Modifier.fillMaxWidth(), onClick = onLogout) }
                 }
             }
         }
@@ -1599,7 +1665,7 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
     }
 }
 @Composable
-private fun ProfilePhoto(uri: String, size: androidx.compose.ui.unit.Dp = 80.dp) {
+private fun ProfilePhoto(uri: String, size: androidx.compose.ui.unit.Dp = 80.dp, avatar: Boolean = false) {
     val context = LocalContext.current
     val bitmap = remember(uri) {
         if (uri.isBlank()) null else try {
@@ -1610,9 +1676,18 @@ private fun ProfilePhoto(uri: String, size: androidx.compose.ui.unit.Dp = 80.dp)
             context.contentResolver.openInputStream(Uri.parse(uri))?.use { BitmapFactory.decodeStream(it,null,opts) }
         } catch (_: Exception) { null }
     }
-    Surface(shape = RoundedCornerShape(16.dp), color = AppSurface, modifier = Modifier.size(size)) {
+    Surface(
+        shape = if (avatar) CircleShape else RoundedCornerShape(16.dp),
+        color = AppSurface,
+        modifier = Modifier.size(size),
+        border = if (avatar) BorderStroke(2.dp, AppSurface) else null,
+    ) {
         if (bitmap != null) {
             Image(bitmap = bitmap.asImageBitmap(), contentDescription = "عکس پروفایل", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        } else if (avatar) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.background(AppSecondary)) {
+                Icon(Icons.Default.Person, null, tint = Ink, modifier = Modifier.size(size * .62f))
+            }
         } else {
             Image(
                 painter = painterResource(R.drawable.brand_logo),

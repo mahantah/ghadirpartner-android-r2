@@ -47,7 +47,10 @@ internal fun AccountBankForm(api: ApiClient, onBusyChanged: (Boolean) -> Unit) {
             error = failure.message ?: "اطلاعات بانکی دریافت نشد."
         }
     }
-    if (hidden) return
+    if (hidden) {
+        DesignNotice("دسترسی به اطلاعات بانکی برای این حساب فعال نیست.")
+        return
+    }
     val bank = AccountBank(iban, bankName.trim())
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         DesignField("شماره شبا برای عودت وجه", iban, {

@@ -78,4 +78,13 @@ class SettlementSelectionTest {
         assertEquals(300L, settlement.l("cash_amount"))
         assertEquals(700L, settlement.l("credit_amount"))
     }
+    /** The advance warning counts the unpaid placeholder but excludes actual selected funds. */
+    @Test
+    fun outstandingBalanceUsesActualChoices() {
+        val settlement = defaultSplitSettlement(total)
+        assertEquals(total, outstandingSettlementBalance(settlement, total, fixedTerms = false))
+        assertEquals(0L, outstandingSettlementBalance(settlement, total, fixedTerms = true))
+        CashDepositRows.setMethods(settlement, deposit = false, online = true, amount = 300L, locked = false)
+        assertEquals(700L, outstandingSettlementBalance(settlement, total, fixedTerms = false))
+    }
 }

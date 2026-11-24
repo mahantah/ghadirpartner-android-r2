@@ -59,13 +59,14 @@ class FigmaFlowTest {
             }
             compose.waitUntil(10000){compose.onAllNodesWithText("پروفایل").fetchSemanticsNodes().isNotEmpty()}
             compose.onAllNodesWithText("پروفایل").onLast().performClick()
-            compose.onNodeWithText("پروفایل من").assertExists()
-            compose.onNodeWithText("تنظیمات").assertExists()
+            compose.onNodeWithText("سفارش‌های من").assertExists()
+            compose.onNodeWithText("اطلاعات شخصی").assertExists()
             shot("profile-day.png")
             compose.onNodeWithContentDescription("حالت شب").performClick()
             compose.onNodeWithContentDescription("حالت روز").assertExists()
             shot("profile-night.png")
             compose.onNodeWithContentDescription("حالت روز").performClick()
+            compose.onAllNodes(hasScrollToIndexAction()).onFirst().performScrollToNode(hasText("پروفایل من"))
             compose.onNodeWithText("پروفایل من").performClick()
             val invoiceAction=compose.onNodeWithText("فاکتورهای من").performScrollTo()
             // Centered profile cards are taller; reveal the complete target above the floating bar before tapping.
