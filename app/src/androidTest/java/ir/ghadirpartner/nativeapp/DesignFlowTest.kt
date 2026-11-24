@@ -218,9 +218,9 @@ class DesignFlowTest {
             return
         }
         val lists=compose.onAllNodes(hasScrollToIndexAction())
-        if(lists.fetchSemanticsNodes().size==1)lists.onFirst().performScrollToNode(hasText(text))
+        if(compose.onAllNodes(isDialog()).fetchSemanticsNodes().isEmpty() && lists.fetchSemanticsNodes().size==1)lists.onFirst().performScrollToNode(hasText(text))
         compose.onAllNodesWithText(text).onLast().performScrollTo()
-        clearFloatingBarOverlap(compose.onAllNodesWithText(text).onLast())
+        if(compose.onAllNodes(isDialog()).fetchSemanticsNodes().isEmpty()) clearFloatingBarOverlap(compose.onAllNodesWithText(text).onLast())
     }
     private fun showField(description:String) {
         // The fixed summary is a sibling of the list and must never be searched by scrolling it.
@@ -230,9 +230,9 @@ class DesignFlowTest {
             return
         }
         val lists=compose.onAllNodes(hasScrollToIndexAction())
-        if(lists.fetchSemanticsNodes().size==1)lists.onFirst().performScrollToNode(hasContentDescription(description))
+        if(compose.onAllNodes(isDialog()).fetchSemanticsNodes().isEmpty() && lists.fetchSemanticsNodes().size==1)lists.onFirst().performScrollToNode(hasContentDescription(description))
         compose.onNodeWithContentDescription(description).performScrollTo()
-        clearFloatingBarOverlap(compose.onNodeWithContentDescription(description))
+        if(compose.onAllNodes(isDialog()).fetchSemanticsNodes().isEmpty()) clearFloatingBarOverlap(compose.onNodeWithContentDescription(description))
     }
     private fun clearFloatingBarOverlap(node:SemanticsNodeInteraction) {
         // A clipped node's bounds can initially hide part of the button. Re-read
@@ -268,10 +268,9 @@ class DesignFlowTest {
         showText("مشاهده سبد و ثبت نهایی");compose.onNodeWithText("مشاهده سبد و ثبت نهایی").performClick()
     }
     private fun deferCashProof() {
-        showField("دستهٔ تسویه");compose.onNodeWithContentDescription("دستهٔ تسویه").performClick()
-        compose.onNodeWithText("نقد",substring=false).performClick()
         showText("واریز به حساب");compose.onNodeWithText("واریز به حساب").performClick()
-        showField("ارسال تصویر بعداً");compose.onNodeWithContentDescription("ارسال تصویر بعداً").performClick()
+        compose.onNodeWithContentDescription("ارسال تصویر بعداً").performScrollTo().performClick()
+        compose.onNodeWithText("ثبت و بازگشت").performScrollTo().performClick()
     }
 
     private fun chooseInvoice() {
@@ -327,19 +326,17 @@ class DesignFlowTest {
             chooseInvoice()
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
             shot("design-checkout-cash.png")
-            showField("دستهٔ تسویه");compose.onNodeWithContentDescription("دستهٔ تسویه").performClick()
-            compose.onNodeWithText("غیر نقد",substring=false).performClick()
             showField("فعال‌سازی چک")
             val checkToggle = compose.onNodeWithContentDescription("فعال‌سازی چک")
             checkToggle.assertIsOff().performClick()
+            compose.onNodeWithContentDescription("بستن").performClick()
             checkToggle.assertIsOn().performClick()
             compose.onNodeWithContentDescription("شناسه صیادی").assertDoesNotExist()
             checkToggle.assertIsOff().performClick()
             checkToggle.assertIsOn()
             hideKeyboard(scenario)
             compose.waitForIdle()
-            showField("شناسه صیادی")
-            showText("ادامه به نحوه ارسال");compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
+            compose.onNodeWithText("ثبت و بازگشت").performScrollTo().performClick()
             waitText("شناسه صیادی باید ۱۶ رقم باشد.")
             compose.onNodeWithText("شناسه صیادی باید ۱۶ رقم باشد.").assertExists()
             assertTrue(writes.isEmpty())
@@ -350,24 +347,24 @@ class DesignFlowTest {
             shot("design-checkout-calendar.png")
             compose.onNodeWithText("تأیید تاریخ").performClick()
             hideKeyboard(scenario);shot("design-checkout-check.png")
-            showField("ارسال تصویر بعداً");compose.onNodeWithContentDescription("ارسال تصویر بعداً").performClick()
-            showText("ادامه به نحوه ارسال");compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
+            compose.onNodeWithContentDescription("ارسال تصویر بعداً").performScrollTo().performClick()
+            compose.onNodeWithText("ثبت و بازگشت").performScrollTo().performClick()
+            showText("ادامه و ثبت تسویه");compose.onNodeWithText("ادامه و ثبت تسویه").performClick()
             completeShipping()
             waitText("مشاهده سبد و ثبت نهایی")
             showText("بازگشت و ویرایش");compose.onNodeWithText("بازگشت و ویرایش").performClick()
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
-            showField("دستهٔ تسویه");compose.onNodeWithContentDescription("دستهٔ تسویه").performClick()
-            compose.onAllNodesWithText("غیر نقد",substring=false).onLast().performClick()
             showText("اعتبار");compose.onNodeWithText("اعتبار").performClick()
             showField("اعتباری — مبلغ (تومان)")
             hideKeyboard(scenario)
             showText("اعتبار حساب شما")
-            showField("پذیرش تعهد اعتبار");clearFloatingBarOverlap(compose.onNodeWithContentDescription("پذیرش تعهد اعتبار"))
+            showField("پذیرش تعهد اعتبار")
             compose.onNodeWithContentDescription("پذیرش تعهد اعتبار").performScrollTo().performClick()
-            shot("design-checkout-credit.png")
-            showText("ادامه به نحوه ارسال")
-            compose.waitUntil(15000){compose.onAllNodes(hasText("ادامه به نحوه ارسال") and isEnabled()).fetchSemanticsNodes().isNotEmpty()}
-            compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
+            shot("design-checkout-credit.png", scrollToTop = false)
+            compose.onNodeWithText("ثبت و بازگشت").performScrollTo().performClick()
+            showText("ادامه و ثبت تسویه")
+            compose.waitUntil(15000){compose.onAllNodes(hasText("ادامه و ثبت تسویه") and isEnabled()).fetchSemanticsNodes().isNotEmpty()}
+            compose.onNodeWithText("ادامه و ثبت تسویه").performClick()
             completeShipping()
             waitText("بررسی سفارش")
             shot("design-checkout-review.png")
@@ -415,7 +412,7 @@ class DesignFlowTest {
             chooseInvoice()
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
             deferCashProof()
-            showText("ادامه به نحوه ارسال");compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
+            showText("ادامه و ثبت تسویه");compose.onNodeWithText("ادامه و ثبت تسویه").performClick()
             chooseShipping()
             compose.onAllNodesWithText("پروفایل").onLast().performClick()
             waitText("تنظیمات")
@@ -488,7 +485,7 @@ class DesignFlowTest {
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
             waitText("نحوه تسویه")
             deferCashProof()
-            showText("ادامه به نحوه ارسال");compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
+            showText("ادامه و ثبت تسویه");compose.onNodeWithText("ادامه و ثبت تسویه").performClick()
             completeShipping()
             showText("تأیید و ثبت نهایی");compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
             waitText("سفارش با موفقیت ثبت شد")
@@ -605,7 +602,7 @@ class DesignFlowTest {
             showField("ادامه و بررسی سفارش");compose.onNodeWithContentDescription("ادامه و بررسی سفارش").performClick()
             waitText("نحوه تسویه")
             deferCashProof()
-            showText("ادامه به نحوه ارسال");compose.onNodeWithText("ادامه به نحوه ارسال").performClick()
+            showText("ادامه و ثبت تسویه");compose.onNodeWithText("ادامه و ثبت تسویه").performClick()
             completeShipping()
             showText("تأیید و ثبت نهایی");compose.onNodeWithText("تأیید و ثبت نهایی").performClick()
             waitText("سفارش با موفقیت ثبت شد")

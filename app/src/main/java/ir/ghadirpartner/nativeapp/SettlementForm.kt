@@ -1,10 +1,7 @@
 package ir.ghadirpartner.nativeapp
 
 import android.net.Uri
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
@@ -28,8 +25,7 @@ import org.json.JSONObject
 internal fun asciiDigits(value: String): String =
     value.map { if (it.isDigit()) Character.digit(it, 10).toString() else it.toString() }.joinToString("")
 
-private enum class SettlementSection { Cash, NonCash }
-private enum class SettlementEditor { Deposit, Online, Check, Credit }
+internal enum class SettlementEditor { Deposit, Online, Check, Credit, Wallet }
 
 /** Present cash and non-cash settlement with editable amounts for each selected method. */
 @Composable
@@ -64,12 +60,9 @@ internal fun SettlementForm(
     var retry by rememberSaveable { mutableIntStateOf(0) }
     val creditActive = value.b("credit_enabled")
     val checkActive = value.b("check_enabled")
-    var section by rememberSaveable { mutableStateOf<SettlementSection?>(null) }
     var editor by rememberSaveable { mutableStateOf<SettlementEditor?>(null) }
     var validateEditor by rememberSaveable { mutableStateOf(false) }
-    var confirmation by rememberSaveable { mutableStateOf(false) }
     var amountWarning by rememberSaveable { mutableStateOf("") }
-    var walletOpen by rememberSaveable { mutableStateOf(false) }
     var uploadError by remember { mutableStateOf("") }
     var uploadField by remember { mutableStateOf("") }
 
@@ -90,8 +83,7 @@ internal fun SettlementForm(
 
     fun openEditor(next: SettlementEditor) {
         validateEditor = false
-        walletOpen = false
-        editor = if (editor == next) null else next
+        editor = next
     }
     var awaitingCredit by rememberSaveable { mutableStateOf(false) }
     val walletAvailable = credit.obj("wallet").l("available").coerceAtLeast(0L)
@@ -218,7 +210,6 @@ internal fun SettlementForm(
         }
         if (next != null) {
             editor = next
-            section = if (next == SettlementEditor.Online || next == SettlementEditor.Deposit) SettlementSection.Cash else SettlementSection.NonCash
             validateEditor = true
         }
     }
@@ -239,6 +230,7 @@ internal fun SettlementForm(
                     CashDepositRows.setMethods(it, keepDeposit, false, 0L, false)
                     if (!keepDeposit) toggleSettlementPart(it, "cash", false, currentTotal)
                 }
+                SettlementEditor.Wallet -> SettlementSelection(currentTotal).setWallet(it, false, 0L, walletAvailable)
                 SettlementEditor.Check, SettlementEditor.Credit -> {
                     val key = if (method == SettlementEditor.Check) "check" else "credit"
                     val saved = it.optJSONObject("draft_non_cash_amounts") ?: JSONObject()
@@ -250,151 +242,159 @@ internal fun SettlementForm(
         if (method == SettlementEditor.Credit) awaitingCredit = false
         if (editor == method) editor = null
     }
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        DetailLine("مبلغ فاکتور", formatMoney(invoiceTotal) + " تومان")
-        DetailLine("مانده فاکتور", formatMoney(remaining) + " تومان")
-        if (remaining > 0L && onlineAvailable && !agentReviewRequired) {
-            Text("برای پرداخت مانده، می‌توانید از گزینهٔ پرداخت آنلاین استفاده کنید.", color = Muted)
+    val onlineSelected = value.b("cash_enabled") && value.b("cash_online")
+    val online = CashDepositRows.requiresOnline(value)
+    val deposit = CashDepositRows.depositEnabled(value)
+    val depositSelected = value.b("cash_enabled") && deposit
+    val walletSelected = value.b("wallet_enabled")
+    val walletEditable = !busy && !amountsLocked && !agentReviewRequired && creditLoaded &&
+        (!checkActive || walletSelected) && (walletAvailable > 0L || walletSelected)
+    val onlineEditable = !busy && (onlineSelected || (onlineAvailable && !agentReviewRequired))
+    fun openDeposit() {
+        patch {
+            if (!it.b("cash_enabled")) toggleSettlementPart(it, "cash", true, currentTotal)
+            if (it.has(CashDepositRows.field) || !deposit)
+                CashDepositRows.setMethods(it, true, onlineSelected && mixedCashAvailable, CashDepositRows.onlineAmount(it), amountsLocked)
         }
-        if (invoiceType == "رسمی") {
-            DesignNotice("فاکتور رسمی — فروشنده: هوشمند پرداز پویا تجارت قدیر — شناسه ملی ۱۴۰۱۰۳۶۶۳۹۵")
+        openEditor(SettlementEditor.Deposit)
+    }
+    fun updateOnline(amount: Long) {
+        patch {
+            if (!it.b("cash_enabled")) toggleSettlementPart(it, "cash", true, currentTotal)
+            val hasReceipts = it.has(CashDepositRows.field) || PaymentProofSelection.read(it, "cash").isNotEmpty()
+            val keepDeposit = deposit && ((mixedCashAvailable && hasReceipts) || amount == 0L)
+            CashDepositRows.setMethods(it, keepDeposit, true, amount, amountsLocked)
         }
-        DropdownField(
-            "دستهٔ تسویه",
-            when (section) {
-                SettlementSection.Cash -> "نقد"
-                SettlementSection.NonCash -> "غیر نقد"
-                null -> "انتخاب نقد یا غیر نقد"
-            },
-            SettlementSection.entries.toList(),
-            { if (it == SettlementSection.Cash) "نقد" else "غیر نقد" },
-        ) {
-            if (!busy) {
-                section = it
-                editor = null
-                validateEditor = false
-                walletOpen = false
+    }
+    fun openOnline() {
+        if (!onlineSelected && !amountsLocked) updateOnline(remaining)
+        openEditor(SettlementEditor.Online)
+    }
+    fun openCheck() {
+        if (!checkActive) selectNonCash("check")
+        awaitingCredit = false
+        openEditor(SettlementEditor.Check)
+    }
+    fun openCredit() {
+        if (!creditActive) awaitingCredit = true
+        openEditor(SettlementEditor.Credit)
+    }
+    fun openWallet() {
+        if (walletEditable && !walletSelected)
+            patch { SettlementSelection(currentTotal).setWallet(it, true, walletAvailable, walletAvailable) }
+        openEditor(SettlementEditor.Wallet)
+    }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        CheckoutAmountHero(invoiceTotal, settlementAllocated(value), remaining)
+        Text("انتخاب روش‌های تسویه", color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PaymentMethodCard(SettlementEditor.Wallet, walletSelected, !busy && !agentReviewRequired, walletEditable,
+                Modifier.weight(1f), ::openWallet) { if (it) openWallet() else disableMethod(SettlementEditor.Wallet) }
+            PaymentMethodCard(SettlementEditor.Online, onlineSelected, onlineEditable && (!amountsLocked || onlineSelected),
+                onlineEditable && !amountsLocked, Modifier.weight(1f), ::openOnline) {
+                if (it) openOnline() else disableMethod(SettlementEditor.Online)
             }
         }
-        if (section == SettlementSection.NonCash) {
-            fun openCheck() {
-                if (!checkActive) selectNonCash("check")
-                awaitingCredit = false
-                openEditor(SettlementEditor.Check)
-            }
-            fun openCredit() {
-                if (!creditActive) awaitingCredit = true
-                openEditor(SettlementEditor.Credit)
-            }
-            SettlementMethodTitle("چک", checkActive, !busy && (checkActive || !amountsLocked), !busy && !amountsLocked,
-                onOpen = { openCheck() }, onCheckedChange = { if (it) openCheck() else disableMethod(SettlementEditor.Check) })
-            SettlementMethodTitle("اعتبار", creditActive || awaitingCredit, !busy && (creditActive || !amountsLocked), !busy && !amountsLocked,
-                onOpen = { openCredit() }, onCheckedChange = { if (it) openCredit() else disableMethod(SettlementEditor.Credit) })
-            if (awaitingCredit && creditLoading) Text("در حال دریافت اعتبار…", color = Muted)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PaymentMethodCard(SettlementEditor.Credit, creditActive || awaitingCredit, !busy && (creditActive || !amountsLocked),
+                !busy && !amountsLocked, Modifier.weight(1f), ::openCredit) { if (it) openCredit() else disableMethod(SettlementEditor.Credit) }
+            PaymentMethodCard(SettlementEditor.Deposit, depositSelected, !busy && (!amountsLocked || depositSelected),
+                !busy && !amountsLocked, Modifier.weight(1f), ::openDeposit) { if (it) openDeposit() else disableMethod(SettlementEditor.Deposit) }
         }
-        if (section == SettlementSection.Cash) {
-            val onlineSelected = value.b("cash_enabled") && value.b("cash_online")
-            val online = CashDepositRows.requiresOnline(value)
-            val deposit = CashDepositRows.depositEnabled(value)
-            val depositSelected = value.b("cash_enabled") && deposit
-            fun openDeposit() {
-                patch {
-                    if (!it.b("cash_enabled")) toggleSettlementPart(it, "cash", true, currentTotal)
-                    if (it.has(CashDepositRows.field) || !deposit) CashDepositRows.setMethods(it, true, onlineSelected && mixedCashAvailable, CashDepositRows.onlineAmount(it), amountsLocked)
-                }
-                openEditor(SettlementEditor.Deposit)
+        PaymentMethodCard(SettlementEditor.Check, checkActive, !busy && (checkActive || !amountsLocked), !busy && !amountsLocked,
+            Modifier.fillMaxWidth(), ::openCheck, horizontal = true) { if (it) openCheck() else disableMethod(SettlementEditor.Check) }
+        if (agentReviewRequired) Text("پرداخت آنلاین و کیف پول پس از بررسی تسویه عامل فروش در دسترس است.", color = Muted)
+        if (remaining > 0L && onlineEditable && !amountsLocked)
+            TextButton(onClick = ::openOnline) { Text("پرداخت آنلاین مانده") }
+        CheckoutAmountFooter(settlementAllocated(value), remaining)
+    }
+
+    val currentEditor = editor
+    if (currentEditor != null) PaymentMethodDialog(currentEditor, busy, onClose = {
+        awaitingCredit = false
+        editor = null
+    }) {
+        if (editor == SettlementEditor.Online) {
+            SettlementAmountField("پرداخت آنلاین", CashDepositRows.onlineAmount(value).takeIf { it > 0 }?.toString().orEmpty(),
+                !busy && (!amountsLocked || deposit), fieldError = if (validateEditor && !online) "مبلغ پرداخت آنلاین را وارد کنید." else "") { raw ->
+                updateOnline(asciiDigits(raw).filter(Char::isDigit).take(15).toLongOrNull() ?: 0L)
             }
-            SettlementMethodTitle("واریز به حساب", depositSelected, !busy && (!amountsLocked || value.b("cash_enabled")), !busy && !amountsLocked,
-                onOpen = { openDeposit() }, onCheckedChange = { if (it) openDeposit() else disableMethod(SettlementEditor.Deposit) })
-            val combine = deposit && mixedCashAvailable &&
-                (value.has(CashDepositRows.field) || PaymentProofSelection.read(value, "cash").isNotEmpty())
-            fun updateOnline(amount: Long) {
-                patch {
-                    if (!it.b("cash_enabled")) toggleSettlementPart(it, "cash", true, currentTotal)
-                    val keepDeposit = combine || (amount == 0L && deposit)
-                    CashDepositRows.setMethods(it, keepDeposit, true, amount, amountsLocked)
+            val maximum = remaining + CashDepositRows.onlineAmount(value)
+            if (!amountsLocked && maximum > 0L) Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                listOf(100, 75, 50, 25).forEach { percent ->
+                    OutlinedButton(
+                        { updateOnline(maximum / 100L * percent + maximum % 100L * percent / 100L) },
+                        modifier = Modifier.weight(1f), enabled = !busy, contentPadding = PaddingValues(horizontal = 3.dp),
+                    ) { Text(if (percent == 100) "کل مبلغ" else faNumber(percent) + "٪", fontSize = 12.sp) }
                 }
             }
-            fun openOnline() {
-                if (!onlineSelected) updateOnline(remaining)
-                openEditor(SettlementEditor.Online)
-            }
-            val onlineEditable = !busy && (onlineSelected || (onlineAvailable && !agentReviewRequired))
-            SettlementMethodTitle("پرداخت آنلاین", onlineSelected, onlineEditable && (!amountsLocked || value.b("cash_enabled")),
-                onlineEditable && !amountsLocked,
-                onOpen = { openOnline() }, onCheckedChange = { if (it) openOnline() else disableMethod(SettlementEditor.Online) })
-            if (editor == SettlementEditor.Online) {
-                SettlementAmountField("پرداخت آنلاین", CashDepositRows.onlineAmount(value).takeIf { it > 0 }?.toString().orEmpty(),
-                    !busy && (!amountsLocked || deposit), fieldError = if (validateEditor && !online) "مبلغ پرداخت آنلاین را وارد کنید." else "") { raw ->
-                    updateOnline(asciiDigits(raw).filter(Char::isDigit).take(15).toLongOrNull() ?: 0L)
+            Text("بعد از ثبت سفارش می‌توانید این مبلغ را در درگاه ایران‌کیش پرداخت کنید.", color = Muted)
+        }
+        if (deposit && editor == SettlementEditor.Deposit) {
+            when (invoiceType) {
+                "رسمی" -> {
+                    DetailLine("شناسه ملی فروشنده", faDigits("۱۴۰۱۰۳۶۶۳۹۵"))
+                    DetailLine("صاحب حساب", BuildConfig.CHEQUE_FORMAL_PAYEE)
+                    DetailLine("شماره شبا", "\u2066${BuildConfig.FORMAL_CASH_IBAN}\u2069")
                 }
-                Text("بعد از ثبت سفارش می‌توانید این مبلغ را در درگاه ایران‌کیش پرداخت کنید.", color = Muted)
-            }
-            if (deposit && editor == SettlementEditor.Deposit) {
-                when (invoiceType) {
-                    "رسمی" -> {
-                        DetailLine("صاحب حساب", BuildConfig.CHEQUE_FORMAL_PAYEE)
-                        DetailLine("شماره شبا", "\u2066${BuildConfig.FORMAL_CASH_IBAN}\u2069")
-                    }
-                    "غیررسمی" -> {
-                        DetailLine("صاحب حساب", BuildConfig.CHEQUE_INFORMAL_PAYEE)
-                        DetailLine("شماره کارت", "\u2066${BuildConfig.INFORMAL_CASH_CARD}\u2069")
-                        DetailLine("شماره شبا", "\u2066${BuildConfig.INFORMAL_CASH_IBAN}\u2069")
-                    }
+                "غیررسمی" -> {
+                    DetailLine("صاحب حساب", BuildConfig.CHEQUE_INFORMAL_PAYEE)
+                    DetailLine("شماره کارت", "\u2066${BuildConfig.INFORMAL_CASH_CARD}\u2069")
+                    DetailLine("شماره شبا", "\u2066${BuildConfig.INFORMAL_CASH_IBAN}\u2069")
                 }
-                DesignField("شماره پیگیری", value.s("tracking_number"), { set("tracking_number", asciiDigits(it).take(100)) }, "شماره پیگیری انتقال — در صورت پرداخت", enabled = !busy)
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    deposits.forEachIndexed { index, deposit ->
-                        key(index) {
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    verticalAlignment = Alignment.Bottom) {
-                                    Box(Modifier.weight(3f)) {
-                                        SettlementAmountField("فیش ${faNumber(index + 1)}", deposit.amount.takeIf { it > 0 }?.toString().orEmpty(),
-                                            enabled = !busy, compact = true,
-                                            fieldError = if (validateEditor && deposit.amount <= 0L) "مبلغ فیش را وارد کنید." else "") { raw ->
-                                            val amount = asciiDigits(raw).filter(Char::isDigit).take(15).toLongOrNull() ?: 0L
-                                            editDeposit(index) { it.copy(amount = amount) }
-                                        }
-                                    }
-                                    Box(Modifier.weight(2f)) {
-                                        ImageUploadButton(if (deposit.image.isBlank()) "بارگذاری عکس" else "تعویض عکس",
-                                            enabled = !busy, singleSelection = true) { uris ->
-                                            uris.firstOrNull()?.let { attachCashReceipt(index, it) }
-                                        }
+            }
+            DesignField("شماره پیگیری", value.s("tracking_number"), { set("tracking_number", asciiDigits(it).take(100)) }, "شماره پیگیری انتقال — در صورت پرداخت", enabled = !busy)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                deposits.forEachIndexed { index, deposit ->
+                    key(index) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.Bottom) {
+                                Box(Modifier.weight(3f)) {
+                                    SettlementAmountField("فیش ${faNumber(index + 1)}", deposit.amount.takeIf { it > 0 }?.toString().orEmpty(),
+                                        enabled = !busy, compact = true,
+                                        fieldError = if (validateEditor && deposit.amount <= 0L) "مبلغ فیش را وارد کنید." else "") { raw ->
+                                        val amount = asciiDigits(raw).filter(Char::isDigit).take(15).toLongOrNull() ?: 0L
+                                        editDeposit(index) { it.copy(amount = amount) }
                                     }
                                 }
-                                if (uploadField == "deposit:" + index && uploadError.isNotBlank()) Text(uploadError, color = Danger)
-                                if (validateEditor && !deferProof && deposit.image.isBlank())
-                                    Text("عکس فیش را بارگذاری کنید یا گزینهٔ ارسال بعداً را بزنید.", color = Danger)
-                                if (deposit.image.isNotBlank()) ProofThumbnail(deposit.image, "فیش ${faNumber(index + 1)}")
-                                if (deposits.size > 1 || deposit.image.isNotBlank()) {
-                                    IconButton(
-                                        modifier = Modifier.align(Alignment.CenterHorizontally),
-                                        enabled = !busy,
-                                        onClick = {
-                                            patch { next ->
-                                                val rows = CashDepositRows.read(next)
-                                                val revised = if (rows.size > 1) rows.filterIndexed { i, _ -> i != index }
-                                                    else rows.map { it.copy(image = "") }
-                                                CashDepositRows.set(next, revised, amountsLocked)
-                                            }
-                                        },
-                                    ) {
-                                        val label = if (deposits.size > 1) "حذف فیش" else "حذف عکس فیش"
-                                        Icon(Icons.Default.Close, contentDescription = "$label ${faNumber(index + 1)}",
-                                            tint = if (busy) Muted else Danger)
+                                Box(Modifier.weight(2f)) {
+                                    ImageUploadButton(if (deposit.image.isBlank()) "بارگذاری عکس" else "تعویض عکس",
+                                        enabled = !busy, singleSelection = true) { uris ->
+                                        uris.firstOrNull()?.let { attachCashReceipt(index, it) }
                                     }
+                                }
+                            }
+                            if (uploadField == "deposit:" + index && uploadError.isNotBlank()) Text(uploadError, color = Danger)
+                            if (validateEditor && !deferProof && deposit.image.isBlank())
+                                Text("عکس فیش را بارگذاری کنید یا گزینهٔ ارسال بعداً را بزنید.", color = Danger)
+                            if (deposit.image.isNotBlank()) ProofThumbnail(deposit.image, "فیش ${faNumber(index + 1)}")
+                            if (deposits.size > 1 || deposit.image.isNotBlank()) {
+                                IconButton(
+                                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                                    enabled = !busy,
+                                    onClick = {
+                                        patch { next ->
+                                            val rows = CashDepositRows.read(next)
+                                            val revised = if (rows.size > 1) rows.filterIndexed { i, _ -> i != index }
+                                                else rows.map { it.copy(image = "") }
+                                            CashDepositRows.set(next, revised, amountsLocked)
+                                        }
+                                    },
+                                ) {
+                                    val label = if (deposits.size > 1) "حذف فیش" else "حذف عکس فیش"
+                                    Icon(Icons.Default.Close, contentDescription = "$label ${faNumber(index + 1)}",
+                                        tint = if (busy) Muted else Danger)
                                 }
                             }
                         }
                     }
                 }
-                DetailLine("جمع مبلغ فیش‌ها", formatMoney(deposits.sumOf { it.amount }) + " تومان")
-                OutlinedButton(enabled = !busy && deposits.size < BuildConfig.PROOF_MAX_FILES_PER_KIND, onClick = {
-                    patch { next -> CashDepositRows.set(next, CashDepositRows.read(next) + CashDeposit(), amountsLocked) }
-                }) { Text("+ افزودن فیش") }
             }
+            DetailLine("جمع مبلغ فیش‌ها", formatMoney(deposits.sumOf { it.amount }) + " تومان")
+            OutlinedButton(enabled = !busy && deposits.size < BuildConfig.PROOF_MAX_FILES_PER_KIND, onClick = {
+                patch { next -> CashDepositRows.set(next, CashDepositRows.read(next) + CashDeposit(), amountsLocked) }
+            }) { Text("+ افزودن فیش") }
         }
         if (editor == SettlementEditor.Check && checkActive && !awaitingCredit) {
             val payeeNote = ChequePayeePolicy().instructionsFor(invoiceType)
@@ -460,20 +460,30 @@ internal fun SettlementForm(
             if (creditAmount > 0L) CreditCommitment(value, onChange)
             if (validateEditor && !value.b("terms_accepted")) Text("شرایط درخواست اعتبار را بپذیرید.", color = Danger)
         }
-        val openEditor = editor
-        if (openEditor != null && !awaitingCredit) {
-            GhadirButton("ذخیره روش تسویه", {
-                validateEditor = true
-                val issue = when (openEditor) {
-                    SettlementEditor.Deposit -> CashDepositRows.depositError(value)
-                    SettlementEditor.Online -> if (CashDepositRows.onlineAmount(value) <= 0L) "مبلغ پرداخت آنلاین را وارد کنید." else ""
-                    SettlementEditor.Check -> SettlementProofRules.checkError(value)
-                    SettlementEditor.Credit -> if (creditAmount <= 0L || creditOverLimit || !value.b("terms_accepted")) "مبلغ و تعهد اعتباری را تکمیل کنید." else ""
-                }
-                if (issue.isBlank()) confirmation = true
-                else if (openEditor == SettlementEditor.Deposit && issue.contains("جمع مبلغ")) amountWarning = issue
-            }, enabled = !busy && (openEditor != SettlementEditor.Credit || creditLoaded))
-
+        if (currentEditor == SettlementEditor.Wallet) {
+            DetailLine("موجودی قابل استفاده کیف پول", formatMoney(walletAvailable) + " تومان")
+            when {
+                !creditLoaded -> Text(if (creditLoading) "در حال دریافت موجودی…" else "موجودی دریافت نشد.", color = Muted)
+                checkActive && !walletSelected -> Text("کیف پول با تسویه چکی ترکیب نمی‌شود.", color = Muted)
+                walletSelected -> SettlementAmountField("کیف پول", amountText("wallet"), enabled = !busy && !amountsLocked) { setAmount("wallet", it) }
+            }
+            if (walletOverLimit) Text("موجودی کیف پول برای این مبلغ کافی نیست.", color = Danger)
+        }
+        if (currentEditor == SettlementEditor.Credit && awaitingCredit && creditLoading)
+            Text("در حال دریافت اعتبار…", color = Muted)
+        if (!awaitingCredit) PaymentDialogButton(
+            currentEditor, enabled = !busy && (currentEditor != SettlementEditor.Credit || creditLoaded),
+        ) {
+            validateEditor = true
+            val issue = when (currentEditor) {
+                SettlementEditor.Deposit -> CashDepositRows.depositError(value)
+                SettlementEditor.Online -> if (!online) "مبلغ پرداخت آنلاین را وارد کنید." else ""
+                SettlementEditor.Check -> SettlementProofRules.checkError(value)
+                SettlementEditor.Credit -> if (creditAmount <= 0L || creditOverLimit || !value.b("terms_accepted")) "مبلغ و تعهد اعتباری را تکمیل کنید." else ""
+                SettlementEditor.Wallet -> if (walletOverLimit) "مبلغ کیف پول را کاهش دهید." else ""
+            }
+            if (issue.isBlank()) editor = null
+            else if (currentEditor == SettlementEditor.Deposit && issue.contains("جمع مبلغ")) amountWarning = issue
         }
         if (amountWarning.isNotBlank()) AlertDialog(
             onDismissRequest = { amountWarning = "" },
@@ -481,72 +491,10 @@ internal fun SettlementForm(
             text = { Text(amountWarning) },
             confirmButton = { TextButton(onClick = { amountWarning = "" }) { Text("متوجه شدم") } },
         )
-        if (confirmation) AlertDialog(
-            onDismissRequest = { confirmation = false },
-            title = { Text("روش تسویه ذخیره شد") },
-            text = { Text("اطلاعات در پیش‌نویس سفارش ثبت شد.") },
-            confirmButton = { TextButton(onClick = { confirmation = false; editor = null }) { Text("تأیید") } },
-        )
-        if (agentReviewRequired) Text("پرداخت آنلاین و کیف پول پس از بررسی تسویه عامل فروش در دسترس است.", color = Muted)
-        if (!agentReviewRequired && creditLoaded && (walletAvailable > 0L || value.b("wallet_enabled"))) {
-            val walletSelected = value.b("wallet_enabled")
-            fun showWallet(open: Boolean) {
-                walletOpen = open
-                section = null
-                editor = null
-            }
-            SettlementMethodTitle("کیف پول", walletSelected, !busy, !busy && !amountsLocked && (!checkActive || walletSelected),
-                onOpen = { showWallet(!walletOpen) }, onCheckedChange = { enabled ->
-                    patch { SettlementSelection(currentTotal).setWallet(it, enabled, walletAvailable, walletAvailable) }
-                    showWallet(enabled)
-                })
-        }
-        if (walletOpen && !agentReviewRequired && creditLoaded) {
-            DetailLine("موجودی قابل استفاده کیف پول", formatMoney(walletAvailable) + " تومان")
-            if (checkActive && !value.b("wallet_enabled")) {
-                Text("کیف پول با تسویه چکی ترکیب نمی‌شود.", color = Muted)
-            } else if (value.b("wallet_enabled")) {
-                if (amountsLocked) DetailLine("سهم کیف پول", formatMoney(value.l("wallet_amount")) + " تومان")
-                else SettlementAmountField("کیف پول", amountText("wallet"), enabled = !busy) { setAmount("wallet", it) }
-            }
-            if (walletOverLimit) DesignNotice(if (amountsLocked) "موجودی کیف پول برای مبلغ اعلام‌شده کافی نیست. با شرکت تماس بگیرید." else "مبلغ کیف پول را تا سقف موجودی قابل استفاده کاهش دهید.")
-        }
         if ((creditActive || awaitingCredit || walletNeedsBalance) && !creditLoaded && error.isNotBlank()) {
             GhadirButton("دریافت دوباره اعتبار و موجودی", { retry++ }, secondary = true, enabled = !creditLoading)
         }
         if (!creditLoaded && (creditActive || awaitingCredit || walletNeedsBalance) && error.isNotBlank()) Text(error, color = Danger)
-    }
-}
-
-@Composable
-private fun SettlementMethodTitle(
-    title: String,
-    checked: Boolean,
-    canOpen: Boolean,
-    canToggle: Boolean,
-    onOpen: () -> Unit,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = if (canOpen) AppSecondary else Border,
-        border = BorderStroke(1.dp, Border),
-    ) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                checked = checked,
-                onCheckedChange = onCheckedChange,
-                enabled = canToggle,
-                modifier = Modifier.semantics { contentDescription = "فعال‌سازی $title" },
-            )
-            Box(
-                Modifier.weight(1f).heightIn(min = 48.dp).clickable(enabled = canOpen, onClick = onOpen),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(title, color = if (canOpen) Ink else Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            }
-        }
     }
 }
 

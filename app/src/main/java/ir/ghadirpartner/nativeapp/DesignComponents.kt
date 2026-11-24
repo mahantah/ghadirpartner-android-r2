@@ -157,15 +157,14 @@ internal fun DesignOtp(value:String,onChange:(String)->Unit,label:String="کد �
 }
 
 @Composable
-internal fun PortalBackHeader(title:String,onBack:()->Unit) {
-    Row(Modifier.fillMaxWidth().statusBarsPadding().heightIn(min=84.dp).padding(horizontal=20.dp,vertical=12.dp),
-        verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-        IconButton(onClick=onBack,modifier=Modifier.size(48.dp)) {
-            FigmaSvg("back","بازگشت",Modifier.size(28.dp),tint=ColorFilter.tint(Ink))
-        }
-        Column(Modifier.weight(1f)) {
-            Text(title,color=Ink,fontSize=22.sp,lineHeight=36.sp,fontWeight=FontWeight.Bold)
-            Text("قدیر پارتنر",color=Muted,fontSize=12.sp,lineHeight=20.sp)
+internal fun PortalBackHeader(title: String, onBack: () -> Unit) {
+    Row(Modifier.fillMaxWidth().background(PortalBrandBrush).statusBarsPadding().heightIn(min = 72.dp).padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Image(painterResource(R.drawable.payment_ref_brand), "قدیر پرداخت", Modifier.size(74.dp, 38.dp))
+        Text(title, modifier = Modifier.weight(1f), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center, maxLines = 2)
+        IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
+            FigmaSvg("back", "بازگشت", Modifier.size(25.dp), tint = ColorFilter.tint(Color.White))
         }
     }
 }
@@ -237,11 +236,27 @@ internal fun CheckoutOptionCard(title:String,summary:String,icon:androidx.compos
 
 @Composable
 internal fun ProfileServiceTile(title:String,subtitle:String,icon:androidx.compose.ui.graphics.vector.ImageVector,modifier:Modifier=Modifier,wide:Boolean=false,onClick:()->Unit) {
+    val accent = when (title) {
+        "کیف پول و اعتبار", "کیف پول" -> Color(0xFF008577)
+        "فاکتورهای من", "آدرس‌های منتخب" -> Color(0xFF643CC2)
+        "گزارش خرید", "آفرهای من" -> Color(0xFFB56900)
+        else -> Color(0xFF1769CC)
+    }
+    val artwork = when (title) {
+        "کیف پول و اعتبار", "کیف پول" -> R.drawable.payment_ref_wallet
+        "فاکتورهای من" -> R.drawable.payment_ref_receipt
+        "گزارش خرید" -> R.drawable.payment_ref_credit
+        else -> null
+    }
     Surface(modifier=modifier.clip(RoundedCornerShape(22.dp)).clickable(role=Role.Button,onClick=onClick),
-        shape=RoundedCornerShape(22.dp),color=AppSurface,border=androidx.compose.foundation.BorderStroke(1.dp,Border)) {
+        shape=RoundedCornerShape(22.dp),color=androidx.compose.ui.graphics.lerp(AppSurface,accent,.10f),
+        border=androidx.compose.foundation.BorderStroke(1.dp,accent.copy(alpha=.24f))) {
         Column(Modifier.fillMaxWidth().heightIn(min=if(wide)100.dp else 126.dp).padding(14.dp),
             horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(8.dp,Alignment.CenterVertically)) {
-            Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(AppSecondary),contentAlignment=Alignment.Center){Icon(icon,null,tint=Orange,modifier=Modifier.size(25.dp))}
+            Box(Modifier.size(45.dp).clip(RoundedCornerShape(14.dp)).background(if (artwork == R.drawable.payment_ref_receipt) accent else accent.copy(alpha=.10f)),contentAlignment=Alignment.Center) {
+                if (artwork != null) PaymentArtwork(artwork, Modifier.size(35.dp))
+                else Icon(icon,null,tint=if(AppAppearance.dark)Color.White else accent,modifier=Modifier.size(25.dp))
+            }
             Text(title,color=Ink,fontWeight=FontWeight.Bold,fontSize=14.sp,lineHeight=22.sp,textAlign=TextAlign.Center)
             Text(subtitle,color=Muted,fontSize=11.sp,lineHeight=18.sp,textAlign=TextAlign.Center)
         }

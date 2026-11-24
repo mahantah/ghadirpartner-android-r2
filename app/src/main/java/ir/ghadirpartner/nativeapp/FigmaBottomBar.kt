@@ -74,7 +74,17 @@ fun FigmaBottomBar(
                     .selectable(active, role=Role.Tab, onClick={onSelected(item.key)})
                     .padding(vertical=8.dp), horizontalAlignment=Alignment.CenterHorizontally,
                     verticalArrangement=Arrangement.spacedBy(2.dp, Alignment.CenterVertically)) {
-                    FigmaSvg(asset,null,Modifier.size(26.dp),tint=ColorFilter.tint(if(active)Orange else Muted))
+                    when (item.key) {
+                        "new" -> Box(Modifier.size(26.dp).clip(RoundedCornerShape(7.dp)).background(Color(0xFFFFE5C1)),
+                            contentAlignment = Alignment.Center) {
+                            PaymentArtwork(R.drawable.payment_ref_cart, Modifier.size(19.dp))
+                        }
+                        "orders" -> Box(Modifier.size(26.dp).clip(RoundedCornerShape(7.dp)).background(Color(0xFF5148A7)),
+                            contentAlignment = Alignment.Center) {
+                            PaymentArtwork(R.drawable.payment_ref_receipt, Modifier.size(18.dp))
+                        }
+                        else -> FigmaSvg(asset,null,Modifier.size(26.dp),tint=ColorFilter.tint(if(active)Orange else Muted))
+                    }
                     Text(item.label, color=if(active) Orange else Muted, fontSize=10.sp,
                         fontWeight=if(active) FontWeight.Bold else FontWeight.Normal, maxLines=1)
                 }

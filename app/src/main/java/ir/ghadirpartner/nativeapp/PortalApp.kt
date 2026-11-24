@@ -191,12 +191,15 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
     val keyboardVisible=WindowInsets.ime.getBottom(LocalDensity.current)>0
     val direction=LocalLayoutDirection.current
     val titles = mapOf("documents" to "پیش‌فاکتورهای من", "proforma" to "پیش‌فاکتور", "success" to "سفارش ثبت شد", "serials" to "سریال‌های من", "addresses" to "آدرس‌های من", "home" to "پیشخوان", "catalog" to "قیمت و موجودی", "new" to "ثبت سفارش", "orders" to "سفارش‌های من", "profile" to "پروفایل", "order-detail" to "جزئیات سفارش", "inbox" to "مرکز پیام", "offers" to "طرح‌ها و آفرها")
-    Box(Modifier.fillMaxSize().portalBackdrop()) { Scaffold(
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(
+        if (AppAppearance.dark) listOf(Color(0xFF121D33), Color(0xFF172B43))
+        else listOf(Color(0xFFF4F6FF), Color(0xFFEDF3FC))
+    ))) { Scaffold(
         containerColor = Color.Transparent,
         topBar = {
             val backScreen=screen in setOf("order-detail","documents","proforma","success","addresses","serial-detail","revision") || (screen=="offers"&&selectedOffer!=null) || (screen=="new"&&checkoutTitle!="ثبت سفارش") || (screen=="profile"&&profileTitle!="پروفایل")
             val title=if(screen=="serial-detail")"سریال دستگاه‌ها" else if(screen=="order-detail"&&cancelView)"لغو سفارش" else if(screen=="profile")profileTitle else if(screen=="revision"&&checkoutTitle=="ثبت سفارش")"اصلاح سفارش" else if(screen in setOf("new","revision"))checkoutTitle else if(screen=="offers"&&selectedOffer!=null)"جزئیات آفر" else titles[screen]?:"قدیر پارتنر"
-            if(backScreen) PortalBackHeader(title) {
+            if(backScreen) PortalBackHeader(if(title=="نحوه تسویه") "تسویه حساب" else title) {
                 goBack()
             } else PortalGlassHeader(title,screen=="home",inbox.unread,onOffers={if(!checkoutBusy&&!profileBusy){if(screen=="new")parkActiveCheckout();offersOrigin=screen;selectedOffer=null;screen="offers"}}) {
                 if(!checkoutBusy&&!profileBusy){if(screen=="new")parkActiveCheckout();screen="inbox";appScope.launch {inbox.refresh()}}
@@ -468,12 +471,16 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
 }
 @Composable
 private fun PortalSummaryHero(amount: Long, orders: Int, qty: Int) {
-    Column(verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        Text("خلاصه حساب شما",color=Muted,fontSize=14.sp)
-        GlassSurface { Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            DetailLine("سفارش‌های این ماه", "${faNumber(orders)} سفارش")
-            DetailLine("خرید این ماه", "${formatMoney(amount)} تومان")
-        } }
+    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), color = Navy) {
+        Row(Modifier.background(PortalBrandBrush).padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text("خلاصه حساب شما", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("خرید این ماه: ${formatMoney(amount)} تومان", color = Color(0xFFFFC574), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("${faNumber(orders)} سفارش · ${faNumber(qty)} دستگاه", color = Color.White, fontSize = 12.sp)
+            }
+            PaymentArtwork(R.drawable.payment_ref_hero, Modifier.size(82.dp, 64.dp))
+        }
     }
 }
 
@@ -1155,7 +1162,7 @@ private fun PortalNewOrder(
                     fieldError=if(settlementAttempt>0 && settlement.s("agent_change_reason").isBlank()) "علت تغییر روش تسویه را وارد کنید." else "")
             }
             if(settlementChoiceError.isNotBlank()) item { Text(settlementChoiceError,color=Danger) }
-            item {ApprovedButton("ادامه به نحوه ارسال",{
+            item {ApprovedButton("ادامه و ثبت تسویه",{
                 val draft = checkout()
                 val issue = checkoutService.validation(draft)
                 error = ""
@@ -1167,7 +1174,7 @@ private fun PortalNewOrder(
                         issue.startsWith("علت درخواست") || issue.startsWith("شرایط درخواست") -> settlementAttempt++
                     else -> settlementChoiceError = issue
                 }
-            },enabled=!evidenceBusy)}
+            },enabled=!evidenceBusy,modifier=Modifier.fillMaxWidth())}
             if (!agentTermsLocked) item {ApprovedButton("بازگشت و ویرایش",{step=0},secondary=true)}
         } else if(step==2) {
             item {

@@ -62,15 +62,27 @@ internal fun ApprovedButton(
 /** Show the real checkout stages in their RTL progression. */
 @Composable
 internal fun ApprovedCheckoutProgress(step: Int) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        listOf("ثبت سفارش", "نحوه تسویه", "نحوه ارسال", "ثبت نهایی").forEachIndexed { index, title ->
+    val stages = listOf(
+        "سبد خرید" to R.drawable.payment_ref_cart,
+        "تسویه حساب" to R.drawable.payment_ref_card,
+        "اطلاعات ارسال" to R.drawable.payment_ref_shipping,
+        "تأیید نهایی" to R.drawable.payment_ref_done,
+    )
+    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.Top) {
+        stages.forEachIndexed { index, (title, icon) ->
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(if (index < step) Icons.Outlined.CheckCircle else Icons.Outlined.RadioButtonChecked,
-                    null, tint = if (index <= step) ApprovedPalette.accent else ApprovedPalette.muted)
+                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Surface(shape = androidx.compose.foundation.shape.CircleShape,
+                    color = if (index == step) Color(0xFFFF9823) else if (AppAppearance.dark) Color(0xFFBCC9E1) else Color(0xFFE6ECF7),
+                    border = BorderStroke(1.dp, ApprovedPalette.border)) {
+                    PaymentArtwork(icon, Modifier.size(38.dp).padding(8.dp))
+                }
                 Text(title, color = if (index == step) ApprovedPalette.ink else ApprovedPalette.muted,
-                    fontSize = 12.sp, fontWeight = if (index == step) FontWeight.Bold else FontWeight.Normal)
+                    fontSize = 10.sp, fontWeight = if (index == step) FontWeight.Bold else FontWeight.Normal,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
+            if (index < stages.lastIndex) HorizontalDivider(Modifier.weight(.31f).padding(top = 19.dp),
+                color = ApprovedPalette.muted.copy(alpha = .55f))
         }
     }
 }
@@ -84,7 +96,10 @@ internal fun ApprovedPriceCard(product: JSONObject, group: String, expandAll: Bo
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth().clickable { expanded = !expanded },
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                PosTerminalIcon(Modifier.size(34.dp))
+                Surface(shape = RoundedCornerShape(14.dp),
+                    color = androidx.compose.ui.graphics.lerp(ApprovedPalette.surface, Color(0xFF4E83ED), .16f)) {
+                    PosTerminalIcon(Modifier.padding(8.dp).size(30.dp))
+                }
                 Column(Modifier.weight(1f)) {
                     Text(shortProductName(product.s("name")), color = ApprovedPalette.ink,
                         fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -134,7 +149,9 @@ internal fun ApprovedOrderCard(order: JSONObject, onClick: () -> Unit) {
     ApprovedSurface {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Description, null, tint = ApprovedPalette.ink)
+                Surface(shape = RoundedCornerShape(13.dp), color = Color(0xFF5148A7)) {
+                    PaymentArtwork(R.drawable.payment_ref_receipt, Modifier.size(41.dp).padding(9.dp))
+                }
                 Text(faDigits(order.s("number")), color = ApprovedPalette.ink, fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
                 StatusPill(order.s("status"))
@@ -175,7 +192,7 @@ internal fun ApprovedWalletBalance(wallet: JSONObject) {
                     Text("قدیر پارتنر", color = Color.White, fontWeight = FontWeight.Bold)
                     Text("موجودی کیف پول", color = Color.White.copy(alpha = .8f), fontSize = 12.sp)
                 }
-                Icon(Icons.Outlined.CreditCard, null, tint = ApprovedPalette.accent, modifier = Modifier.size(36.dp))
+                PaymentArtwork(R.drawable.payment_ref_hero, Modifier.size(72.dp, 51.dp))
             }
             Text(formatMoney(wallet.l("balance")) + " تومان", color = Color.White,
                 fontSize = 26.sp, fontWeight = FontWeight.Bold)
@@ -200,7 +217,7 @@ internal fun ApprovedWalletCredit(account: JSONObject) {
     ApprovedSurface {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth().clickable { expanded = !expanded }, verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.ShoppingCart, null, tint = ApprovedPalette.accent)
+                PaymentArtwork(R.drawable.payment_ref_credit, Modifier.size(38.dp))
                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                     Text("اعتبار خرید", color = ApprovedPalette.muted)
                     Text(formatMoney(account.l("available")) + " تومان", color = ApprovedPalette.ink, fontWeight = FontWeight.Bold)
