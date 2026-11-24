@@ -3,7 +3,6 @@ package ir.ghadirpartner.nativeapp
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.verticalScroll
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -58,9 +57,7 @@ class DesignFlowTest {
             scenario.onActivity {activity->
                 if(AppAppearance.dark)AppAppearance.toggle(activity)
                 activity.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){
-                    androidx.compose.foundation.layout.Column(
-                        androidx.compose.ui.Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())
-                    ) { CustomerWallet(ApiClient(activity,client())) }
+                    ButtonPagedColumn() { CustomerWallet(ApiClient(activity,client())) }
                 }}}
             }
             waitText("۱۲٬۵۰۰٬۰۰۰ تومان")
@@ -68,7 +65,7 @@ class DesignFlowTest {
             compose.onNodeWithText("۲٬۰۰۰٬۰۰۰ تومان").assertExists()
             compose.onNodeWithText("۳۰٬۰۰۰٬۰۰۰ تومان").assertExists()
             shot("design-wallet-day.png",scrollToTop=false)
-            compose.onNodeWithText("شارژ کیف پول").performScrollTo().performClick()
+            compose.revealOnPage(hasText("شارژ کیف پول")).performClick()
             compose.onNodeWithContentDescription("مبلغ به تومان").assertExists()
             compose.onNodeWithText("انصراف").performClick()
             scenario.onActivity {AppAppearance.toggle(context)}
@@ -114,11 +111,11 @@ class DesignFlowTest {
                 } }
             } }
             waitText("ورود به قدیر پارتنر")
-            compose.onNodeWithContentDescription("شماره همراه").performScrollTo().performTextReplacement("۰۹۱۲۱۲۳۴۵۶۷")
-            compose.onNodeWithText("ورود با کد پیامکی").performScrollTo().assertIsDisplayed().performClick()
+            compose.revealOnPage(hasContentDescription("شماره همراه")).performTextReplacement("۰۹۱۲۱۲۳۴۵۶۷")
+            compose.revealOnPage(hasText("ورود با کد پیامکی")).assertIsDisplayed().performClick()
             waitText("کد تأیید را وارد کنید")
-            compose.onNodeWithContentDescription("کد شش‌رقمی").performScrollTo().performTextInput("۱۲۳۴۵۶")
-            compose.onNodeWithText("تأیید و ورود").performScrollTo().assertIsDisplayed().performClick()
+            compose.revealOnPage(hasContentDescription("کد شش‌رقمی")).performTextInput("۱۲۳۴۵۶")
+            compose.revealOnPage(hasText("تأیید و ورود")).assertIsDisplayed().performClick()
             compose.waitUntil(uiWaitTimeoutMs) { logged.get() == 1 }
             assertEquals("09121234567", writes.single { it.first == "/api/native/login-otp/request" }.second.s("mobile"))
             assertEquals("123456", writes.single { it.first == "/api/native/login-otp/confirm" }.second.s("otp"))
@@ -192,8 +189,7 @@ class DesignFlowTest {
     }.build()
     private fun shot(name:String,scrollToTop:Boolean=true) {
         compose.waitForIdle()
-        val lists=compose.onAllNodes(hasScrollToIndexAction())
-        if(scrollToTop&&lists.fetchSemanticsNodes().size==1)lists.onFirst().performScrollToIndex(0)
+        if (scrollToTop) compose.returnToFirstPage()
         compose.waitForIdle()
         val instrumentation=InstrumentationRegistry.getInstrumentation()
         val bitmap=compose.onAllNodes(isRoot()).onLast().captureToImage().asAndroidBitmap()
@@ -212,48 +208,14 @@ class DesignFlowTest {
             throw AssertionError("Timed out waiting for UI text: $text\n"+compose.onRoot().printToString(), error)
         }
     }
-    private fun showText(text:String) {
-        if(compose.onAllNodes(hasContentDescription("خلاصه ثابت سفارش") and hasAnyDescendant(hasText(text))).fetchSemanticsNodes().isNotEmpty()) {
-            compose.onAllNodesWithText(text).onLast().assertIsDisplayed()
-            return
-        }
-        val lists=compose.onAllNodes(hasScrollToIndexAction())
-        if(compose.onAllNodes(isDialog()).fetchSemanticsNodes().isEmpty() && lists.fetchSemanticsNodes().size==1)lists.onFirst().performScrollToNode(hasText(text))
-        compose.onAllNodesWithText(text).onLast().performScrollTo()
-        if(compose.onAllNodes(isDialog()).fetchSemanticsNodes().isEmpty()) clearFloatingBarOverlap(compose.onAllNodesWithText(text).onLast())
+    private fun showText(text: String) {
+        compose.revealOnPage(hasText(text))
     }
-    private fun showField(description:String) {
-        // The fixed summary is a sibling of the list and must never be searched by scrolling it.
-        if(compose.onAllNodes(hasContentDescription("خلاصه ثابت سفارش") and
-            hasAnyDescendant(hasContentDescription(description))).fetchSemanticsNodes().isNotEmpty()) {
-            compose.onNodeWithContentDescription(description).assertIsDisplayed()
-            return
-        }
-        val lists=compose.onAllNodes(hasScrollToIndexAction())
-        if(compose.onAllNodes(isDialog()).fetchSemanticsNodes().isEmpty() && lists.fetchSemanticsNodes().size==1)lists.onFirst().performScrollToNode(hasContentDescription(description))
-        compose.onNodeWithContentDescription(description).performScrollTo()
-        if(compose.onAllNodes(isDialog()).fetchSemanticsNodes().isEmpty()) clearFloatingBarOverlap(compose.onNodeWithContentDescription(description))
+
+    private fun showField(description: String) {
+        compose.revealOnPage(hasContentDescription(description))
     }
-    private fun clearFloatingBarOverlap(node:SemanticsNodeInteraction) {
-        // A clipped node's bounds can initially hide part of the button. Re-read
-        // after each scroll, and finish the pending frame before the tap.
-        repeat(4) {
-            compose.waitForIdle()
-            val bars=compose.onAllNodesWithContentDescription("ناوبری شناور").fetchSemanticsNodes()
-            if(bars.isEmpty())return
-            val footers=compose.onAllNodesWithContentDescription("خلاصه ثابت سفارش").fetchSemanticsNodes()
-            val visibleBottom=(bars+footers).minOf {it.boundsInRoot.top}
-            val overlap=node.fetchSemanticsNode().boundsInRoot.bottom-visibleBottom+12f
-            if(overlap<=0)return
-            compose.onAllNodes(hasScrollToIndexAction()).onFirst()
-                .performSemanticsAction(SemanticsActions.ScrollBy){it(0f,overlap)}
-            compose.waitForIdle()
-        }
-        compose.waitForIdle()
-        val top=(compose.onAllNodesWithContentDescription("ناوبری شناور").fetchSemanticsNodes()+
-            compose.onAllNodesWithContentDescription("خلاصه ثابت سفارش").fetchSemanticsNodes()).minOf {it.boundsInRoot.top}
-        assertTrue("Control must be above the floating navigation before tapping",node.fetchSemanticsNode().boundsInRoot.bottom<=top)
-    }
+
     /** Exercise address and shipping as a distinct stage, independent of payment. */
     private fun chooseShipping() {
         waitText("نحوه ارسال")
@@ -269,8 +231,8 @@ class DesignFlowTest {
     }
     private fun deferCashProof() {
         showText("واریز به حساب");compose.onNodeWithText("واریز به حساب").performClick()
-        compose.onNodeWithContentDescription("ارسال تصویر بعداً").performScrollTo().performClick()
-        compose.onNodeWithText("ثبت و بازگشت").performScrollTo().performClick()
+        compose.revealOnPage(hasContentDescription("ارسال تصویر بعداً")).performClick()
+        compose.revealOnPage(hasText("ثبت و بازگشت")).performClick()
     }
 
     private fun chooseInvoice() {
@@ -287,13 +249,14 @@ class DesignFlowTest {
             compose.onNodeWithContentDescription("حالت شب").performClick();shot("design-home-night.png")
             compose.onNodeWithContentDescription("حالت روز").performClick()
             compose.onAllNodesWithText("قیمت‌ها").onLast().performClick()
-            waitText("افزودن به سفارش")
+            showText("افزودن به سفارش")
+            compose.onNode(hasText("قیمت و موجودی") and hasAnyAncestor(isDialog())).assertIsDisplayed()
             compose.onNodeWithContentDescription("جستجوی مدل یا شرکت سازنده").assertDoesNotExist()
             compose.onNodeWithContentDescription("فیلتر لیست قیمت‌ها").performClick()
             waitText("جست‌وجو و فیلتر قیمت‌ها")
             compose.onNodeWithContentDescription("جستجوی مدل یا شرکت سازنده").performTextInput("i90")
             hideKeyboard(scenario)
-            compose.onNodeWithText("نمایش نتایج").performScrollTo().performClick()
+            compose.revealOnPage(hasText("نمایش نتایج")).performClick()
             compose.waitUntil(uiWaitTimeoutMs) {
                 compose.onAllNodesWithContentDescription("جستجوی مدل یا شرکت سازنده").fetchSemanticsNodes().isEmpty()
             }
@@ -302,12 +265,13 @@ class DesignFlowTest {
             compose.onNodeWithContentDescription("دسته قیمت پنل").assertDoesNotExist()
             compose.onNodeWithContentDescription("فیلتر لیست قیمت‌ها").performClick()
             compose.onNodeWithContentDescription("دسته قیمت پنل").performClick()
-            compose.onNodeWithText("نمایش نتایج").performScrollTo().performClick()
+            compose.revealOnPage(hasText("نمایش نتایج")).performClick()
             compose.onNodeWithText("۱۱٬۰۰۰٬۰۰۰ تومان").assertExists();shot("design-catalog-panel.png")
             compose.onNodeWithContentDescription("فیلتر لیست قیمت‌ها").performClick()
             compose.onNodeWithContentDescription("دسته قیمت عاملین فروش").performClick()
-            compose.onNodeWithText("نمایش نتایج").performScrollTo().performClick()
+            compose.revealOnPage(hasText("نمایش نتایج")).performClick()
             compose.onAllNodesWithText("۱۱٬۲۰۰٬۰۰۰ تومان").onLast().assertExists();shot("design-catalog-agent.png")
+            compose.onNode(hasContentDescription("بستن") and hasAnyAncestor(isDialog())).performClick()
             compose.onAllNodesWithText("ثبت سفارش").onLast().performClick()
             compose.waitUntil(15000){compose.onAllNodesWithContentDescription("مدل دستگاه").fetchSemanticsNodes().isNotEmpty()}
             showField("مدل دستگاه");compose.onNodeWithContentDescription("مدل دستگاه").performClick()
@@ -336,7 +300,7 @@ class DesignFlowTest {
             checkToggle.assertIsOn()
             hideKeyboard(scenario)
             compose.waitForIdle()
-            compose.onNodeWithText("ثبت و بازگشت").performScrollTo().performClick()
+            compose.revealOnPage(hasText("ثبت و بازگشت")).performClick()
             waitText("شناسه صیادی باید ۱۶ رقم باشد.")
             compose.onNodeWithText("شناسه صیادی باید ۱۶ رقم باشد.").assertExists()
             assertTrue(writes.isEmpty())
@@ -347,8 +311,8 @@ class DesignFlowTest {
             shot("design-checkout-calendar.png")
             compose.onNodeWithText("تأیید تاریخ").performClick()
             hideKeyboard(scenario);shot("design-checkout-check.png")
-            compose.onNodeWithContentDescription("ارسال تصویر بعداً").performScrollTo().performClick()
-            compose.onNodeWithText("ثبت و بازگشت").performScrollTo().performClick()
+            compose.revealOnPage(hasContentDescription("ارسال تصویر بعداً")).performClick()
+            compose.revealOnPage(hasText("ثبت و بازگشت")).performClick()
             showText("ادامه و ثبت تسویه");compose.onNodeWithText("ادامه و ثبت تسویه").performClick()
             completeShipping()
             waitText("مشاهده سبد و ثبت نهایی")
@@ -359,9 +323,9 @@ class DesignFlowTest {
             hideKeyboard(scenario)
             showText("اعتبار حساب شما")
             showField("پذیرش تعهد اعتبار")
-            compose.onNodeWithContentDescription("پذیرش تعهد اعتبار").performScrollTo().performClick()
+            compose.revealOnPage(hasContentDescription("پذیرش تعهد اعتبار")).performClick()
             shot("design-checkout-credit.png", scrollToTop = false)
-            compose.onNodeWithText("ثبت و بازگشت").performScrollTo().performClick()
+            compose.revealOnPage(hasText("ثبت و بازگشت")).performClick()
             showText("ادامه و ثبت تسویه")
             compose.waitUntil(15000){compose.onAllNodes(hasText("ادامه و ثبت تسویه") and isEnabled()).fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithText("ادامه و ثبت تسویه").performClick()
@@ -388,8 +352,9 @@ class DesignFlowTest {
             compose.onAllNodesWithText("سفارش‌ها").onLast().performClick()
             waitText("جزئیات سفارش");shot("design-orders.png")
             showText("جزئیات سفارش");compose.onNodeWithText("جزئیات سفارش").performClick()
+            compose.onNode(hasText("جزئیات سفارش") and hasAnyAncestor(isDialog())).assertIsDisplayed()
             showText("رسیدهای ارسال")
-            waitText("کالارسان")
+            showText("کالارسان")
             showText("مشاهده رسید ارسال ۱")
             compose.onNodeWithText("مشاهده رسید ارسال ۱").performClick()
             compose.waitUntil(10000){compose.onAllNodesWithContentDescription("رسید ارسال ۱").fetchSemanticsNodes().isNotEmpty()}
@@ -404,7 +369,7 @@ class DesignFlowTest {
             scenario.onActivity {a->a.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){PortalApp(ApiClient(a,client()),me,{})}}}}
             waitText("سلام، علی رضایی")
             compose.onAllNodesWithText("قیمت‌ها").onLast().performClick()
-            waitText("افزودن به سفارش")
+            showText("افزودن به سفارش")
             showText("افزودن به سفارش");compose.onNodeWithText("افزودن به سفارش").performClick()
             waitText("افزودن به سبد خرید")
             showText("افزودن به سبد خرید");compose.onNodeWithText("افزودن به سبد خرید").performClick()
@@ -438,8 +403,8 @@ class DesignFlowTest {
             compose.onNodeWithContentDescription("اعلان‌ها").performClick()
             waitText("مشاهده سفارش")
             showText("مشاهده سفارش");compose.onNodeWithText("مشاهده سفارش").performClick()
-            waitText("جزئیات سفارش")
-            compose.onNodeWithContentDescription("بازگشت").performClick()
+            compose.onNode(hasText("جزئیات سفارش") and hasAnyAncestor(isDialog())).assertIsDisplayed()
+            compose.onNode(hasContentDescription("بستن") and hasAnyAncestor(isDialog())).performClick()
             waitText("مرکز پیام")
             compose.onNodeWithText("اعلان‌های سفارش و پیشنهادهای همکاران").assertExists()
         }
@@ -471,7 +436,7 @@ class DesignFlowTest {
             scenario.onActivity {a->a.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){PortalApp(ApiClient(a,client()),me,{})}}}}
             waitText("سلام، علی رضایی")
             compose.onAllNodesWithText("قیمت‌ها").onLast().performClick()
-            waitText("افزودن به سفارش")
+            showText("افزودن به سفارش")
             showText("افزودن به سفارش");compose.onNodeWithText("افزودن به سفارش").performClick()
             waitText("تعداد")
             showField("تعداد کالا");compose.onNodeWithContentDescription("تعداد کالا").performTextReplacement("۱۵۰۶")
@@ -567,7 +532,7 @@ class DesignFlowTest {
                 scenario.onActivity {a->a.setContent {GhadirTheme {LoginScreen(ApiClient(a,client())){}}}}
                 waitText("ورود امن")
                 // CI emulator has no enrolled biometric. Password fallback must remain reachable.
-                compose.onNodeWithText("ورود با رمز عبور").performScrollTo().performClick()
+                compose.revealOnPage(hasText("ورود با رمز عبور")).performClick()
                 waitText("ورود به قدیر پارتنر")
                 compose.waitForIdle()
                 compose.onNodeWithText("ورود امن").assertDoesNotExist()
@@ -582,20 +547,20 @@ class DesignFlowTest {
             scenario.onActivity {a->a.setContent {GhadirTheme {CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){PortalApp(ApiClient(a,client()),me,{})}}}}
             waitText("سلام، علی رضایی")
             compose.onAllNodesWithText("قیمت‌ها").onLast().performClick()
-            waitText("افزودن به سفارش")
+            showText("افزودن به سفارش")
             showText("افزودن به سفارش");compose.onNodeWithText("افزودن به سفارش").performClick()
             waitText("افزودن به سبد خرید")
             showText("افزودن به سبد خرید");compose.onNodeWithText("افزودن به سبد خرید").performClick()
             showField("تنظیم کد تخفیف");compose.onNodeWithContentDescription("تنظیم کد تخفیف").performClick()
             compose.onNodeWithContentDescription("کد تخفیف").performTextInput("MOCK5")
             hideKeyboard(scenario)
-            compose.onNodeWithText("اعمال کد تخفیف").performScrollTo().performClick()
-            compose.onNodeWithText("تأیید و بستن").performScrollTo().performClick()
+            compose.revealOnPage(hasText("اعمال کد تخفیف")).performClick()
+            compose.revealOnPage(hasText("تأیید و بستن")).performClick()
             showText("رسمی");compose.onNodeWithText("رسمی",substring=false).performClick()
             showField("تنظیم توضیحات");compose.onNodeWithContentDescription("تنظیم توضیحات").performClick()
             compose.onNodeWithContentDescription("توضیحات سفارش — اختیاری").performTextInput("تماس قبل از ارسال")
             hideKeyboard(scenario)
-            compose.onNodeWithText("تأیید و بستن").performScrollTo().performClick()
+            compose.revealOnPage(hasText("تأیید و بستن")).performClick()
             showField("تنظیم کد تخفیف")
             compose.onNodeWithText("کد طرح").assertDoesNotExist()
             shot("design-checkout-options.png",scrollToTop=false)
@@ -622,7 +587,7 @@ class DesignFlowTest {
             showText("گزارش خرید")
             val button=compose.onNodeWithText("گزارش خرید").fetchSemanticsNode().boundsInRoot
             val nav=compose.onNodeWithContentDescription("ناوبری شناور").fetchSemanticsNode().boundsInRoot
-            assertTrue("Last service must scroll above the floating bar",button.bottom<=nav.top)
+            assertTrue("Last service must appear above the navigation",button.bottom<=nav.top)
             shot("design-profile-floating.png",scrollToTop=false)
             compose.onNodeWithText("گزارش خرید").performClick()
             waitText("کل دستگاه‌های خریداری‌شده")
@@ -684,11 +649,11 @@ class DesignFlowTest {
             waitText("ورود به قدیر پارتنر");shot("design-login.png")
             compose.onNodeWithContentDescription("شماره همراه").performTextInput("۰۹۱۲۱۲۳۴۵۶۷")
             hideKeyboard(scenario)
-            compose.onNodeWithText("ورود با کد پیامکی").performScrollTo().performClick()
+            compose.revealOnPage(hasText("ورود با کد پیامکی")).performClick()
             waitText("کد تأیید را وارد کنید");shot("design-otp.png")
             compose.onNodeWithContentDescription("کد شش‌رقمی").performTextInput("۱۲۳۴۵۶")
             hideKeyboard(scenario)
-            compose.onNodeWithText("تأیید و ورود").performScrollTo().performClick()
+            compose.revealOnPage(hasText("تأیید و ورود")).performClick()
             compose.waitUntil(15000){logged.get()==1}
             assertEquals("09121234567",writes.single {it.first=="/api/native/login-otp/request"}.second.s("mobile"))
             assertEquals("123456",writes.single {it.first=="/api/native/login-otp/confirm"}.second.s("otp"))

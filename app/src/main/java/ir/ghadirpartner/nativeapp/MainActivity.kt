@@ -9,7 +9,6 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -208,8 +207,8 @@ internal fun BiometricGate(onUnlocked: () -> Unit, onUnavailable: () -> Unit, on
     }
 
     Surface(modifier = Modifier.fillMaxSize().portalBackdrop(), color = androidx.compose.ui.graphics.Color.Transparent) {
-        Column(
-            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(androidx.compose.foundation.rememberScrollState()),
+        ButtonPagedColumn(
+            Modifier.fillMaxSize().navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             PortalBackHeader("ورود امن",onUsePassword)

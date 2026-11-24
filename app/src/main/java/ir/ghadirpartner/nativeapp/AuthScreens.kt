@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -152,8 +151,8 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
     val keyboardVisible = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     // Reserve the part of the artwork occupied by the logo while the keyboard is closed.
     val logoClearance = if (portalLogin && !keyboardVisible) maxHeight * BuildConfig.LOGIN_LOGO_CLEARANCE else 14.dp
-    Column(
-        Modifier.fillMaxWidth().verticalScroll(pageScroll),
+    ButtonPagedColumn(
+        Modifier.fillMaxWidth(), state = pageScroll,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -272,7 +271,7 @@ private fun PasswordResetScreen(api:ApiClient,initialIdentity:String,onBack:()->
             catch(e:Exception){error=e.message?:"ارسال کد ناموفق بود"}finally{loading=false}
         }
     }
-    Column(Modifier.fillMaxSize().portalBackdrop().statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    ButtonPagedColumn(Modifier.fillMaxSize().portalBackdrop().statusBarsPadding().navigationBarsPadding().imePadding(),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         PortalBackHeader("بازیابی رمز عبور",onBack)
         Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).padding(bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
             DesignNotice("شماره همراه حساب را تأیید کنید، سپس رمز جدید بسازید.")

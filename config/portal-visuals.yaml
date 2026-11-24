@@ -5,3 +5,5 @@ background_dark: "#FF0C131D"
 cart_surface_light: "#FFE9F6EF"
 cart_surface_dark: "#FF16382D"
 login_logo_clearance: 0.34
+page_dialog_height_fraction: 0.90
+page_overlap_dp: 48

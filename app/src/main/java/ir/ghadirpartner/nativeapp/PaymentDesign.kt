@@ -5,9 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
@@ -90,7 +88,7 @@ internal fun PaymentMethodCard(
     }
 }
 
-/** Present one payment form in a scrollable dialog, including when the keyboard is visible. */
+/** Present one payment form in a paged dialog, including when the keyboard is visible. */
 @Composable
 internal fun PaymentMethodDialog(method: SettlementEditor, busy: Boolean, onClose: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     val design = method.design
@@ -110,7 +108,7 @@ internal fun PaymentMethodDialog(method: SettlementEditor, busy: Boolean, onClos
                     }
                     IconButton(onClick = onClose, enabled = !busy) { Icon(Icons.Default.Close, "بستن", tint = Ink) }
                 }
-                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(top = 14.dp),
+                ButtonPagedColumn(Modifier.weight(1f, fill = false).padding(top = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
             }
         }

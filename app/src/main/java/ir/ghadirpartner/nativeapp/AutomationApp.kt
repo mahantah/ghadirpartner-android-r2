@@ -4,7 +4,6 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -65,7 +64,7 @@ fun AutomationApp(api: ApiClient, me: JSONObject, onLogout: () -> Unit) {
         onDismissRequest = { notifications = false },
         title = { Text("اعلان‌های سفارش") },
         text = {
-            LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ButtonPagedList(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (alertError.isNotBlank()) item { Text(alertError, color = Danger) }
                 val entries = alerts.arr("items").objects()
                 if (entries.isEmpty() && alertError.isBlank()) item { Text("اعلان تازه‌ای وجود ندارد.") }
@@ -145,7 +144,7 @@ private fun AutomationDashboard(api: ApiClient, me: JSONObject, navigate: (Strin
     val shipped = orders.count { it.s("status") == "ارسال شد" }
     val unpaid = orders.count { it.s("payment_status") == "پرداخت نشده" || it.s("payment_status") == "در انتظار تأیید" }
 
-    LazyColumn(
+    ButtonPagedList(
         Modifier.fillMaxSize().padding(horizontal = 15.dp),
         contentPadding = PaddingValues(top = 14.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -282,7 +281,7 @@ private fun AutomationOrders(api: ApiClient, roles: Set<String>, targetOrder: In
         Spacer(Modifier.height(8.dp)); ErrorBanner(error) { error = "" }
         Text("${faNumber(filtered.size)} نتیجه", color = Muted, fontSize = 10.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
         Spacer(Modifier.height(5.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+        ButtonPagedList(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
             if (filtered.isEmpty()) item { EmptyState("نتیجه‌ای پیدا نشد", "فیلترها را تغییر دهید.") }
             items(filtered, key = { it.i("id") }) { o ->
                 OrderCard(
@@ -315,9 +314,7 @@ private fun FilterChipMenu(title: String, value: String, options: List<String>, 
         OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = Navy)) {
             Text("$title: $value", maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 10.sp)
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            options.forEach { item -> DropdownMenuItem(text = { Text(item) }, onClick = { onSelect(item); open = false }) }
-        }
+        if (open) PagedChoiceDialog(title, options, { it }, { open = false }, onSelect)
     }
 }
 
@@ -338,7 +335,7 @@ private fun AutomationOrderDialog(api: ApiClient, order: JSONObject, roles: Set<
         confirmButton = {},
         title = { Text("${faDigits(order.s("number"))} • ${order.s("customer_name")}", color = Ink, fontWeight = FontWeight.Black, fontSize = 17.sp) },
         text = {
-            LazyColumn(modifier = Modifier.heightIn(max = 560.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ButtonPagedList(modifier = Modifier.heightIn(max = 560.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { ErrorBanner(error) { error = "" } }
                 item { StaffOrderFollowup(api, order, roles, onFollowup) }
                 item { OrderShippingReceipts(api, order.i("id"), allowUpload = roles.any { it in setOf("admin", "sales", "prep", "finance") }) }
@@ -395,9 +392,7 @@ private fun SimpleDropdown(title: String, value: String, options: List<String>, 
         OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = NavyDeep)) {
             Row(Modifier.fillMaxWidth()) { Icon(Icons.Default.KeyboardArrowDown, null); Spacer(Modifier.weight(1f)); Text("$title: $value", maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            options.forEach { option -> DropdownMenuItem(text = { Text(option) }, onClick = { onSelect(option); open = false }) }
-        }
+        if (open) PagedChoiceDialog(title, options, { it }, { open = false }, onSelect)
     }
 }
 
@@ -417,7 +412,7 @@ private fun AutomationCustomers(api: ApiClient) {
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         SearchBox(query, { query = it }, "نام، شرکت، موبایل یا کد مشتری")
         Spacer(Modifier.height(8.dp)); ErrorBanner(error) { error = "" }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+        ButtonPagedList(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
             items(filtered, key = { it.i("id") }) { c ->
                 Surface(shape = RoundedCornerShape(20.dp), color = AppSurface) {
                     Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -457,7 +452,7 @@ private fun AutomationWarehouse(api: ApiClient) {
         }
         Spacer(Modifier.height(10.dp)); SearchBox(query, { query = it }, "جستجوی سریال، مدل، کارتن یا سفارش")
         Spacer(Modifier.height(8.dp)); ErrorBanner(error) { error = "" }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+        ButtonPagedList(verticalArrangement = Arrangement.spacedBy(7.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
             items(filtered.take(500), key = { it.i("id") }) { iv ->
                 Surface(shape = RoundedCornerShape(17.dp), color = AppSurface) {
                     Column(Modifier.fillMaxWidth().padding(12.dp), horizontalAlignment = Alignment.End) {
@@ -496,7 +491,7 @@ private fun AutomationReports(api: ApiClient) {
         }
         Spacer(Modifier.height(12.dp)); ErrorBanner(error) { error = "" }
         if (loading) LoadingPane("در حال محاسبه گزارش...") else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+            ButtonPagedList(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                 item { HeroCard("فروش قطعی", "${formatMoney(data.l("total_amount"))} تومان", "${faNumber(data.i("total_orders"))} سفارش • ${faNumber(data.i("total_qty"))} قلم", Icons.Default.QueryStats, emphasis = true) }
                 items(data.arr("series").objects()) { row ->
                     Surface(shape = RoundedCornerShape(18.dp), color = AppSurface) {

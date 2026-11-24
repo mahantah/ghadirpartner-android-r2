@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -143,7 +142,7 @@ internal fun BankSelectionField(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(query, { query = it.take(80) }, label = { Text("جست‌وجو یا نام بانک") }, singleLine = true)
-                    LazyColumn(Modifier.heightIn(max = 320.dp)) {
+                    ButtonPagedList(Modifier.heightIn(max = 320.dp)) {
                         items(banks.filter { it.contains(query.trim(), ignoreCase = true) }) { bank ->
                             TextButton(onClick = {
                                 onChange(bank)

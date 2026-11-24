@@ -1,11 +1,8 @@
 package ir.ghadirpartner.nativeapp
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -137,7 +134,7 @@ fun PortalInbox(state:PortalInboxState,onOrder:(Int)->Unit,onOffer:(Int)->Unit) 
         }
     }
     val visible=state.items.filter {filter=="all"||it.s("kind")==filter}
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    ButtonPagedList(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         item {DesignChoices(listOf("all" to "همه","order" to "سفارش‌ها","offer" to "آفرها"),filter,{filter=it})}
         item {Text("اعلان‌های سفارش و پیشنهادهای همکاران",color=Muted,fontSize=12.sp)}
         if(state.error.isNotBlank())item {ErrorBanner(state.error){};GhadirButton("تلاش دوباره",{scope.launch{state.refresh()}},enabled=!state.loading)}
@@ -165,7 +162,7 @@ fun PortalInbox(state:PortalInboxState,onOrder:(Int)->Unit,onOffer:(Int)->Unit) 
         item {Text("قیمت و شرایط نهایی هنگام ثبت سفارش نمایش داده می‌شود.",color=Muted,fontSize=12.sp)}
     }
     selected?.let {n->AlertDialog(onDismissRequest={selected=null},title={Text(n.s("title"))},
-        text={Text(n.s("body"),modifier=Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState()))},
+        text={ButtonPagedColumn(Modifier.heightIn(max=400.dp)) { Text(n.s("body")) }},
         confirmButton={TextButton(onClick={selected=null}){Text("بستن")}})}
 }
 
@@ -184,7 +181,7 @@ fun PortalOffers(api:ApiClient,selectedId:Int?,onOpen:(Int)->Unit={},onUse:(Stri
     }
     if(loading){LoadingPane();return}
     val rows=offers.filter {detail==null||it.i("id")==detail}
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    ButtonPagedList(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(error.isNotBlank())item {ErrorBanner(error){error=""};GhadirButton("تلاش دوباره",{retry++})}
         if(rows.isEmpty()&&error.isBlank())item {EmptyState("آفر فعالی موجود نیست","ممکن است زمان طرح تمام شده باشد یا برای حساب شما فعال نباشد.")}
         if(detail==null&&rows.isNotEmpty())item {Text("پیشنهادهای ویژه همکاران",color=Ink,fontSize=18.sp,fontWeight=FontWeight.Bold)}

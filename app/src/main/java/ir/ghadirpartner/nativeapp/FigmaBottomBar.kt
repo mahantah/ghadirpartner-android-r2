@@ -34,7 +34,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-internal val LocalPortalBottomPadding=staticCompositionLocalOf {0.dp}
 
 /** Figma 24:35: the recorded content is blurred separately, leaving labels sharp. */
 @Composable

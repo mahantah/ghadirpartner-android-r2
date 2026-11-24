@@ -1,7 +1,6 @@
 package ir.ghadirpartner.nativeapp
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -46,7 +45,7 @@ internal fun PortalAddresses(api: ApiClient) {
             id="";title="";province="";city="";address="";postal="";showForm=false
         }catch(e:Exception){error=e.message ?: "ذخیره آدرس ناموفق بود"}finally {busy=false}
     }}
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp),contentPadding=PaddingValues(bottom=24.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+    ButtonPagedList(Modifier.fillMaxSize().padding(16.dp),contentPadding=PaddingValues(bottom=24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
         item {ErrorBanner(error){error=""}}
         items(rows,key={it.s("id")}) {row->GlassSurface {Column(Modifier.fillMaxWidth().padding(12.dp)) {
             Text(row.s("title"),color=Ink);Text(row.s("province")+"، "+row.s("city")+"، "+row.s("address"),color=Muted)
