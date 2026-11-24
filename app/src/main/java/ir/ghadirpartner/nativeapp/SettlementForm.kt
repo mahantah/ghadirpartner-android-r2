@@ -419,9 +419,11 @@ internal fun SettlementForm(
                 enabled = !busy && (registrationReceipt != null || checkDocuments.size < BuildConfig.PROOF_MAX_FILES_PER_KIND),
                 mimeTypes = PaymentProofSelection.mimeTypes, singleSelection = true) { attachCheckFiles(it, registration = true) }
             if (uploadField == "registration" && uploadError.isNotBlank()) Text(uploadError, color = Danger)
-            if (registrationReceipt != null) TextButton(enabled = !busy, onClick = {
-                patch { PaymentProofSelection.set(it, "check", checkFiles.map { file -> file.data }) }
-            }) { Text("حذف رسید ثبت چک") }
+            if (registrationReceipt != null) {
+                TextButton(enabled = !busy, onClick = {
+                    patch { PaymentProofSelection.set(it, "check", checkFiles.map { file -> file.data }) }
+                }) { Text("حذف رسید ثبت چک") }
+            }
         }
         if (editor == SettlementEditor.Deposit || editor == SettlementEditor.Check) {
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
