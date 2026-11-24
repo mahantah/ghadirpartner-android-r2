@@ -3,6 +3,7 @@ package ir.ghadirpartner.nativeapp
 import android.os.Build
 import android.graphics.RenderEffect
 import android.graphics.Shader
+import androidx.core.graphics.toColorInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -104,5 +105,5 @@ private fun navIconColor(key: String): Color {
         "catalog" -> if (AppAppearance.dark) BuildConfig.NAV_CATALOG_DARK else BuildConfig.NAV_CATALOG_LIGHT
         else -> if (AppAppearance.dark) BuildConfig.NAV_PROFILE_DARK else BuildConfig.NAV_PROFILE_LIGHT
     }
-    return Color(android.graphics.Color.parseColor(value))
+    return Color(value.toColorInt())
 }
