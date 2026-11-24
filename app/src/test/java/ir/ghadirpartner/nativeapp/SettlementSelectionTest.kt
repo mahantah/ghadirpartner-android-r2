@@ -46,4 +46,36 @@ class SettlementSelectionTest {
         selection.setWallet(settlement, false, 0L, 400L)
         assertEquals(total, settlement.l("cash_amount"))
     }
+    /** The first online selection can use the whole invoice before a cash option is picked. */
+    @Test
+    fun onlineUsesImplicitCashBalance() {
+        val settlement = defaultSplitSettlement(total)
+        assertFalse(CashDepositRows.hasExplicitMethod(settlement))
+        assertEquals(total, selection.onlineDefault(settlement, keepDeposit = false))
+    }
+
+    /** A second cash method and later wallet selection preserve the first allocation. */
+    @Test
+    fun cashMethodsPrefillJustTheOutstandingAmount() {
+        val settlement = defaultSplitSettlement(total)
+        CashDepositRows.setMethods(settlement, deposit = false, online = true, amount = 300L, locked = false)
+        selection.selectDeposit(settlement, keepOnline = true, locked = false)
+        assertEquals(700L, CashDepositRows.read(settlement).single().amount)
+        assertEquals(300L, CashDepositRows.onlineAmount(settlement))
+        assertEquals(300L, selection.onlineDefault(settlement, keepDeposit = true))
+        selection.setWallet(settlement, true, 900L, 900L)
+        assertEquals(0L, settlement.l("wallet_amount"))
+        assertEquals(total, settlement.l("cash_amount"))
+    }
+
+    /** Adding credit to an entered deposit uses only the balance left after that deposit. */
+    @Test
+    fun creditPreservesExplicitDeposit() {
+        val settlement = defaultSplitSettlement(total)
+        selection.selectDeposit(settlement, keepOnline = false, locked = false)
+        CashDepositRows.set(settlement, listOf(CashDeposit(300L)), amountsLocked = false)
+        selection.selectNonCash(settlement, "credit", 900L)
+        assertEquals(300L, settlement.l("cash_amount"))
+        assertEquals(700L, settlement.l("credit_amount"))
+    }
 }

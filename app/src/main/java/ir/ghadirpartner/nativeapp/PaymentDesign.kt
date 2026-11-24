@@ -47,10 +47,33 @@ private val SettlementEditor.design: MethodDesign
         SettlementEditor.Check -> MethodDesign("چک", "ثبت مشخصات و تصویر چک", R.drawable.payment_ref_receipt, Color(0xFF374C93), Color(0xFFE9EDFF))
     }
 
+/** Reuse the payment palette on other app actions. */
+internal val SettlementEditor.paymentAccent: Color
+    get() = design.accent
+
 /** Show the reference illustration without changing its original colors. */
 @Composable
 internal fun PaymentArtwork(icon: Int, modifier: Modifier = Modifier) {
     Image(painterResource(icon), contentDescription = null, modifier = modifier)
+}
+
+/** Visually separate the two groups while keeping their payment controls directly accessible. */
+@Composable
+internal fun SettlementMethodGroup(title: String, icon: Int, content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = ApprovedPalette.surface,
+        border = BorderStroke(1.dp, ApprovedPalette.border),
+    ) {
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PaymentArtwork(icon, Modifier.size(28.dp))
+                Text(title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
+            content()
+        }
+    }
 }
 
 /** Keep method selection independent of opening its detail dialog. */

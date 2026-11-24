@@ -13,6 +13,12 @@ internal object CashDepositRows {
     fun depositEnabled(settlement: JSONObject): Boolean =
         settlement.optBoolean("cash_deposit_enabled", !settlement.b("cash_online"))
 
+    /** Identify a chosen cash method without treating the checkout's default cash placeholder as a choice. */
+    fun hasExplicitMethod(settlement: JSONObject): Boolean =
+        settlement.has("cash_deposit_enabled") || settlement.b("cash_online") ||
+            settlement.has(field) || PaymentProofSelection.read(settlement, "cash").isNotEmpty() ||
+            settlement.s("tracking_number").isNotBlank()
+
     /** Read only the portion that will go to the gateway. */
     fun onlineAmount(settlement: JSONObject): Long =
         if (!settlement.b("cash_online")) 0L else settlement.optLong("cash_online_amount", settlement.l("cash_amount"))

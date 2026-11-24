@@ -74,8 +74,8 @@ internal fun SettlementForm(
             }
             SettlementSelection(currentTotal).selectNonCash(next, method, availableCredit)
             if (savedAmounts.has(method)) {
-                val maximum = if (method == "credit") availableCredit else currentTotal
-                next.put("${method}_amount", savedAmounts.l(method).coerceAtMost(maximum))
+                val available = next.l("${method}_amount")
+                next.put("${method}_amount", savedAmounts.l(method).takeIf { it > 0L }?.coerceAtMost(available) ?: available)
             }
             next.put("draft_non_cash_amounts", savedAmounts)
         }
@@ -214,7 +214,10 @@ internal fun SettlementForm(
         }
     }
     val deferProof = value.b("upload_proof_later")
-    val remaining = settlementRemaining(value, invoiceTotal)
+    val hasChosenCash = CashDepositRows.hasExplicitMethod(value) || amountsLocked || agentReviewRequired
+    val implicitCash = if (value.b("cash_enabled") && !hasChosenCash) value.l("cash_amount") else 0L
+    val chosenTotal = (settlementAllocated(value) - implicitCash).coerceAtLeast(0L)
+    val remaining = (invoiceTotal - chosenTotal).coerceAtLeast(0L)
     fun disableMethod(method: SettlementEditor) {
         patch {
             when (method) {
@@ -245,29 +248,36 @@ internal fun SettlementForm(
     val onlineSelected = value.b("cash_enabled") && value.b("cash_online")
     val online = CashDepositRows.requiresOnline(value)
     val deposit = CashDepositRows.depositEnabled(value)
-    val depositSelected = value.b("cash_enabled") && deposit
+    val depositSelected = value.b("cash_enabled") && deposit && hasChosenCash
     val walletSelected = value.b("wallet_enabled")
     val walletEditable = !busy && !amountsLocked && !agentReviewRequired && creditLoaded &&
         (!checkActive || walletSelected) && (walletAvailable > 0L || walletSelected)
     val onlineEditable = !busy && (onlineSelected || (onlineAvailable && !agentReviewRequired))
     fun openDeposit() {
-        patch {
-            if (!it.b("cash_enabled")) toggleSettlementPart(it, "cash", true, currentTotal)
-            if (it.has(CashDepositRows.field) || !deposit)
-                CashDepositRows.setMethods(it, true, onlineSelected && mixedCashAvailable, CashDepositRows.onlineAmount(it), amountsLocked)
+        if (!depositSelected || !CashDepositRows.hasExplicitMethod(value)) {
+            patch {
+                SettlementSelection(currentTotal).selectDeposit(
+                    it, onlineSelected && mixedCashAvailable, amountsLocked,
+                )
+            }
         }
         openEditor(SettlementEditor.Deposit)
     }
+
+    val keepDepositWithOnline = depositSelected && (
+        (onlineSelected && amountsLocked) || (mixedCashAvailable && CashDepositRows.hasExplicitMethod(value))
+    )
     fun updateOnline(amount: Long) {
         patch {
-            if (!it.b("cash_enabled")) toggleSettlementPart(it, "cash", true, currentTotal)
-            val hasReceipts = it.has(CashDepositRows.field) || PaymentProofSelection.read(it, "cash").isNotEmpty()
-            val keepDeposit = deposit && ((mixedCashAvailable && hasReceipts) || amount == 0L)
-            CashDepositRows.setMethods(it, keepDeposit, true, amount, amountsLocked)
+            it.put("cash_enabled", true)
+            CashDepositRows.setMethods(it, keepDepositWithOnline, true, amount, amountsLocked)
         }
     }
+
     fun openOnline() {
-        if (!onlineSelected && !amountsLocked) updateOnline(remaining)
+        if (!onlineSelected && !amountsLocked) {
+            updateOnline(SettlementSelection(currentTotal).onlineDefault(value, keepDepositWithOnline))
+        }
         openEditor(SettlementEditor.Online)
     }
     fun openCheck() {
@@ -285,28 +295,34 @@ internal fun SettlementForm(
         openEditor(SettlementEditor.Wallet)
     }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        CheckoutAmountHero(invoiceTotal, settlementAllocated(value), remaining)
+        CheckoutAmountHero(invoiceTotal, chosenTotal, remaining)
         Text("انتخاب روش‌های تسویه", color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            PaymentMethodCard(SettlementEditor.Wallet, walletSelected, !busy && !agentReviewRequired, walletEditable,
-                Modifier.weight(1f), ::openWallet) { if (it) openWallet() else disableMethod(SettlementEditor.Wallet) }
-            PaymentMethodCard(SettlementEditor.Online, onlineSelected, onlineEditable && (!amountsLocked || onlineSelected),
-                onlineEditable && !amountsLocked, Modifier.weight(1f), ::openOnline) {
-                if (it) openOnline() else disableMethod(SettlementEditor.Online)
+        SettlementMethodGroup("تسویه نقدی", R.drawable.payment_ref_wallet) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                PaymentMethodCard(SettlementEditor.Wallet, walletSelected, !busy && !agentReviewRequired, walletEditable,
+                    Modifier.weight(1f), ::openWallet) { if (it) openWallet() else disableMethod(SettlementEditor.Wallet) }
+                PaymentMethodCard(SettlementEditor.Online, onlineSelected, onlineEditable && (!amountsLocked || onlineSelected),
+                    onlineEditable && !amountsLocked, Modifier.weight(1f), ::openOnline) {
+                    if (it) openOnline() else disableMethod(SettlementEditor.Online)
+                }
+            }
+            PaymentMethodCard(SettlementEditor.Deposit, depositSelected, !busy && (!amountsLocked || depositSelected),
+                !busy && !amountsLocked, Modifier.fillMaxWidth(), ::openDeposit, horizontal = true) {
+                if (it) openDeposit() else disableMethod(SettlementEditor.Deposit)
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            PaymentMethodCard(SettlementEditor.Credit, creditActive || awaitingCredit, !busy && (creditActive || !amountsLocked),
-                !busy && !amountsLocked, Modifier.weight(1f), ::openCredit) { if (it) openCredit() else disableMethod(SettlementEditor.Credit) }
-            PaymentMethodCard(SettlementEditor.Deposit, depositSelected, !busy && (!amountsLocked || depositSelected),
-                !busy && !amountsLocked, Modifier.weight(1f), ::openDeposit) { if (it) openDeposit() else disableMethod(SettlementEditor.Deposit) }
+        SettlementMethodGroup("تسویه غیرنقدی", R.drawable.payment_ref_credit) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                PaymentMethodCard(SettlementEditor.Credit, creditActive || awaitingCredit, !busy && (creditActive || !amountsLocked),
+                    !busy && !amountsLocked, Modifier.weight(1f), ::openCredit) { if (it) openCredit() else disableMethod(SettlementEditor.Credit) }
+                PaymentMethodCard(SettlementEditor.Check, checkActive, !busy && (checkActive || !amountsLocked),
+                    !busy && !amountsLocked, Modifier.weight(1f), ::openCheck) { if (it) openCheck() else disableMethod(SettlementEditor.Check) }
+            }
         }
-        PaymentMethodCard(SettlementEditor.Check, checkActive, !busy && (checkActive || !amountsLocked), !busy && !amountsLocked,
-            Modifier.fillMaxWidth(), ::openCheck, horizontal = true) { if (it) openCheck() else disableMethod(SettlementEditor.Check) }
         if (agentReviewRequired) Text("پرداخت آنلاین و کیف پول پس از بررسی تسویه عامل فروش در دسترس است.", color = Muted)
         if (remaining > 0L && onlineEditable && !amountsLocked)
             TextButton(onClick = ::openOnline) { Text("پرداخت آنلاین مانده") }
-        CheckoutAmountFooter(settlementAllocated(value), remaining)
+        CheckoutAmountFooter(chosenTotal, remaining)
     }
 
     val currentEditor = editor
