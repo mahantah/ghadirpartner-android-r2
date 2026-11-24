@@ -1,5 +1,6 @@
 package ir.ghadirpartner.nativeapp
 
+import androidx.compose.foundation.lazy.LazyColumn
 import android.content.Intent
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
@@ -63,7 +64,7 @@ fun PortalDocuments(api:ApiClient,me:JSONObject,selected:JSONObject?=null,onOpen
     }
     val term=asciiDigits(query).trim()
     val visible=orders.filter {term.isBlank()||asciiDigits(it.s("number")).contains(term,true)}
-    ButtonPagedList(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(selected==null) {
             item {DesignField("جستجوی پیش‌فاکتور",query,{query=it},"شماره پیش‌فاکتور",R.drawable.design_search)}
             if(!busy)item {Text(faNumber(visible.size)+" پیش‌فاکتور",color=Muted,fontSize=12.sp)}

@@ -156,11 +156,17 @@ internal fun DesignOtp(value:String,onChange:(String)->Unit,label:String="کد �
     }
 }
 
+/** Display the original brand artwork supplied for the app. */
+@Composable
+internal fun PortalHeaderLogo() {
+    Image(painterResource(R.drawable.brand_logo), "لوگوی قدیر پرداخت", Modifier.size(42.dp))
+}
+
 @Composable
 internal fun PortalBackHeader(title: String, onBack: () -> Unit) {
     Row(Modifier.fillMaxWidth().background(PortalBrandBrush).statusBarsPadding().heightIn(min = 72.dp).padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Image(painterResource(R.drawable.payment_ref_brand), "قدیر پرداخت", Modifier.size(74.dp, 38.dp))
+        PortalHeaderLogo()
         Text(title, modifier = Modifier.weight(1f), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center, maxLines = 2)
         IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {

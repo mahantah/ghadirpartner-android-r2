@@ -5,7 +5,6 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,7 +46,7 @@ internal fun rememberBiometricEnabled(context:Context,account:String):Boolean {
 internal fun PortalGlassHeader(title: String, dashboard: Boolean, unread: Int, onOffers: () -> Unit, onBell: () -> Unit) {
     val context=LocalContext.current
     Row(Modifier.fillMaxWidth().background(PortalBrandBrush).statusBarsPadding().heightIn(min=76.dp).padding(horizontal=20.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-        Image(painterResource(R.drawable.payment_ref_brand),"قدیر پرداخت",Modifier.size(61.dp, 33.dp))
+        PortalHeaderLogo()
         Column(Modifier.weight(1f)) {
             Text(title,color=Color.White,fontSize=19.sp,lineHeight=33.sp,fontWeight=FontWeight.Bold,maxLines=2)
         }

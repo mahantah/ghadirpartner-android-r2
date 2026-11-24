@@ -31,9 +31,10 @@ if (!(proofPolicy instanceof Map) || proofPolicy.keySet() != proofLimits.keySet(
 
 def visualPolicy = new org.yaml.snakeyaml.Yaml().load(rootProject.file('config/portal-visuals.yaml').text)
 def visualColorKeys = ['background_light', 'background_dark', 'cart_surface_light', 'cart_surface_dark']
+def navIconKeys = ['nav_home', 'nav_catalog', 'nav_profile']
+visualColorKeys += navIconKeys.collectMany { key -> [key + '_light', key + '_dark'] }
 def visualOpacityKeys = ['section_opacity_light', 'section_opacity_dark', 'login_logo_clearance', 'page_dialog_height_fraction']
-if (!(visualPolicy instanceof Map) || visualPolicy.keySet() != ((visualColorKeys + visualOpacityKeys + ['page_overlap_dp']) as Set) ||
-    !(visualPolicy.page_overlap_dp instanceof Integer) || !(visualPolicy.page_overlap_dp in 1..96) ||
+if (!(visualPolicy instanceof Map) || visualPolicy.keySet() != ((visualColorKeys + visualOpacityKeys) as Set) ||
     !visualOpacityKeys.every { visualPolicy[it] instanceof Number && visualPolicy[it] > 0 && visualPolicy[it] <= 1 } ||
     !visualColorKeys.every { visualPolicy[it] instanceof String && visualPolicy[it] ==~ /#[0-9A-F]{8}/ }) {
     throw new GradleException('Invalid config/portal-visuals.yaml')
@@ -113,7 +114,9 @@ android {
         buildConfigField 'float', 'SECTION_OPACITY_DARK', visualPolicy.section_opacity_dark.toString() + 'f'
         buildConfigField 'float', 'LOGIN_LOGO_CLEARANCE', visualPolicy.login_logo_clearance.toString() + 'f'
         buildConfigField 'float', 'PAGE_DIALOG_HEIGHT_FRACTION', visualPolicy.page_dialog_height_fraction.toString() + 'f'
-        buildConfigField 'int', 'PAGE_OVERLAP_DP', visualPolicy.page_overlap_dp.toString()
+        navIconKeys.collectMany { key -> [key + '_light', key + '_dark'] }.each { key ->
+            buildConfigField 'String', key.toUpperCase(Locale.ROOT), groovy.json.JsonOutput.toJson(visualPolicy[key])
+        }
         buildConfigField 'boolean', 'OFFER_POPUP_ENABLED', popupPolicy.enabled.toString()
         minSdk 24
         targetSdk 36

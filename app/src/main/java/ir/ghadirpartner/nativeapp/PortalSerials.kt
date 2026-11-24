@@ -1,5 +1,6 @@
 package ir.ghadirpartner.nativeapp
 
+import androidx.compose.foundation.lazy.LazyColumn
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -37,7 +38,7 @@ internal fun PortalSerials(api:ApiClient,order:JSONObject,me:JSONObject,onBack:(
             catch(e:Exception){error=e.message?:"فایل سریال‌ها دریافت نشد"}finally{busy=false}
         }
     }
-    ButtonPagedList(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(error.isNotBlank()) {
             item {DesignState("دریافت PDF ناموفق بود","فایل سریال‌ها دریافت نشد. سفارش و اطلاعات شما محفوظ است.",R.drawable.design_download_error)}
             item {DesignNotice(faDigits(order.s("number"))+"\n\nPDF سریال مشتری • "+orderItemsDescription(order))}

@@ -6,4 +6,9 @@ cart_surface_light: "#FFE9F6EF"
 cart_surface_dark: "#FF16382D"
 login_logo_clearance: 0.34
 page_dialog_height_fraction: 0.90
-page_overlap_dp: 48
+nav_home_light: "#FF2558BD"
+nav_home_dark: "#FF91B9FF"
+nav_catalog_light: "#FF007957"
+nav_catalog_dark: "#FF72DCB6"
+nav_profile_light: "#FFAB3764"
+nav_profile_dark: "#FFFF9EBE"

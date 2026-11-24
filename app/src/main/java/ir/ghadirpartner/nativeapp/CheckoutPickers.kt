@@ -1,5 +1,6 @@
 package ir.ghadirpartner.nativeapp
 
+import androidx.compose.foundation.lazy.LazyColumn
 import android.icu.util.Calendar
 import android.icu.util.TimeZone
 import android.icu.util.ULocale
@@ -142,7 +143,7 @@ internal fun BankSelectionField(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(query, { query = it.take(80) }, label = { Text("جست‌وجو یا نام بانک") }, singleLine = true)
-                    ButtonPagedList(Modifier.heightIn(max = 320.dp)) {
+                    LazyColumn(Modifier.heightIn(max = 320.dp)) {
                         items(banks.filter { it.contains(query.trim(), ignoreCase = true) }) { bank ->
                             TextButton(onClick = {
                                 onChange(bank)

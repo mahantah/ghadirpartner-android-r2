@@ -66,7 +66,11 @@ fun FigmaBottomBar(
             .padding(8.dp).selectableGroup(), horizontalArrangement=Arrangement.spacedBy(2.dp)) {
             items.forEach { item ->
                 val active = item.key == selected
-                val asset=when(item.key){"home"->"home";"catalog"->"prices";"new"->"add";"orders"->"orders";else->"profile"}
+                val asset = when (item.key) {
+                    "home" -> "home"
+                    "catalog" -> "prices"
+                    else -> "profile"
+                }
                 Column(Modifier.weight(1f).heightIn(min=60.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .then(if(active) Modifier.background(Orange.copy(alpha=.13f),RoundedCornerShape(18.dp)) else Modifier)
@@ -82,7 +86,7 @@ fun FigmaBottomBar(
                             contentAlignment = Alignment.Center) {
                             PaymentArtwork(R.drawable.payment_ref_receipt, Modifier.size(18.dp))
                         }
-                        else -> FigmaSvg(asset,null,Modifier.size(26.dp),tint=ColorFilter.tint(if(active)Orange else Muted))
+                        else -> FigmaSvg(asset,null,Modifier.size(26.dp),tint=ColorFilter.tint(navIconColor(item.key)))
                     }
                     Text(item.label, color=if(active) Orange else Muted, fontSize=10.sp,
                         fontWeight=if(active) FontWeight.Bold else FontWeight.Normal, maxLines=1)
@@ -90,4 +94,15 @@ fun FigmaBottomBar(
             }
         }
     }
+}
+
+
+@Composable
+private fun navIconColor(key: String): Color {
+    val value = when (key) {
+        "home" -> if (AppAppearance.dark) BuildConfig.NAV_HOME_DARK else BuildConfig.NAV_HOME_LIGHT
+        "catalog" -> if (AppAppearance.dark) BuildConfig.NAV_CATALOG_DARK else BuildConfig.NAV_CATALOG_LIGHT
+        else -> if (AppAppearance.dark) BuildConfig.NAV_PROFILE_DARK else BuildConfig.NAV_PROFILE_LIGHT
+    }
+    return Color(android.graphics.Color.parseColor(value))
 }
