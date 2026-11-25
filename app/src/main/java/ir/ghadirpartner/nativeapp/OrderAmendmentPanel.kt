@@ -77,24 +77,25 @@ internal fun OrderAmendmentPanel(api: ApiClient, orderId: Int, orderUpdatedAt: S
                 TextButton(onClick = { error = ""; refresh++ }, enabled = !busy) { Text("به‌روزرسانی اصلاحیه") }
             }
             if (entry.s("status") == "pending") {
-                GhadirButton("تأیید اصلاحیه", { decision = "accept_amendment" }, enabled = !busy)
-                GhadirButton("رد اصلاحیه", { decision = "reject_amendment" }, secondary = true, enabled = !busy)
+                GhadirButton("تأیید اصلاحیه", { decision = "accept_amendment:" + entry.s("id") }, enabled = !busy)
+                GhadirButton("رد اصلاحیه", { decision = "reject_amendment:" + entry.s("id") }, secondary = true, enabled = !busy)
             }
         }
     }
-    if (decision.isNotBlank() && entry.s("status") == "pending") {
-        val accept = decision == "accept_amendment"
+    val decisionId = decision.substringAfter(':', "")
+    if (decisionId.isNotEmpty() && decisionId == entry.s("id") && entry.s("status") == "pending") {
+        val action = decision.substringBefore(':')
+        val accept = action == "accept_amendment"
         AlertDialog(
             onDismissRequest = { if (!busy) decision = "" },
             title = { Text(if (accept) "تأیید اصلاحیهٔ سفارش" else "رد اصلاحیهٔ سفارش") },
             text = { Text(if (accept) "تأیید شما برای رسیدگی مالی و ارسال به شرکت اعلام می‌شود." else "رد اصلاحیه به شرکت اعلام می‌شود.") },
             confirmButton = {
                 TextButton(enabled = !busy, onClick = {
-                    val action = decision
                     scope.launch {
                         busy = true
                         try {
-                            val result = repository.send(orderId, action, JSONObject().put("amendment_id", entry.s("id")))
+                            val result = repository.send(orderId, action, JSONObject().put("amendment_id", decisionId))
                             amendment = result.optJSONObject("amendment")
                             error = ""
                             decision = ""
