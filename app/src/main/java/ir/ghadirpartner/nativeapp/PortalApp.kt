@@ -661,6 +661,7 @@ private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->
             item {GhadirButton("انصراف و نگهداری سفارش",{cancelView=false},secondary=true,enabled=!cancelling)}
         } else {
             item { ApprovedOrderSummary(order, me, total) }
+            item(key = "amendment") { OrderAmendmentPanel(api, order.i("id"), order.s("updated_at")) }
             items(order.arr("purchase_items").objects().ifEmpty {order.arr("items").objects()}) { line ->
                 ApprovedOrderProduct(line)
             }
