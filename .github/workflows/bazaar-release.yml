@@ -1,34 +1,42 @@
 name: Prepare and submit Cafe Bazaar APK
 on:
-  workflow_dispatch:
-    inputs:
-      source_sha:
-        description: Exact 40-character release source commit
-        required: true
-        type: string
-      operation:
-        description: dry-run verifies locally; draft uploads; review submits; publish auto-publishes after review
-        required: true
-        default: dry-run
-        type: choice
-        options: [dry-run, draft, review, publish]
+  push:
+    branches: [release/bazaar-5.55]
 permissions:
   contents: read
 concurrency:
   group: bazaar-ghadir-partner
   cancel-in-progress: false
 jobs:
+  signing-readiness:
+    runs-on: ubuntu-24.04
+    outputs:
+      build: ${{ steps.readiness.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check that the existing signing secrets are configured
+        id: readiness
+        env:
+          GHADIR_RELEASE_KEYSTORE_BASE64: ${{ secrets.GHADIR_RELEASE_KEYSTORE_BASE64 }}
+          GHADIR_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.GHADIR_RELEASE_KEYSTORE_PASSWORD }}
+        run: |
+          if [[ -z "$GHADIR_RELEASE_KEYSTORE_BASE64" || -z "$GHADIR_RELEASE_KEYSTORE_PASSWORD" ]]; then
+            echo "::error::Existing Android release signing secrets are missing"
+            exit 1
+          fi
+          if grep -qx 'version_code: 543111' config/order-flow.yaml; then
+            echo 'build=true' >> "$GITHUB_OUTPUT"
+          fi
   release:
+    needs: signing-readiness
+    if: needs.signing-readiness.outputs.build == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - name: Validate immutable source reference
-        env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
-        run: '[[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]'
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_sha }}
           persist-credentials: false
       - uses: actions/setup-java@v4
         with:
@@ -61,9 +69,3 @@ jobs:
           name: GhadirPartner-Signed-Bazaar-APK
           path: release-output/*.apk
           if-no-files-found: error
-      - name: Execute requested Bazaar operation
-        env:
-          CAFEBAZAAR_PISHKHAN_API_SECRET: ${{ secrets.CAFEBAZAAR_PISHKHAN_API_SECRET }}
-          RELEASE_OPERATION: ${{ inputs.operation }}
-        run: |
-          python -m release_tools --apk release-output/GhadirPartner-release.apk --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt" --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" --operation "$RELEASE_OPERATION"
