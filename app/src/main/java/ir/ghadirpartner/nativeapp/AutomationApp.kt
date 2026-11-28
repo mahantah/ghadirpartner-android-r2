@@ -1,10 +1,10 @@
 package ir.ghadirpartner.nativeapp
 
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -315,9 +315,7 @@ private fun FilterChipMenu(title: String, value: String, options: List<String>, 
         OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = Navy)) {
             Text("$title: $value", maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 10.sp)
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            options.forEach { item -> DropdownMenuItem(text = { Text(item) }, onClick = { onSelect(item); open = false }) }
-        }
+        if (open) ScrollableChoiceDialog(title, options, { it }, { open = false }, onSelect)
     }
 }
 
@@ -390,15 +388,7 @@ private fun AutomationOrderDialog(api: ApiClient, order: JSONObject, roles: Set<
 
 @Composable
 private fun SimpleDropdown(title: String, value: String, options: List<String>, onSelect: (String) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    Box(Modifier.fillMaxWidth()) {
-        OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = NavyDeep)) {
-            Row(Modifier.fillMaxWidth()) { Icon(Icons.Default.KeyboardArrowDown, null); Spacer(Modifier.weight(1f)); Text("$title: $value", maxLines = 1, overflow = TextOverflow.Ellipsis) }
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            options.forEach { option -> DropdownMenuItem(text = { Text(option) }, onClick = { onSelect(option); open = false }) }
-        }
-    }
+    DropdownField(title, value, options, { it }, icon = Icons.Default.Apps, onSelect = onSelect)
 }
 
 @Composable

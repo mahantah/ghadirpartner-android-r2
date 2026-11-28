@@ -1,8 +1,10 @@
 package ir.ghadirpartner.nativeapp
 
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -18,7 +20,7 @@ internal fun AddressSelector(api: ApiClient,selected: String,onSelected: (String
     var error by remember {mutableStateOf("")}
     LaunchedEffect(Unit) {try {addresses=(api.get("/api/addresses") as JSONArray).objects()}catch(e:Exception){error=e.message ?: "دریافت آدرس ناموفق بود"}}
     Column {
-        DropdownField("آدرس تحویل",addresses.firstOrNull {it.s("id")==selected}?.s("title") ?: "آدرس اصلی پروفایل",listOf(JSONObject().put("id","").put("title","آدرس اصلی پروفایل"))+addresses,{it.s("title")+" · "+it.s("address")}) {onSelected(it.s("id"))}
+        DropdownField("آدرس تحویل",addresses.firstOrNull {it.s("id")==selected}?.s("title") ?: "آدرس اصلی پروفایل",listOf(JSONObject().put("id","").put("title","آدرس اصلی پروفایل"))+addresses,{it.s("title")+" · "+it.s("address")}, icon = Icons.Default.LocationOn) {onSelected(it.s("id"))}
         if(error.isNotBlank()) Text(error,color=Danger)
         Text("آدرس جدید را در پروفایل ← آدرس‌های من ذخیره کنید.",color=Muted)
     }
@@ -46,7 +48,7 @@ internal fun PortalAddresses(api: ApiClient) {
             id="";title="";province="";city="";address="";postal="";showForm=false
         }catch(e:Exception){error=e.message ?: "ذخیره آدرس ناموفق بود"}finally {busy=false}
     }}
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp),contentPadding=PaddingValues(bottom=24.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp),contentPadding=PaddingValues(bottom=24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
         item {ErrorBanner(error){error=""}}
         items(rows,key={it.s("id")}) {row->GlassSurface {Column(Modifier.fillMaxWidth().padding(12.dp)) {
             Text(row.s("title"),color=Ink);Text(row.s("province")+"، "+row.s("city")+"، "+row.s("address"),color=Muted)

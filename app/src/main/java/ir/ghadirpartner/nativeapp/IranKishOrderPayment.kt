@@ -21,7 +21,7 @@ internal class IranKishOrderPayment(private val api: ApiClient) {
     private val path = "/api/orders/irankish"
 
     /** Read the server's configured availability before offering the checkout method. */
-    suspend fun available(): Boolean = (api.request("GET", path, null) as JSONObject).b("enabled")
+    suspend fun availability(): JSONObject = api.request("GET", path, null) as JSONObject
 
     /** Start the saved server-priced installment and return its browser handoff if still unpaid. */
     suspend fun start(orderId: Int): Uri? {

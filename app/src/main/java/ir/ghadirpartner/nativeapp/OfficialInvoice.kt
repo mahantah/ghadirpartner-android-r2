@@ -126,10 +126,10 @@ internal object OfficialInvoice {
                 }
                 f.banner(78f,"مشخصات فروشنده")
                 f.box(LEFT,92.16f,WIDTH,56.76f)
-                f.field("نام شخص حقیقی/حقوقی :","هوشمند پرداز پویا تجارت قدیر",558f,93.2f,252f,112f)
-                f.field("شماره اقتصادی :","۴۱۱۶۴۴۳۸۳۹۹۵",396f,93.2f,160f,84f)
+                f.field("نام شخص حقیقی/حقوقی :",BuildConfig.CHEQUE_FORMAL_PAYEE,558f,93.2f,252f,112f)
+                f.field("شماره اقتصادی :",BuildConfig.FORMAL_NATIONAL_ID,396f,93.2f,160f,84f)
                 f.field("شماره ثبت /شماره ملی:","۵۸۴۵۵۹",210f,93.2f,185f,120f)
-                f.field("شناسه ملی:","۱۴۰۱۰۳۶۶۳۹۵",32f,93.2f,146f,61f)
+                f.field("شناسه ملی:",BuildConfig.FORMAL_NATIONAL_ID,32f,93.2f,146f,61f)
                 f.field("کد پستی:","۱۶۸۷۶۸۷۵۱۸",295f,107.36f,113f,42f)
                 f.field("شماره تلفن :","۰۲۱-۷۷۲۴۸۷۱۶",163f,107.36f,129f,58f)
                 f.field("شماره فکس:","",40f,107.36f,121f,58f)

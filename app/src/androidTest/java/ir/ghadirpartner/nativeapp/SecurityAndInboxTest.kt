@@ -147,7 +147,8 @@ class SecurityAndInboxTest {
         val api=ApiClient(context,http)
         val prefs=context.getSharedPreferences("ghadir_inbox",Context.MODE_PRIVATE)
         val a="r56-account-A";val b="r56-account-B"
-        prefs.edit().remove("read:portal:"+a).remove("read:portal:"+b).commit()
+        val dismissedKey = "dismissed:portal:$a"
+        prefs.edit().remove("read:portal:"+a).remove("read:portal:"+b).remove(dismissedKey).commit()
         try {
             val first=PortalInboxState(api,context,a);first.refresh()
             assertEquals(2,first.items.size);assertEquals(2,first.unread)
@@ -159,11 +160,18 @@ class SecurityAndInboxTest {
             first.markRead(first.items.map{it.s("id")});assertEquals(0,first.unread)
             val restored=PortalInboxState(api,context,a);restored.refresh();assertEquals(0,restored.unread)
             val separate=PortalInboxState(api,context,b);separate.refresh();assertEquals(2,separate.unread)
+            val confirmedIds = restored.items.map { it.s("id") }.toSet()
             status="ارسال شد"
-            val changed=PortalInboxState(ApiClient(context,http),context,a)
-            changed.refresh();assertEquals(1,changed.unread)
-            assertTrue(changed.items.any{it.s("body").contains("ارسال شد")})
-        }finally{prefs.edit().remove("read:portal:"+a).remove("read:portal:"+b).commit()}
+            restored.refresh()
+            restored.dismiss(confirmedIds)
+            val reopened = PortalInboxState(ApiClient(context,http),context,a)
+            reopened.refresh()
+            assertEquals(1, reopened.items.size)
+            assertEquals(1, reopened.unread)
+            assertTrue(reopened.items.single().s("body").contains("ارسال شد"))
+            separate.refresh()
+            assertEquals(2, separate.items.size)
+        }finally{prefs.edit().remove("read:portal:"+a).remove("read:portal:"+b).remove(dismissedKey).commit()}
     }
 
     @Test fun modernMessageCenterMarksOnlyOwnedMessages() = runBlocking {
@@ -209,7 +217,7 @@ class SecurityAndInboxTest {
                 compose.onNodeWithContentDescription("شماره همراه").assertTextContains("09121234567")
                 compose.onNode(isToggleable()).assertIsOn()
                 compose.onNodeWithText("ورود").assertIsEnabled()
-                compose.onNodeWithText("خوش آمدید").performScrollTo()
+                compose.onNodeWithText("ورود به قدیر پارتنر").performScrollTo()
                 shot("design-login-remembered.png")
                 compose.onNodeWithText("فراموشی رمز عبور").performScrollTo().performClick()
                 compose.onNodeWithText("بازگشت به ورود").performScrollTo().performClick()

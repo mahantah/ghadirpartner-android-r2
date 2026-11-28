@@ -114,6 +114,7 @@ internal fun SelectedProofReview(
                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         val title = "$label ${faNumber(index + 1)}"
                         Text(title, color = Ink)
+                        file.depositAmount?.let { DetailLine("مبلغ واریز", formatMoney(it) + " تومان") }
                         ProofThumbnail(file.data, title)
                         details?.invoke(index)
                         DesignField(

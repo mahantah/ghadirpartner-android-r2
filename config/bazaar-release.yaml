@@ -8,14 +8,14 @@ timeout_seconds: 120
 maximum_apk_bytes: 104857600
 staged_rollout_percentage: 100
 changelog_fa: |
-  طراحی جدید کیف پول، قیمت‌ها، سفارش‌ها و ثبت سفارش
-  نمایش بازشونده همه رده‌های قیمت و بهبود جست‌وجو
-  حذف کادر توضیحات از برگه‌های فاکتور
+  بارگیری سریع‌تر فرم ثبت سفارش با دریافت جداگانهٔ نشانی‌ها و آفرها
+  امکان پاک کردن همهٔ اعلان‌های فعلی از مرکز پیام
+  حذف آموزش اولیه و راهنماهای داخل برنامه
 changelog_en: |
-  Updated wallet, catalog, order list and checkout layouts.
-  Expandable price tiers and improved search.
-  Removed the notes section from invoice PDFs.
-developer_note: به‌روزرسانی رابط کاربری و حذف توضیحات فاکتورها؛ بدون تغییر مجوزهای برنامه.
+  Faster checkout loading by fetching addresses and offers separately.
+  Added an option to clear current notifications in the message center.
+  Removed onboarding and in-app guidance.
+developer_note: به‌روزرسانی ثبت سفارش، اعلان‌ها و راهنمای داخل برنامه.
 endpoints:
   create: apps/releases/
   upload: apps/releases/upload/

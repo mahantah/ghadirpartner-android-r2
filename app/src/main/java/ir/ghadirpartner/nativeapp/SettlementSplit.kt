@@ -19,6 +19,14 @@ internal fun settlementRemaining(
     invoiceTotal: Long,
 ): Long = (invoiceTotal - settlementAllocated(d)).coerceAtLeast(0L)
 
+/** Count selected methods instead of treating an untouched cash placeholder as allocated. */
+internal fun outstandingSettlementBalance(value: JSONObject, total: Long, fixedTerms: Boolean): Long {
+    val implicitCash = if (value.b("cash_enabled") && !fixedTerms && !CashDepositRows.hasExplicitMethod(value)) {
+        value.l("cash_amount")
+    } else 0L
+    return (total - (settlementAllocated(value) - implicitCash).coerceAtLeast(0L)).coerceAtLeast(0L)
+}
+
 internal fun settlementPrimaryMethod(d: JSONObject): String {
     val parts =
         settlementParts.filter { part ->
@@ -92,10 +100,7 @@ internal fun settlementError(
         return "جمع مبلغ‌های تسویه باید برابر مبلغ فاکتور باشد"
     }
     if (allocated > invoiceTotal) return "جمع مبالغ تسویه از مبلغ فاکتور بیشتر است"
-    if (d.b("check_enabled") && d.optLong("check_amount") > 0L) {
-        if (!d.s("check_number").matches(Regex("[0-9]{16}"))) return "شناسه صیادی باید ۱۶ رقم باشد"
-        if (d.s("bank_name").isBlank() || d.s("due_date").isBlank()) return "بانک و سررسید چک را وارد کنید"
-    }
+    if (d.b("check_enabled")) SettlementProofRules.checkError(d).takeIf(String::isNotBlank)?.let { return it }
     if (d.b("credit_enabled") && d.optLong("credit_amount") > 0L && !d.b("terms_accepted")) {
         return "شرایط درخواست اعتبار را بپذیرید"
     }
@@ -107,8 +112,25 @@ private fun legacySettlementError(
     d: JSONObject,
 ): String =
     when {
-        method == "check" && !d.s("check_number").matches(Regex("[0-9]{16}")) -> "شناسه صیادی باید ۱۶ رقم باشد"
-        method == "check" && (d.s("bank_name").isBlank() || d.s("due_date").isBlank()) -> "بانک و سررسید چک را وارد کنید"
+        method == "check" -> SettlementProofRules.checkError(d, requireAmount = false)
         method == "credit" && !d.b("terms_accepted") -> "شرایط درخواست اعتبار را بپذیرید"
         else -> ""
     }
+
+/** Validate cheque fields and distinguish the optional registration receipt from the cheque image. */
+internal object SettlementProofRules {
+    /** Return errors keyed by their corresponding form field. */
+    fun checkFields(details: JSONObject, requireAmount: Boolean = true): Map<String, String> = buildMap {
+        if (requireAmount && details.l("check_amount") <= 0L) put("amount", "مبلغ چک را وارد کنید.")
+        if (!details.s("check_number").matches(Regex("[0-9]{16}"))) put("number", "شناسه صیادی باید ۱۶ رقم باشد.")
+        if (details.s("bank_name").isBlank()) put("bank", "بانک چک را انتخاب کنید.")
+        if (details.s("due_date").isBlank()) put("date", "سررسید چک را انتخاب کنید.")
+        if (!details.b("upload_proof_later") &&
+            PaymentProofSelection.documents(details, "check").none { it.note != PaymentProofSelection.checkRegistration }
+        ) put("image", "تصویر چک را بارگذاری کنید یا گزینهٔ ارسال بعداً را بزنید.")
+    }
+
+    /** Return the first cheque field error in entry order. */
+    fun checkError(details: JSONObject, requireAmount: Boolean = true): String =
+        checkFields(details, requireAmount).values.firstOrNull().orEmpty()
+}

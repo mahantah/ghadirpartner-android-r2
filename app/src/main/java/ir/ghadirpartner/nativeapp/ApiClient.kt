@@ -11,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Cookie
 import okhttp3.CookieJar
+import okhttp3.Call
+import okhttp3.EventListener
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -20,9 +22,41 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 class ApiException(val status: Int, override val message: String) : Exception(message)
+
+/** Records elapsed times for debug checkout requests without logging order or payment data. */
+private class CheckoutRequestTiming : EventListener() {
+    private val startedAt = android.os.SystemClock.elapsedRealtime()
+    private var uploadStarted: Long? = null
+    private var uploadFinished: Long? = null
+    private var responseReceived: Long? = null
+
+    override fun requestBodyStart(call: Call) {
+        uploadStarted = android.os.SystemClock.elapsedRealtime()
+    }
+
+    override fun requestBodyEnd(call: Call, byteCount: Long) {
+        uploadFinished = android.os.SystemClock.elapsedRealtime()
+    }
+
+    override fun responseHeadersEnd(call: Call, response: okhttp3.Response) {
+        responseReceived = android.os.SystemClock.elapsedRealtime()
+    }
+
+    override fun callEnd(call: Call) = record("response")
+
+    override fun callFailed(call: Call, ioe: IOException) = record("failure")
+
+    private fun record(outcome: String) {
+        val upload = uploadStarted?.let { start -> uploadFinished?.minus(start) }
+        val wait = uploadFinished?.let { end -> responseReceived?.minus(end) }
+        val total = android.os.SystemClock.elapsedRealtime() - startedAt
+        android.util.Log.d("CheckoutTiming", "outcome=$outcome upload_ms=$upload wait_ms=$wait total_ms=$total")
+    }
+}
 
 internal class PersistentCookieJar(context: Context) : CookieJar {
     private val prefs = context.getSharedPreferences("ghadir_native_cookies", Context.MODE_PRIVATE)
@@ -81,6 +115,14 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
     private val cookieJar = PersistentCookieJar(context.applicationContext)
     private val client = internalClient ?: OkHttpClient.Builder()
         .cookieJar(cookieJar)
+        .eventListenerFactory { call ->
+            val request = call.request()
+            if (BuildConfig.DEBUG && request.method == "POST" && request.url.encodedPath.endsWith("/api/orders/add")) {
+                CheckoutRequestTiming()
+            } else {
+                EventListener.NONE
+            }
+        }
         .followRedirects(false).followSslRedirects(false)
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -215,55 +257,58 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
             }
             val body = response.body ?: throw ApiException(500, "فایل دریافتی خالی است")
             val safeName = fileName.replace(Regex("[^A-Za-z0-9._-]"), "-")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val values = ContentValues().apply {
-                    put(MediaStore.Downloads.DISPLAY_NAME, safeName)
-                    put(MediaStore.Downloads.MIME_TYPE, mimeType)
-                    put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/GhadirPartner")
-                    put(MediaStore.Downloads.IS_PENDING, 1)
-                }
-                val resolver = context.contentResolver
-                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                    ?: throw ApiException(500, "امکان ایجاد فایل دانلود وجود ندارد")
-                try {
-                    resolver.openOutputStream(uri)?.use { output -> body.byteStream().use { it.copyTo(output) } }
-                        ?: throw ApiException(500, "امکان ذخیره فایل وجود ندارد")
-                    values.clear(); values.put(MediaStore.Downloads.IS_PENDING, 0)
-                    resolver.update(uri, values, null, null)
-                    "Downloads/GhadirPartner/$safeName"
-                } catch (e: Exception) {
-                    resolver.delete(uri, null, null)
-                    throw e
-                }
-            } else {
-                val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
-                if (!dir.exists()) dir.mkdirs()
-                val file = File(dir, safeName)
-                file.outputStream().use { output -> body.byteStream().use { it.copyTo(output) } }
-                file.absolutePath
-            }
+            saveDownload(safeName, mimeType) { output -> body.byteStream().use { it.copyTo(output) } }
         }
     }
-    suspend fun saveSerialsPdf(order: JSONObject): String = withContext(Dispatchers.IO) {
-        require(order.s("status")=="تحویل شد") { "دریافت سریال‌ها فقط برای سفارش تحویل‌شده امکان‌پذیر است" }
-        require(order.optString("status")=="تحویل شد") { "دریافت سریال فقط پس از تحویل امکان‌پذیر است" }
-        val rows = mutableListOf<Pair<String, String>>()
-        val items = order.optJSONArray("items") ?: JSONArray()
-        for (i in 0 until items.length()) {
-            val item = items.optJSONObject(i) ?: continue
-            val product = shortProductName(item.optString("product"))
-            val serials = item.optJSONArray("serials") ?: JSONArray()
-            for (j in 0 until serials.length()) {
-                val raw = serials.opt(j)
-                val serial = when (raw) {
-                    is JSONObject -> raw.optString("serial")
-                    else -> raw?.toString().orEmpty()
-                }.trim()
-                if (serial.isNotBlank()) rows += product to serial
-            }
-        }
-        if (rows.isEmpty()) throw ApiException(404, "برای این سفارش هنوز سریالی ثبت نشده است")
 
+    private fun saveDownload(fileName: String, mimeType: String, write: (java.io.OutputStream) -> Unit): String {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+            if (!dir.exists()) dir.mkdirs()
+            return File(dir, fileName).also { file -> file.outputStream().use(write) }.absolutePath
+        }
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+            put(MediaStore.Downloads.MIME_TYPE, mimeType)
+            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/GhadirPartner")
+            put(MediaStore.Downloads.IS_PENDING, 1)
+        }
+        val resolver = context.contentResolver
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            ?: throw ApiException(500, "امکان ایجاد فایل دانلود وجود ندارد")
+        try {
+            resolver.openOutputStream(uri)?.use(write)
+                ?: throw ApiException(500, "امکان ذخیره فایل وجود ندارد")
+            values.clear()
+            values.put(MediaStore.Downloads.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+        } catch (failure: Exception) {
+            resolver.delete(uri, null, null)
+            throw failure
+        }
+        return "Downloads/GhadirPartner/$fileName"
+    }
+
+    /** Export the selected delivered order and model as an Excel workbook. */
+    suspend fun saveSerialsExcel(order: JSONObject, model: String = ""): String = withContext(Dispatchers.IO) {
+        val rows = serialExportRows(order, model)
+        saveDownload(serialFileName(order, "xlsx"), SerialWorkbook.mimeType) { output ->
+            SerialWorkbook.write(output, order.s("number"), rows)
+        }
+    }
+
+    private fun serialFileName(order: JSONObject, extension: String): String {
+        val number = order.s("number").replace(Regex("[^A-Za-z0-9_-]"), "-")
+        return "serials-${number.ifBlank { order.i("id").toString() }}.$extension"
+    }
+
+    private fun serialExportRows(order: JSONObject, model: String): List<OrderSerialRow> {
+        require(order.s("status") == "تحویل شد") { "دریافت سریال‌ها فقط برای سفارش تحویل‌شده امکان‌پذیر است" }
+        return orderSerialRows(order, model).ifEmpty { throw ApiException(404, "برای این مدل هنوز سریالی ثبت نشده است") }
+    }
+
+    suspend fun saveSerialsPdf(order: JSONObject, model: String = ""): String = withContext(Dispatchers.IO) {
+        val rows = serialExportRows(order, model)
         val doc = PdfDocument()
         try {
             val pageWidth = 595
@@ -311,7 +356,7 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
                 for (idx in from until to) {
                     val (product, serial) = rows[idx]
                     drawText(canvas, (idx + 1).toString(), 540f, y, 10f)
-                    drawText(canvas, product.take(28), 455f, y, 10f)
+                    drawText(canvas, shortProductName(product).take(28), 455f, y, 10f)
                     paint.textAlign = Paint.Align.LEFT
                     drawText(canvas, serial, 55f, y, 10f, true)
                     paint.textAlign = Paint.Align.RIGHT
@@ -324,35 +369,7 @@ class ApiClient(private val context: Context, internalClient: OkHttpClient? = nu
                 doc.finishPage(page)
             }
 
-            val safe = order.optString("number").replace(Regex("[^A-Za-z0-9_-]"), "-")
-            val fileName = "serials-${safe.ifBlank { order.optInt("id").toString() }}.pdf"
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val values = ContentValues().apply {
-                    put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-                    put(MediaStore.Downloads.MIME_TYPE, "application/pdf")
-                    put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/GhadirPartner")
-                    put(MediaStore.Downloads.IS_PENDING, 1)
-                }
-                val resolver = context.contentResolver
-                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                    ?: throw ApiException(500, "امکان ایجاد فایل PDF سریال وجود ندارد")
-                try {
-                    resolver.openOutputStream(uri)?.use { doc.writeTo(it) }
-                        ?: throw ApiException(500, "امکان ذخیره PDF سریال وجود ندارد")
-                    values.clear(); values.put(MediaStore.Downloads.IS_PENDING, 0)
-                    resolver.update(uri, values, null, null)
-                    "Downloads/GhadirPartner/$fileName"
-                } catch (e: Exception) {
-                    resolver.delete(uri, null, null)
-                    throw e
-                }
-            } else {
-                val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
-                if (!dir.exists()) dir.mkdirs()
-                val file = File(dir, fileName)
-                file.outputStream().use { doc.writeTo(it) }
-                file.absolutePath
-            }
+            saveDownload(serialFileName(order, "pdf"), "application/pdf") { doc.writeTo(it) }
         } finally {
             doc.close()
         }

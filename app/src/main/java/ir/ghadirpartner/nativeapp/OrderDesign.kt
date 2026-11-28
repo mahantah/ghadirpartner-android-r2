@@ -119,7 +119,7 @@ internal fun ApprovedOrderProduct(line: JSONObject) {
                 )
                 Text(faNumber(line.i("qty")) + " عدد", color = ApprovedPalette.ink)
             }
-            if (line.s("price_label").isNotBlank()) DetailLine("نوع قیمت", line.s("price_label"))
+            if (line.s("price_label").isNotBlank()) DetailLine("نوع همکاری", line.s("price_label"))
             if (line.s("panel_switch").isNotBlank()) DetailLine("سوئیچ", line.s("panel_switch"))
             if (line.l("unit_price") > 0)
                 DetailLine("قیمت واحد", formatMoney(line.l("unit_price")) + " تومان")

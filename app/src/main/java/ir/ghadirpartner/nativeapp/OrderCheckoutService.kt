@@ -16,6 +16,8 @@ internal data class OrderCheckout(
     val promoCode: String,
     val revisionOrderId: Int = 0,
     val revisionVersion: Int = 0,
+    val agentTermsLocked: Boolean = false,
+    val suggestedShippingDate: String = "",
     val shippingMethod: String = "",
 )
 
@@ -25,13 +27,21 @@ internal class OrderRepository(
 ) {
     /** Refresh one account-owned order without reusing the short-lived list cache. */
     suspend fun find(orderId: Int): JSONObject {
-        val orders: JSONArray = api.request("GET", "/api/orders", null) as JSONArray
-        return orders.objects().firstOrNull { it.i("id") == orderId }
-            ?: throw IllegalArgumentException("سفارش در دسترس نیست")
+        val response = api.request("GET", "/api/orders?order_id=$orderId", null)
+        val order = when (response) {
+            is JSONObject -> response.takeIf { it.i("id") == orderId }
+            // Older servers return the account's order list for this query.
+            is JSONArray -> response.objects().firstOrNull { it.i("id") == orderId }
+            else -> null
+        }
+        return requireNotNull(order) { "سفارش در دسترس نیست" }
     }
 
     /** Send one request; only the facade may recover a server-deduplicated preparation failure. */
     suspend fun create(checkout: OrderCheckout, mode: String = "", paymentId: String = ""): JSONObject {
+        if (mode.isNotEmpty() && CashDepositRows.onlineAmount(checkout.settlement) != checkout.settlement.l("cash_amount")) {
+            require(IranKishOrderPayment(api).availability().b("mixed_cash")) { "پرداخت ترکیبی در سرور هنوز فعال نیست." }
+        }
         val body = withContext(Dispatchers.Default) {
             requestBody(checkout).apply {
                 if (mode.isNotEmpty()) put("online_checkout_mode", mode)
@@ -50,13 +60,19 @@ internal class OrderRepository(
         }
         val settlement = JSONObject(checkout.settlement.toString())
         PaymentProofSelection.prepare(settlement, checkout.paymentMethod)
+        settlement.remove("cash_deposit_enabled")
+        settlement.remove("draft_non_cash_amounts")
+        if (!CashDepositRows.requiresOnline(settlement)) {
+            settlement.remove("cash_online_amount")
+            settlement.remove("cash_online")
+        }
         settlement.remove("upload_proof_later")
-        if (!settlement.b("cash_enabled") || settlement.l("cash_amount") <= 0L) settlement.remove("cash_online")
         val body: JSONObject =
             JSONObject()
                 .put("items", items)
                 .put("address_id", checkout.addressId)
                 .put("shipping_type",checkout.shippingMethod)
+                .put("suggested_shipping_date", checkout.suggestedShippingDate)
                 .put("invoice_type", checkout.invoiceType)
                 .put("requested_payment_method", checkout.paymentMethod)
                 .put("settlement_details", settlement)
@@ -82,13 +98,18 @@ internal class OrderCheckoutService(
             checkout.lines.isEmpty() -> "حداقل یک کالا به سفارش اضافه کنید"
             checkout.invoiceType !in listOf("رسمی", "غیررسمی") -> "نوع فاکتور را انتخاب کنید"
             checkout.paymentMethod !in listOf("cash", "check", "credit", "mixed") -> "روش تسویه را انتخاب کنید"
+            checkout.revisionOrderId == 0 && checkout.lines.any { it.priceKey == "sales_agent" } &&
+                (CashDepositRows.requiresOnline(checkout.settlement) || checkout.settlement.l("wallet_amount") > 0L) ->
+                "پرداخت آنلاین و کیف پول پس از بررسی تسویه عامل فروش در دسترس است"
             checkout.settlement.b("credit_enabled") &&
                 checkout.settlement.optLong("credit_amount") > 0L &&
                 checkout.settlement.b("terms_accepted") &&
                 checkout.settlement.s("commitment_sha256") != BuildConfig.ORDER_CREDIT_COMMITMENT_SHA256 ->
                 "متن تعهد جاری را دوباره تأیید کنید"
-            AgentSettlementPolicy().changed(checkout.lines,settlementInvoiceTotal(checkout.settlement,checkout.lines.sumOf {it.unit*it.qty}),checkout.settlement) && checkout.settlement.s("agent_change_reason").isBlank() -> "علت درخواست تغییر شرایط عامل فروش را وارد کنید"
-            else -> settlementError(checkout.paymentMethod, checkout.settlement)
+            !checkout.agentTermsLocked && AgentSettlementPolicy().changed(checkout.lines,settlementInvoiceTotal(checkout.settlement,checkout.lines.sumOf {it.unit*it.qty}),checkout.settlement) && checkout.settlement.s("agent_change_reason").isBlank() -> "علت درخواست تغییر شرایط عامل فروش را وارد کنید"
+            else -> CashDepositRows.error(checkout.settlement).ifBlank {
+                settlementError(checkout.paymentMethod, checkout.settlement)
+            }
         }
 
     /** Validate and price the draft before requesting the bank handoff. */
@@ -105,7 +126,7 @@ internal class OrderCheckoutService(
     suspend fun submit(checkout: OrderCheckout, paymentId: String = ""): JSONObject {
         val error: String = validation(checkout)
         require(error.isBlank()) { error }
-        return repository.create(checkout, if (checkout.settlement.b("cash_online") && checkout.settlement.b("cash_enabled")) "finalize" else "", paymentId)
+        return repository.create(checkout, if (CashDepositRows.requiresOnline(checkout.settlement)) "finalize" else "", paymentId)
     }
 }
 

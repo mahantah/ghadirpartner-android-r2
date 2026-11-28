@@ -1,9 +1,9 @@
 package ir.ghadirpartner.nativeapp
 
+import androidx.compose.foundation.lazy.LazyColumn
 import android.icu.util.Calendar
 import android.icu.util.TimeZone
 import android.icu.util.ULocale
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -28,9 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import java.util.Locale
@@ -93,70 +94,47 @@ internal class PersianCalendarService(
         }
 }
 
-/** Shows a wrapping value inside its border and a separate, unclipped field label. */
-@Composable
-private fun SelectionField(
-    label: String,
-    value: String,
-    placeholder: String,
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, color = AppInk)
-        Surface(
-            modifier =
-                Modifier.fillMaxWidth().semantics { contentDescription = label }.clickable(
-                    enabled = enabled,
-                    role = Role.Button,
-                    onClickLabel = "انتخاب $label",
-                    onClick = onClick,
-                ),
-            color = AppSurface,
-            shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.dp, AppInk.copy(alpha = 0.22f)),
-        ) {
-            Text(value.ifBlank { placeholder }, Modifier.padding(16.dp), color = AppInk)
-        }
-    }
-}
-
 /** Selects a listed bank or accepts the exact issuer printed on an older cheque. */
 @Composable
 internal fun BankSelectionField(
     value: String,
     enabled: Boolean,
+    allowLegacyIssuer: Boolean = true,
     onChange: (String) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
-    val banks = remember { BuildConfig.CHEQUE_BANKS.split('\n') }
-    SelectionField("بانک", value, "انتخاب بانک ▾", enabled) {
-        query = ""
-        open = true
+    val banks = remember(allowLegacyIssuer) {
+        (if (allowLegacyIssuer) BuildConfig.CHEQUE_BANKS else BuildConfig.PROFILE_BANKS).split('\n')
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text("بانک", color = Muted)
+        ChoiceTrigger("بانک", value.ifBlank { "انتخاب بانک" }, Icons.Default.AccountBalance, enabled) {
+            query = ""
+            open = true
+        }
     }
     if (open) {
         AlertDialog(
             onDismissRequest = { open = false },
-            containerColor = AppSurface.copy(alpha = 1f),
+            containerColor = lerp(AppSurface, Orange, .08f),
             title = { Text("انتخاب بانک", color = AppInk) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(query, { query = it.take(80) }, label = { Text("جست‌وجو یا نام بانک") }, singleLine = true)
-                    LazyColumn(Modifier.heightIn(max = 320.dp)) {
+                    OutlinedTextField(query, { query = it.take(80) },
+                        label = { Text(if (allowLegacyIssuer) "جست‌وجو یا نام بانک" else "جست‌وجوی بانک") }, singleLine = true)
+                    LazyColumn(Modifier.heightIn(max = 320.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(banks.filter { it.contains(query.trim(), ignoreCase = true) }) { bank ->
-                            TextButton(onClick = {
+                            ChoiceOptionCard(bank, Icons.Default.AccountBalance) {
                                 onChange(bank)
                                 open = false
-                            }, modifier = Modifier.fillMaxWidth()) {
-                                Text(bank, Modifier.fillMaxWidth(), color = AppInk)
                             }
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(enabled = query.isNotBlank(), onClick = {
+                if (allowLegacyIssuer) TextButton(enabled = query.isNotBlank(), onClick = {
                     onChange(query.trim())
                     open = false
                 }) { Text("ثبت نام واردشده") }
@@ -179,15 +157,18 @@ internal fun PersianDateSelectionField(
     var selected by remember { mutableStateOf(service.parse(value)) }
     var month by remember { mutableStateOf(selected.copy(day = 1)) }
     val months = listOf("فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند")
-    SelectionField(label, value, "انتخاب تاریخ شمسی ▦", enabled) {
-        selected = service.parse(value)
-        month = selected.copy(day = 1)
-        open = true
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(label, color = Muted)
+        ChoiceTrigger(label, value.ifBlank { "انتخاب تاریخ شمسی" }, Icons.Default.CalendarToday, enabled) {
+            selected = service.parse(value)
+            month = selected.copy(day = 1)
+            open = true
+        }
     }
     if (open) {
         AlertDialog(
             onDismissRequest = { open = false },
-            containerColor = AppSurface.copy(alpha = 1f),
+            containerColor = lerp(AppSurface, Orange, .08f),
             title = { Text("انتخاب $label", color = AppInk) },
             text = {
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {

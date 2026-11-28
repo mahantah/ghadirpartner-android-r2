@@ -68,14 +68,19 @@ internal class PaymentProofEncoder(private val resolver: ContentResolver) {
 }
 
 /** One evidence file with the customer's optional explanation. */
-internal data class SelectedProof(val data: String, val note: String = "") {
+internal data class SelectedProof(val data: String, val note: String = "", val depositAmount: Long? = null) {
     /** Encode the file and its explanation together for the server. */
-    fun payload(): JSONObject = JSONObject().put("data", data).put("note", note)
+    fun payload(): JSONObject {
+        val amount = depositAmount?.let { "مبلغ این واریز: ${formatMoney(it)} تومان" }.orEmpty()
+        val description = listOf(amount, note).filter(String::isNotBlank).joinToString("\n")
+        return JSONObject().put("data", data).put("note", description.take(BuildConfig.PROOF_MAX_NOTE_CHARS))
+    }
 }
 
 /** Keep checkout selections and request limits in one place. */
 internal object PaymentProofSelection {
     val mimeTypes: Array<String> get() = arrayOf("image/*", "application/pdf")
+    const val checkRegistration = "رسید ثبت چک"
     val kinds: List<String> = listOf("cash", "check")
     const val field = "payment_files"
     private const val notesField = "payment_file_notes"
@@ -95,7 +100,10 @@ internal object PaymentProofSelection {
     /** Join each attachment with its explanation in its selection order. */
     fun documents(settlement: JSONObject, kind: String): List<SelectedProof> {
         val notes = settlement.optJSONObject(notesField)?.optJSONArray(kind)
-        return read(settlement, kind).mapIndexed { index, data -> SelectedProof(data, notes?.optString(index).orEmpty()) }
+        val amounts = if (kind == "cash" && settlement.has(CashDepositRows.field)) {
+            CashDepositRows.read(settlement).filter { it.image.isNotBlank() }.associate { it.image to it.amount }
+        } else emptyMap()
+        return read(settlement, kind).mapIndexed { index, data -> SelectedProof(data, notes?.optString(index).orEmpty(), amounts[data]) }
     }
 
     /** Set a note without changing the original bytes or other selections. */
@@ -109,18 +117,19 @@ internal object PaymentProofSelection {
 
     /** Return the selected evidence that belongs to the final payment method. */
     fun active(settlement: JSONObject, method: String): List<Pair<String, List<SelectedProof>>> =
-        if (settlement.b("upload_proof_later")) emptyList() else kinds.mapNotNull { kind ->
-            val enabled = method == kind || (method == "mixed" && settlement.l("${kind}_amount") > 0)
+        kinds.mapNotNull { kind ->
+            val enabled = (method == kind || (method == "mixed" && settlement.l("${kind}_amount") > 0)) &&
+                (kind != "cash" || CashDepositRows.depositEnabled(settlement))
             val files = documents(settlement, kind)
             if (enabled && files.isNotEmpty()) kind to files else null
         }
 
     /** Update one kind without losing the selection for the other. */
-    fun set(settlement: JSONObject, kind: String, files: List<String>) {
+    fun set(settlement: JSONObject, kind: String, files: List<String>, addedNotes: Map<String, String> = emptyMap()) {
         val selection = settlement.optJSONObject(field) ?: JSONObject().put(
             "cash", JSONArray(read(settlement, "cash"))
         ).put("check", JSONArray(read(settlement, "check")))
-        val priorNotes = documents(settlement, kind).associate { it.data to it.note }
+        val priorNotes = documents(settlement, kind).associate { it.data to it.note } + addedNotes
         val notes = settlement.optJSONObject(notesField) ?: JSONObject()
         notes.put(kind, JSONArray(files.map { priorNotes[it].orEmpty() }))
         selection.put(kind, JSONArray(files))
@@ -144,6 +153,7 @@ internal object PaymentProofSelection {
         legacyFields.forEach { settlement.remove(it) }
         settlement.remove(field)
         settlement.remove(notesField)
+        settlement.remove(CashDepositRows.field)
     }
 
     /** Reject oversized selections before creating a network request. */

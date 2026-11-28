@@ -1,11 +1,17 @@
 package ir.ghadirpartner.nativeapp
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,6 +21,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.edit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -32,7 +39,9 @@ class PortalInboxState(private val api:ApiClient,context:android.content.Context
         private set
     private val prefs=context?.getSharedPreferences("ghadir_inbox",android.content.Context.MODE_PRIVATE)
     private val readKey="read:"+BuildConfig.APP_MODE+":"+account
+    private val dismissedKey="dismissed:"+BuildConfig.APP_MODE+":"+account
     private var locallyRead=prefs?.getStringSet(readKey,emptySet())?.toSet()?:emptySet()
+    private var dismissed=prefs?.getStringSet(dismissedKey,emptySet())?.toSet()?:emptySet()
     private var localMode=false
     private val lock=Mutex()
     val unread:Int get()=items.count {!it.b("read")}
@@ -62,7 +71,7 @@ class PortalInboxState(private val api:ApiClient,context:android.content.Context
                 if (error.status !in setOf(404, 405, 501)) throw error
                 emptyList()
             }
-            items=(next + staff).filter{it.s("id").isNotBlank()}.distinctBy{it.s("id")}.map {
+            items=(next + staff).filter{it.s("id").isNotBlank() && it.s("id") !in dismissed}.distinctBy{it.s("id")}.map {
                 JSONObject(it.toString()).apply {if(s("id") in locallyRead)put("read",true)}
             }.sortedByDescending{it.s("created_at")}
             error=""
@@ -96,6 +105,12 @@ class PortalInboxState(private val api:ApiClient,context:android.content.Context
     suspend fun markRead(ids:List<String>):Unit=lock.withLock {
         val owned=ids.filter{id->items.any{it.s("id")==id}}.distinct()
         if(owned.isEmpty())return@withLock
+        val ownedIds = owned.toSet()
+        locallyRead = (locallyRead + ownedIds).takeLastSet(1000)
+        prefs?.edit { putStringSet(readKey, locallyRead) }
+        items = items.map { item ->
+            if (item.s("id") !in ownedIds) item else JSONObject(item.toString()).put("read", true)
+        }
         try {
             val staff = owned.filter { it.startsWith("staff:") }
             if (staff.isNotEmpty()) {
@@ -105,14 +120,20 @@ class PortalInboxState(private val api:ApiClient,context:android.content.Context
             if(!localMode && activity.isNotEmpty())try {
                 api.request("POST", "/api/notifications/read",JSONObject().put("ids",JSONArray(activity)))
             }catch(e:ApiException){if(e.status !in setOf(404,405,501))throw e}
-            locallyRead=(locallyRead+owned).takeLastSet(1000)
-            prefs?.edit()?.putStringSet(readKey,locallyRead)?.apply()
-            items=items.map {JSONObject(it.toString()).apply {if(s("id") in owned)put("read",true)}}
             error=""
         }catch(e:CancellationException){throw e}
         catch(e:Exception){error=e.message?:"ثبت خوانده‌شدن ناموفق بود"}
     }
     private fun Set<String>.takeLastSet(limit:Int):Set<String> = toList().takeLast(limit).toSet()
+
+    /** Dismiss the confirmed notifications of this account without hiding newer arrivals. */
+    suspend fun dismiss(ids: Set<String>): Unit = lock.withLock {
+        val ownedIds = items.map { it.s("id") }.filterTo(mutableSetOf()) { it in ids }
+        if (ownedIds.isEmpty()) return@withLock
+        dismissed = dismissed + ownedIds
+        prefs?.edit { putStringSet(dismissedKey, dismissed) }
+        items = items.filterNot { it.s("id") in ownedIds }
+    }
 }
 
 @Composable
@@ -130,21 +151,35 @@ fun PortalInbox(state:PortalInboxState,onOrder:(Int)->Unit,onOffer:(Int)->Unit) 
     val scope=rememberCoroutineScope()
     var selected by remember {mutableStateOf<JSONObject?>(null)}
     var filter by remember {mutableStateOf("all")}
-    fun open(n:JSONObject) {
-        scope.launch {
-            state.markRead(listOf(n.s("id")))
-            when(n.s("kind")){"order"->onOrder(n.i("order_id"));"offer"->onOffer(n.i("offer_id"));else->selected=n}
-        }
+    var pendingDismiss by remember { mutableStateOf<JSONObject?>(null) }
+    var pendingClearAll by remember { mutableStateOf<Set<String>?>(null) }
+    fun open(notification: JSONObject) {
+        selected = notification
+        if (!notification.b("read")) scope.launch { state.markRead(listOf(notification.s("id"))) }
     }
-    val visible=state.items.filter {filter=="all"||it.s("kind")==filter}
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        item {DesignChoices(listOf("all" to "همه","order" to "سفارش‌ها","offer" to "آفرها"),filter,{filter=it})}
+    val visible = state.items.filter { filter == "all" || it.s("kind") == filter }
+    val unreadIds = visible.filterNot { it.b("read") }.map { it.s("id") }
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+        item {
+            DesignChoices(listOf("all" to "همه","order" to "سفارش‌ها","offer" to "آفرها"),filter,{filter=it})
+        }
+        if (state.items.isNotEmpty()) item {
+            TextButton(
+                onClick = { pendingClearAll = state.items.mapTo(mutableSetOf()) { it.s("id") } },
+                enabled = !state.loading,
+            ) { Text("پاک کردن همهٔ اعلان‌ها", color = Danger) }
+        }
+        if (unreadIds.isNotEmpty()) item {
+            TextButton(onClick = { scope.launch { state.markRead(unreadIds) } }, enabled = !state.loading) {
+                Text("خواندن همهٔ اعلان‌های این بخش")
+            }
+        }
         item {Text("اعلان‌های سفارش و پیشنهادهای همکاران",color=Muted,fontSize=12.sp)}
         if(state.error.isNotBlank())item {ErrorBanner(state.error){};GhadirButton("تلاش دوباره",{scope.launch{state.refresh()}},enabled=!state.loading)}
         if(state.loading&&visible.isEmpty())item {LoadingPane()}
         if(visible.isEmpty()&&!state.loading&&state.error.isBlank())item {EmptyState("اعلانی وجود ندارد","پیام‌ها، آفرها و تغییر وضعیت سفارش‌ها اینجا نمایش داده می‌شوند.")}
         items(visible,key={it.s("id")}) {n->
-            GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            GlassSurface {Column(Modifier.fillMaxWidth().clickable { open(n) }.padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 val body=n.s("body")
                 val asset=when {
                     n.s("kind")=="offer"->R.drawable.design_gift
@@ -154,19 +189,62 @@ fun PortalInbox(state:PortalInboxState,onOrder:(Int)->Unit,onOffer:(Int)->Unit) 
                 }
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                     DesignGlyph(asset,null,Modifier.size(30.dp))
-                    Text((if(n.b("read"))"" else "● ")+n.s("title"),color=Ink,fontSize=16.sp,lineHeight=26.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
+                    if (!n.b("read")) Box(Modifier.size(8.dp).background(Orange, CircleShape)
+                        .semantics { contentDescription = "خوانده‌نشده" })
+                    Text(n.s("title"),color=Ink,fontSize=16.sp,lineHeight=26.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
+                    IconButton(onClick = { pendingDismiss = n }) {
+                        Icon(Icons.Outlined.DeleteOutline, "پاک کردن اعلان " + n.s("title"), tint = Danger)
+                    }
                 }
                 Text(body,color=Muted,fontSize=12.sp,lineHeight=20.sp)
                 if(n.s("created_at").isNotBlank())Text(formatDateFa(n.s("created_at")),color=Muted,fontSize=11.sp)
-                GhadirButton(when(n.s("kind")){"order"->if(n.s("title").contains("تحویل"))"دریافت سریال‌ها" else "مشاهده سفارش";"offer"->"شرایط طرح";else->"مشاهده پیام"},{open(n)},secondary=true)
             }}
         }
-        if(state.unread>0)item {GhadirButton("خواندن همه",{scope.launch{state.markRead(state.items.filterNot{it.b("read")}.map{it.s("id")})}},secondary=true)}
         item {Text("قیمت و شرایط نهایی هنگام ثبت سفارش نمایش داده می‌شود.",color=Muted,fontSize=12.sp)}
     }
-    selected?.let {n->AlertDialog(onDismissRequest={selected=null},title={Text(n.s("title"))},
-        text={Text(n.s("body"),modifier=Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState()))},
-        confirmButton={TextButton(onClick={selected=null}){Text("بستن")}})}
+    pendingDismiss?.let { notification ->
+        AlertDialog(
+            onDismissRequest = { pendingDismiss = null },
+            title = { Text("پاک کردن اعلان") },
+            text = { Text(notification.s("title")) },
+            confirmButton = { TextButton(onClick = {
+                pendingDismiss = null
+                scope.launch { state.dismiss(setOf(notification.s("id"))) }
+            }) { Text("پاک کردن", color = Danger) } },
+            dismissButton = { TextButton(onClick = { pendingDismiss = null }) { Text("انصراف") } },
+        )
+    }
+    pendingClearAll?.let { ids ->
+        AlertDialog(
+            onDismissRequest = { pendingClearAll = null },
+            title = { Text("پاک کردن همهٔ اعلان‌ها") },
+            text = { Text("همهٔ اعلان‌های فعلی این حساب، در تمام دسته‌ها، از این دستگاه پاک می‌شوند.") },
+            confirmButton = { TextButton(onClick = {
+                pendingClearAll = null
+                scope.launch { state.dismiss(ids) }
+            }) { Text("پاک کردن همه", color = Danger) } },
+            dismissButton = { TextButton(onClick = { pendingClearAll = null }) { Text("انصراف") } },
+        )
+    }
+    selected?.let { notification ->
+        val kind = notification.s("kind")
+        AlertDialog(
+            onDismissRequest = { selected = null },
+            title = { Text(notification.s("title")) },
+            text = { Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) { Text(notification.s("body")) } },
+            confirmButton = {
+                if (kind == "order" || kind == "offer") {
+                    TextButton(onClick = {
+                        selected = null
+                        if (kind == "order") onOrder(notification.i("order_id")) else onOffer(notification.i("offer_id"))
+                    }) { Text(if (kind == "order") "مشاهده سفارش" else "مشاهده آفر") }
+                } else TextButton(onClick = { selected = null }) { Text("بستن") }
+            },
+            dismissButton = {
+                if (kind == "order" || kind == "offer") TextButton(onClick = { selected = null }) { Text("بستن") }
+            },
+        )
+    }
 }
 
 @Composable
@@ -184,7 +262,7 @@ fun PortalOffers(api:ApiClient,selectedId:Int?,onOpen:(Int)->Unit={},onUse:(Stri
     }
     if(loading){LoadingPane();return}
     val rows=offers.filter {detail==null||it.i("id")==detail}
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(error.isNotBlank())item {ErrorBanner(error){error=""};GhadirButton("تلاش دوباره",{retry++})}
         if(rows.isEmpty()&&error.isBlank())item {EmptyState("آفر فعالی موجود نیست","ممکن است زمان طرح تمام شده باشد یا برای حساب شما فعال نباشد.")}
         if(detail==null&&rows.isNotEmpty())item {Text("پیشنهادهای ویژه همکاران",color=Ink,fontSize=18.sp,fontWeight=FontWeight.Bold)}

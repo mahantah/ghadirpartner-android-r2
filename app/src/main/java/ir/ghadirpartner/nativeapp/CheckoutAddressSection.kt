@@ -1,6 +1,8 @@
 package ir.ghadirpartner.nativeapp
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -58,7 +60,7 @@ internal fun CheckoutAddressSection(
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        DropdownField("نشانی تحویل", addressText.ifBlank { "نشانی در پروفایل ثبت نشده است" }, choices, { it.s("title") + " • " + it.s("address") }) {
+        DropdownField("نشانی تحویل", addressText.ifBlank { "نشانی در پروفایل ثبت نشده است" }, choices, { it.s("title") + " • " + it.s("address") }, icon = Icons.Default.LocationOn) {
             onSelected(it.s("id"))
         }
         GhadirButton(if (showNew) "بستن فرم آدرس جدید" else "ثبت آدرس جدید", { showNew = !showNew }, secondary = true, enabled = !busy)

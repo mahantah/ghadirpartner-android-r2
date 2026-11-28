@@ -2,6 +2,8 @@ package ir.ghadirpartner.nativeapp
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -62,68 +64,95 @@ internal fun ApprovedButton(
 /** Show the real checkout stages in their RTL progression. */
 @Composable
 internal fun ApprovedCheckoutProgress(step: Int) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        listOf("ثبت سفارش", "نحوه تسویه", "نحوه ارسال", "ثبت نهایی").forEachIndexed { index, title ->
+    val stages = listOf(
+        "سبد خرید" to R.drawable.payment_ref_cart,
+        "تسویه حساب" to R.drawable.payment_ref_card,
+        "اطلاعات ارسال" to R.drawable.payment_ref_shipping,
+        "تأیید نهایی" to R.drawable.payment_ref_done,
+    )
+    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.Top) {
+        stages.forEachIndexed { index, (title, icon) ->
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(if (index < step) Icons.Outlined.CheckCircle else Icons.Outlined.RadioButtonChecked,
-                    null, tint = if (index <= step) ApprovedPalette.accent else ApprovedPalette.muted)
+                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Surface(shape = androidx.compose.foundation.shape.CircleShape,
+                    color = if (index == step) Color(0xFFFF9823) else if (AppAppearance.dark) Color(0xFFBCC9E1) else Color(0xFFE6ECF7),
+                    border = BorderStroke(1.dp, ApprovedPalette.border)) {
+                    PaymentArtwork(icon, Modifier.size(38.dp).padding(8.dp))
+                }
                 Text(title, color = if (index == step) ApprovedPalette.ink else ApprovedPalette.muted,
-                    fontSize = 12.sp, fontWeight = if (index == step) FontWeight.Bold else FontWeight.Normal)
+                    fontSize = 10.sp, fontWeight = if (index == step) FontWeight.Bold else FontWeight.Normal,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
+            if (index < stages.lastIndex) HorizontalDivider(Modifier.weight(.31f).padding(top = 19.dp),
+                color = ApprovedPalette.muted.copy(alpha = .55f))
         }
     }
 }
 
-/** Expand one product into every price supplied by the authenticated catalog response. */
+/** Open a model price dialog while retaining the direct ordering action. */
 @Composable
-internal fun ApprovedPriceCard(product: JSONObject, group: String, expandAll: Boolean, onOrder: () -> Unit) {
-    var expanded by rememberSaveable(product.s("name"), expandAll) { mutableStateOf(expandAll) }
+internal fun ApprovedPriceCard(product: JSONObject, group: String, onOpenPrices: () -> Unit, onOrder: () -> Unit) {
     val available = catalogInStock(product)
     ApprovedSurface {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(Modifier.fillMaxWidth().clickable { expanded = !expanded },
+            Row(Modifier.fillMaxWidth().clickable(onClickLabel = "مشاهده قیمت‌های مدل", onClick = onOpenPrices),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                PosTerminalIcon(Modifier.size(34.dp))
+                Surface(shape = RoundedCornerShape(14.dp),
+                    color = androidx.compose.ui.graphics.lerp(ApprovedPalette.surface, Color(0xFF4E83ED), .16f)) {
+                    PosTerminalIcon(Modifier.padding(8.dp).size(30.dp))
+                }
                 Column(Modifier.weight(1f)) {
                     Text(shortProductName(product.s("name")), color = ApprovedPalette.ink,
                         fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Text(if (available) "موجودی " + faNumber(product.i("stock")) + " عدد" else "ناموجود", color = if (available) ApprovedPalette.muted else Danger)
                 }
-                Icon(if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                    contentDescription = if (expanded) "بستن قیمت‌ها" else "نمایش همه قیمت‌ها",
+                Icon(Icons.Outlined.LocalOffer, contentDescription = null,
                     tint = ApprovedPalette.accent)
             }
-            if (expanded) {
-                for ((key, title) in listOf("serial" to "سریال آزاد", "panel" to "پنل", "agent" to "عاملین فروش")) {
-                    val rows = catalogPriceRows(key).filter { product.obj("prices").l(it.first) > 0L }
-                    if (rows.isNotEmpty()) {
-                        Surface(color = ApprovedPalette.surface, shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, ApprovedPalette.border)) {
-                            Column {
-                                Surface(color = ApprovedPalette.secondary) {
-                                    Text(title, Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
-                                        fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ApprovedPalette.ink)
+            ApprovedButton("افزودن به سفارش", onOrder, modifier = Modifier.fillMaxWidth(), enabled = canOrderModel(product, group))
+        }
+    }
+}
+
+/** Show the known price tiers for a single model in a scrollable overlay. */
+@Composable
+internal fun ProductPriceDialog(product: JSONObject, group: String, onClose: () -> Unit, onOrder: () -> Unit) {
+    val available = catalogInStock(product)
+    PortalPageDialog(shortProductName(product.s("name")), onClose) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp).verticalScroll(rememberScrollState()).padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            for ((key, title) in listOf("serial" to "سریال آزاد", "panel" to "پنل", "agent" to "عاملین فروش")) {
+                val rows = catalogPriceRows(key).filter { product.obj("prices").l(it.first) > 0L }
+                if (rows.isNotEmpty()) {
+                    Surface(color = ApprovedPalette.surface, shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, ApprovedPalette.border)) {
+                        Column {
+                            Surface(color = ApprovedPalette.secondary) {
+                                Text(title, Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+                                    fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ApprovedPalette.ink)
+                            }
+                            rows.forEach { (priceKey, label) ->
+                                Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(label, color = ApprovedPalette.ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                    Text(if (available) formatMoney(product.obj("prices").l(priceKey)) + " تومان" else "—",
+                                        color = ApprovedPalette.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 }
-                                rows.forEach { (priceKey, label) ->
-                                    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text(label, color = ApprovedPalette.ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                                        Text(if (available) formatMoney(product.obj("prices").l(priceKey)) + " تومان" else "—",
-                                            color = ApprovedPalette.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                    HorizontalDivider(color = ApprovedPalette.border)
-                                }
+                                HorizontalDivider(color = ApprovedPalette.border)
                             }
                         }
                     }
                 }
             }
-            ApprovedButton("افزودن به سفارش", onOrder, modifier = Modifier.fillMaxWidth(), enabled = available &&
-                catalogPriceRows(group).any { product.obj("prices").l(it.first) > 0L })
+            ApprovedButton("افزودن به سفارش", onOrder, enabled = canOrderModel(product, group))
         }
     }
 }
+
+private fun canOrderModel(product: JSONObject, group: String): Boolean =
+    catalogInStock(product) && catalogPriceRows(group).any { product.obj("prices").l(it.first) > 0L }
 
 /** Present fulfillment and payment as distinct order facts with a stable details action. */
 @Composable
@@ -134,12 +163,14 @@ internal fun ApprovedOrderCard(order: JSONObject, onClick: () -> Unit) {
     ApprovedSurface {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Description, null, tint = ApprovedPalette.ink)
+                Surface(shape = RoundedCornerShape(13.dp), color = Color(0xFF5148A7)) {
+                    PaymentArtwork(R.drawable.payment_ref_receipt, Modifier.size(41.dp).padding(9.dp))
+                }
                 Text(faDigits(order.s("number")), color = ApprovedPalette.ink, fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
                 StatusPill(order.s("status"))
             }
-            Text(formatDateFa(order.s("created_at")), color = ApprovedPalette.muted, fontSize = 12.sp)
+            Text(formatDateFa(order.s("created_at"), includeTime = false), color = ApprovedPalette.muted, fontSize = 12.sp)
             HorizontalDivider(color = ApprovedPalette.border)
             Text(orderItemsDescription(order), color = ApprovedPalette.ink)
             Text(formatMoney(order.l("approved_total").takeIf { it > 0L } ?: order.l("estimated_total")) + " تومان",
@@ -175,7 +206,7 @@ internal fun ApprovedWalletBalance(wallet: JSONObject) {
                     Text("قدیر پارتنر", color = Color.White, fontWeight = FontWeight.Bold)
                     Text("موجودی کیف پول", color = Color.White.copy(alpha = .8f), fontSize = 12.sp)
                 }
-                Icon(Icons.Outlined.CreditCard, null, tint = ApprovedPalette.accent, modifier = Modifier.size(36.dp))
+                PaymentArtwork(R.drawable.payment_ref_hero, Modifier.size(72.dp, 51.dp))
             }
             Text(formatMoney(wallet.l("balance")) + " تومان", color = Color.White,
                 fontSize = 26.sp, fontWeight = FontWeight.Bold)
@@ -200,7 +231,7 @@ internal fun ApprovedWalletCredit(account: JSONObject) {
     ApprovedSurface {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth().clickable { expanded = !expanded }, verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.ShoppingCart, null, tint = ApprovedPalette.accent)
+                PaymentArtwork(R.drawable.payment_ref_credit, Modifier.size(38.dp))
                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                     Text("اعتبار خرید", color = ApprovedPalette.muted)
                     Text(formatMoney(account.l("available")) + " تومان", color = ApprovedPalette.ink, fontWeight = FontWeight.Bold)

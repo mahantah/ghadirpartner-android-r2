@@ -1,5 +1,8 @@
 package ir.ghadirpartner.nativeapp
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
 import android.widget.Toast
 import android.net.Uri
 import android.graphics.BitmapFactory
@@ -10,19 +13,16 @@ import androidx.biometric.BiometricManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,14 +32,8 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.layer.drawLayer
-import androidx.compose.ui.graphics.rememberGraphicsLayer
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -50,7 +44,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -68,7 +61,7 @@ private val portalNav = listOf(
     NavItem("home", "پیشخوان", Icons.Default.Home),
     NavItem("catalog", "قیمت‌ها", Icons.Default.LocalOffer),
     NavItem("new", "ثبت سفارش", Icons.Default.AddCircle),
-    NavItem("orders", "سفارش‌ها", Icons.Default.ReceiptLong),
+    NavItem("orders", "سفارش‌ها", Icons.AutoMirrored.Filled.ReceiptLong),
     NavItem("profile", "پروفایل", Icons.Default.AccountCircle)
 )
 
@@ -81,11 +74,15 @@ fun PortalApp(api: ApiClient, me: JSONObject, onLogout: () -> Unit) {
 private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Unit) {
     val context = LocalContext.current
     val inbox = remember(api, me.s("username")) { PortalInboxState(api,context,me.s("username")) }
+    val inboxOrders = remember(api) { OrderCheckoutService(OrderRepository(api)) }
     val appScope = rememberCoroutineScope()
     val screenStates = rememberSaveableStateHolder()
+    var catalogOrigin by rememberSaveable { mutableStateOf("home") }
     var orderOrigin by rememberSaveable { mutableStateOf("orders") }
     var offersOrigin by rememberSaveable { mutableStateOf("home") }
+    var serialDetailOrigin by rememberSaveable { mutableStateOf("order-detail") }
     var serialsOrigin by rememberSaveable { mutableStateOf("orders") }
+    var ordersFromProfile by rememberSaveable { mutableStateOf(false) }
     var catalogProduct by rememberSaveable { mutableStateOf("") }
     var catalogGroup by rememberSaveable { mutableStateOf("serial") }
     var selectedOffer by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -100,8 +97,22 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
     var profilePhotoUri by remember { mutableStateOf(profilePrefs.getString(photoKey, "") ?: "") }
     var screen by rememberSaveable { mutableStateOf("home") }
     var selectedOrder by rememberSaveable(stateSaver = NullableJsonSaver) { mutableStateOf<JSONObject?>(null) }
+    var inboxOrigin by rememberSaveable { mutableStateOf("home") }
     var proformaOrigin by rememberSaveable {mutableStateOf("documents")}
     var currentMe by rememberSaveable(stateSaver=JsonSaver) { mutableStateOf(JSONObject(me.toString())) }
+    LaunchedEffect(api, me.s("username")) {
+        try {
+            val access = PortalAccountService(api).accessLevel()
+            if (access.isNotBlank()) currentMe = JSONObject(currentMe.toString()).put("portal_access_level", access)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Existing servers have no access-level endpoint.
+        }
+    }
+    val access = currentMe.s("portal_access_level")
+    val canOrder = access !in setOf("viewer", "finance")
+    val visiblePortalNav = if (canOrder) portalNav else portalNav.filterNot { it.key == "new" }
     val customerName = currentMe.obj("customer").s("name").ifBlank { currentMe.s("username") }
 
     var checkoutBusy by remember {mutableStateOf(false)}
@@ -160,12 +171,19 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
     fun goBack() {
         if(checkoutBusy||profileBusy)return
         when (screen) {
-            "revision" -> if (checkoutTitle != "ثبت سفارش") checkoutBackRequest++ else screen="order-detail"
+            "revision" -> {
+                val termsLocked = selectedOrder?.obj("customer_correction")?.has("settlement_amounts") == true
+                if (checkoutTitle == "ثبت سفارش" || (termsLocked && checkoutTitle == "نحوه تسویه")) screen="order-detail"
+                else checkoutBackRequest++
+            }
             "new" -> if (checkoutTitle != "ثبت سفارش") checkoutBackRequest++ else {parkActiveCheckout();screen="home"}
             "profile" -> if (profileTitle != "پروفایل") profileBackRequest++ else screen="home"
+            "inbox" -> screen=inboxOrigin
+            "catalog" -> screen=catalogOrigin
             "order-detail" -> if(cancelView) orderBackRequest++ else screen=orderOrigin
-            "serial-detail" -> screen="order-detail"
+            "serial-detail" -> screen=serialDetailOrigin
             "serials" -> screen=serialsOrigin
+            "orders" -> screen=if(ordersFromProfile) "profile" else "home"
             "proforma" -> screen=proformaOrigin
             "documents", "addresses", "summary" -> screen="profile"
             "offers" -> if(selectedOffer!=null) selectedOffer=null else screen=offersOrigin
@@ -174,56 +192,68 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
         }
     }
     BackHandler(enabled = screen != "home") { goBack() }
+    fun navigate(destination: String) {
+        if (destination == "new" && !canOrder) return
+        if (destination == "catalog" && screen != destination) catalogOrigin = screen
+        screen = destination
+    }
     fun selectTab(destination:String) {
         if(checkoutBusy||profileBusy)return
         if(screen=="new"&&destination!="new")parkActiveCheckout()
-        selectedOffer=null;screen=destination
+        if(destination=="orders") ordersFromProfile=false
+        selectedOffer=null; navigate(destination)
+    }
+    val baseScreen = when (screen) {
+        "order-detail" -> orderOrigin
+        else -> screen
     }
     val navScreen=when(screen){"serials","serial-detail","order-detail","success","revision"->"orders";"documents","proforma","addresses","summary"->"profile";"inbox","offers"->"home";else->screen}
     val wideNavigation=androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp>=600
-    val backdrop=rememberGraphicsLayer()
-    val blurBackdrop=android.os.Build.VERSION.SDK_INT>=31&&!wideNavigation
-    var backdropPosition by remember {mutableStateOf(Offset.Zero)}
     val keyboardVisible=WindowInsets.ime.getBottom(LocalDensity.current)>0
     val direction=LocalLayoutDirection.current
     val titles = mapOf("documents" to "پیش‌فاکتورهای من", "proforma" to "پیش‌فاکتور", "success" to "سفارش ثبت شد", "serials" to "سریال‌های من", "addresses" to "آدرس‌های من", "home" to "پیشخوان", "catalog" to "قیمت و موجودی", "new" to "ثبت سفارش", "orders" to "سفارش‌های من", "profile" to "پروفایل", "order-detail" to "جزئیات سفارش", "inbox" to "مرکز پیام", "offers" to "طرح‌ها و آفرها")
-    Box(Modifier.fillMaxSize().portalBackdrop()) { Scaffold(
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(
+        if (AppAppearance.dark) listOf(Color(0xFF121D33), Color(0xFF172B43))
+        else listOf(Color(0xFFF4F6FF), Color(0xFFEDF3FC))
+    ))) { Scaffold(
         containerColor = Color.Transparent,
         topBar = {
-            val backScreen=screen in setOf("order-detail","documents","proforma","success","addresses","serial-detail","revision") || (screen=="offers"&&selectedOffer!=null) || (screen=="new"&&checkoutTitle!="ثبت سفارش") || (screen=="profile"&&profileTitle!="پروفایل")
-            val title=if(screen=="serial-detail")"سریال دستگاه‌ها" else if(screen=="order-detail"&&cancelView)"لغو سفارش" else if(screen=="profile")profileTitle else if(screen=="revision"&&checkoutTitle=="ثبت سفارش")"اصلاح سفارش" else if(screen in setOf("new","revision"))checkoutTitle else if(screen=="offers"&&selectedOffer!=null)"جزئیات آفر" else titles[screen]?:"قدیر پارتنر"
-            if(backScreen) PortalBackHeader(title) {
+            val backScreen=baseScreen in setOf("profile","inbox","documents","proforma","success","addresses","serials","serial-detail","revision") || (baseScreen=="orders"&&ordersFromProfile) || (baseScreen=="offers"&&selectedOffer!=null) || (baseScreen=="new"&&checkoutTitle!="ثبت سفارش")
+            val title=if(baseScreen=="serial-detail")"سریال دستگاه‌ها" else if(baseScreen=="profile")profileTitle else if(baseScreen=="revision"&&checkoutTitle=="ثبت سفارش")"اصلاح سفارش" else if(baseScreen in setOf("new","revision"))checkoutTitle else if(baseScreen=="offers"&&selectedOffer!=null)"جزئیات آفر" else titles[baseScreen]?:"قدیر پارتنر"
+            if(backScreen) PortalBackHeader(if(title=="نحوه تسویه") "تسویه حساب" else title) {
                 goBack()
-            } else PortalGlassHeader(title,screen=="home",inbox.unread,onOffers={if(!checkoutBusy&&!profileBusy){if(screen=="new")parkActiveCheckout();offersOrigin=screen;selectedOffer=null;screen="offers"}}) {
-                if(!checkoutBusy&&!profileBusy){if(screen=="new")parkActiveCheckout();screen="inbox";appScope.launch {inbox.refresh()}}
+            } else PortalGlassHeader(title,baseScreen=="home",inbox.unread,onOffers={if(!checkoutBusy&&!profileBusy){if(baseScreen=="new")parkActiveCheckout();offersOrigin=baseScreen;selectedOffer=null;screen="offers"}}) {
+                if(!checkoutBusy&&!profileBusy){if(baseScreen=="new")parkActiveCheckout();inboxOrigin=baseScreen;screen="inbox";appScope.launch {inbox.refresh()}}
             }
         },
         bottomBar = {
-            if(!wideNavigation&&!keyboardVisible)FigmaBottomBar(portalNav,navScreen,::selectTab,modifier=Modifier.navigationBarsPadding(),backdrop=if(blurBackdrop)backdrop else null,contentPosition=backdropPosition)
+            if(!wideNavigation&&!keyboardVisible)FigmaBottomBar(visiblePortalNav,navScreen,::selectTab,modifier=Modifier.background(if (AppAppearance.dark) Color(0xFF172B43) else Color(0xFFEDF3FC)).navigationBarsPadding())
         }
     ) { pad ->
-        val bodyPadding=PaddingValues(start=pad.calculateStartPadding(direction),top=pad.calculateTopPadding(),end=pad.calculateEndPadding(direction),bottom=if(wideNavigation)pad.calculateBottomPadding() else 0.dp)
-        CompositionLocalProvider(LocalPortalBottomPadding provides if(!wideNavigation&&!keyboardVisible)pad.calculateBottomPadding() else 0.dp) {
-        Row(Modifier.fillMaxSize().padding(bodyPadding).consumeWindowInsets(bodyPadding).imePadding()
-            .onGloballyPositioned {backdropPosition=it.positionInRoot()}
-            .drawWithContent {if(blurBackdrop){backdrop.record {this@drawWithContent.drawContent()};drawLayer(backdrop)}else drawContent()}) {
-            if(wideNavigation) AppNavigationRail(portalNav,navScreen,::selectTab)
+        val bodyPadding=PaddingValues(start=pad.calculateStartPadding(direction),top=pad.calculateTopPadding(),end=pad.calculateEndPadding(direction),bottom=pad.calculateBottomPadding())
+        Row(Modifier.fillMaxSize().padding(bodyPadding).consumeWindowInsets(bodyPadding).imePadding()) {
+            if(wideNavigation) AppNavigationRail(visiblePortalNav,navScreen,::selectTab)
             Box(Modifier.weight(1f).fillMaxHeight(),contentAlignment=Alignment.TopCenter) {
             Box(Modifier.widthIn(max=840.dp).fillMaxSize()) {
-            Crossfade(targetState = screen, label = "portal-nav") { target ->
+            Crossfade(targetState = baseScreen, label = "portal-nav") { target ->
                 screenStates.SaveableStateProvider(me.s("username") + ":" + target + if(target=="new")":$checkoutSessionKey" else "") {
                 when (target) {
                     "home" -> PortalHome(
                         api,
-                        navigate = { selectedOffer=null; screen = it },
+                        navigate = { selectedOffer=null; navigate(it) },
                         customerName = customerName, accountKey=me.s("username"),
                         openOrder = { orderOrigin=screen; selectedOrder = it; screen = "order-detail" },
                         openOffer = {offersOrigin=screen;selectedOffer=it;screen="offers"}
                     )
                     "orders" -> PortalOrders(api,abandonedOrder=abandonedOrder,onContinueAbandoned={
                         restoreCheckoutDraft=it;checkoutSessionKey++;screen="new"
-                    },onDeleteAbandoned={clearAbandonedDraft();activityCart=emptyList()},onNavigate={screen=it}) { orderOrigin=screen; selectedOrder = it; screen = "order-detail" }
-                    "new" -> PortalNewOrder(api, offerCode, catalogProduct, catalogGroup, restoreDraft=restoreCheckoutDraft,abandonedBanner=abandonedOrder,
+                    },onDeleteAbandoned={clearAbandonedDraft();activityCart=emptyList()},onNavigate=::navigate) { orderOrigin=screen; selectedOrder = it; screen = "order-detail" }
+                    "catalog" -> PortalCatalog(api, onBack = ::goBack) { product, group ->
+                        catalogProduct = product
+                        catalogGroup = group
+                        screen = "new"
+                    }
+                    "new" -> if (!canOrder) DesignNotice("ثبت سفارش در سطح دسترسی شما مجاز نیست.") else PortalNewOrder(api, offerCode, catalogProduct, catalogGroup, restoreDraft=restoreCheckoutDraft,abandonedBanner=abandonedOrder,
                         onProductConsumed={catalogProduct=""},onBusyChanged={checkoutBusy=it},
                         onDraftSnapshot={snapshot->
                             if (snapshot != null || checkoutDraftSnapshot != null) {
@@ -241,11 +271,11 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                         selectedOrder = createdOrder
                         screen = "success"
                     }
-                    "serials" -> PortalOrders(api, deliveredOnly=true,onNavigate={screen=it}) {orderOrigin=screen;selectedOrder=it;screen="order-detail"}
+                    "serials" -> PortalOrders(api, deliveredOnly=true,onNavigate=::navigate) {serialDetailOrigin=screen;selectedOrder=it;screen="serial-detail"}
                     "documents" -> PortalDocuments(api,currentMe,onOpen={selectedOrder=it;proformaOrigin="documents";screen="proforma"})
                     "proforma" -> PortalDocuments(api,currentMe,selectedOrder,onOpen={})
                     "success" -> selectedOrder?.let {order->
-                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp).padding(bottom=LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+                        Column(Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                             DesignState("سفارش با موفقیت ثبت شد","از بخش سفارش‌ها مراحل آماده‌سازی و ارسال را پیگیری کنید.",R.drawable.design_success,success=true)
                             GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                                 DetailLine("کد پیگیری",faDigits(order.s("number")))
@@ -257,15 +287,16 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                         }
                     }
                     "addresses" -> PortalAddresses(api)
-                    "summary" -> PortalHome(api,customerName,{screen=it},{orderOrigin=screen;selectedOrder=it;screen="order-detail"},showReport=true)
-                    "catalog" -> PortalCatalog(api,onHome={screen="home"},onOrder={ product, group -> catalogProduct=product;catalogGroup=group;screen="new" })
+                    "summary" -> PortalHome(api,customerName,::navigate,{orderOrigin=screen;selectedOrder=it;screen="order-detail"},showReport=true)
                     "offers" -> PortalOffers(api, selectedOffer,onOpen={selectedOffer=it}) { code -> offerCode=code; screen="new" }
                     "inbox" -> PortalInbox(inbox, onOrder={ id ->
                         appScope.launch {
                             try {
-                                val orders=(api.get("/api/orders") as JSONArray).objects()
-                                selectedOrder=orders.firstOrNull {it.i("id")==id}
-                                if(selectedOrder!=null){orderOrigin="inbox";screen="order-detail"} else Toast.makeText(context,"سفارش در دسترس نیست",Toast.LENGTH_LONG).show()
+                                selectedOrder = inboxOrders.find(id)
+                                orderOrigin = "inbox"
+                                screen = "order-detail"
+                            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                throw cancelled
                             } catch(e: Exception){Toast.makeText(context,"دریافت سفارش ناموفق بود؛ دوباره تلاش کنید",Toast.LENGTH_LONG).show()}
                         }
                     }, onOffer={ id -> offersOrigin="inbox";selectedOffer=id;screen="offers" })
@@ -283,11 +314,7 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                             }
                         }
                     }
-                    "order-detail" -> selectedOrder?.let { order ->
-                        PortalOrderDetails(api, order, onBack = { screen = orderOrigin }, onProforma={proformaOrigin="order-detail";screen="proforma"},me=currentMe,
-                            onSerials={screen="serial-detail"},onRevise={selectedOrder=it;checkoutTitle="ثبت سفارش";screen="revision"},onOrderUpdated={selectedOrder=it},onSectionChanged={cancelView=it},backRequest=orderBackRequest)
-                    } ?: PortalOrders(api,onNavigate={screen=it}) { orderOrigin=screen; selectedOrder = it; screen = "order-detail" }
-                    "serial-detail" -> selectedOrder?.let {order->PortalSerials(api,order,currentMe){screen="order-detail"}}
+                    "serial-detail" -> selectedOrder?.let {order->PortalSerials(api,order){screen=serialDetailOrigin}}
                     else -> PortalProfile(
                         api = api,
                         me = currentMe,
@@ -302,7 +329,13 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
                             runCatching {java.io.File(context.cacheDir,"checkout-state").deleteRecursively()}
                             onLogout()
                         },
-                        onProforma = { screen="documents" }, onNavigate = {if(it=="serials")serialsOrigin="profile";if(it=="offers")offersOrigin="profile";screen=it},
+                        onProforma = { screen="documents" }, onNavigate = {
+                            if(it=="orders") ordersFromProfile=true
+                            if(it=="serials") serialsOrigin="profile"
+                            if(it=="offers") offersOrigin="profile"
+                            if(it=="inbox") inboxOrigin="profile"
+                            screen=it
+                        },
                         onSectionChanged={profileTitle=it},onBusyChanged={profileBusy=it},backRequest=profileBackRequest
                     )
                 }
@@ -311,11 +344,21 @@ private fun PortalAccountApp(api: ApiClient, me: JSONObject, onLogout: () -> Uni
             }
             }
         }
-        }
     } }
 
+    if (screen == "order-detail") {
+        selectedOrder?.let { order ->
+            PortalPageDialog(if (cancelView) "لغو سفارش" else "جزئیات سفارش", ::goBack) {
+                PortalOrderDetails(api, order, onBack = { screen = orderOrigin },
+                    onProforma = { proformaOrigin = "order-detail"; screen = "proforma" }, me = currentMe,
+                    onSerials = { serialDetailOrigin = "order-detail"; screen = "serial-detail" },
+                    onRevise = { selectedOrder = it; checkoutTitle = "ثبت سفارش"; screen = "revision" },
+                    onOrderUpdated = { selectedOrder = it }, onSectionChanged = { cancelView = it },
+                    backRequest = orderBackRequest)
+            }
+        }
+    }
 }
-
 
 private fun promoNorm(v: String): String = v.replace(Regex("\\s+"), "").trim().uppercase()
 
@@ -422,7 +465,7 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
     }
 
     if(showReport) {
-        LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
             if(error.isNotBlank())item {ErrorBanner(error){error=""};GhadirButton("تلاش دوباره",{refresh()})}
             item {PurchaseTrendCard(orders)}
             item {StatTile("کل دستگاه‌های خریداری‌شده",faNumber(stats.i("purchased_device_qty")),"سفارش‌های تحویل‌شده",Modifier.fillMaxWidth())}
@@ -435,13 +478,13 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
         return
     }
     val featured=offers.firstOrNull {it.s("title").contains("میکس")} ?: offers.firstOrNull()
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(error.isNotBlank())item {
             if (!ordersLoaded) DesignState("اطلاعات حساب دریافت نشد","ارتباط با سرویس برقرار نشد. اتصال را بررسی کنید و دوباره تلاش کنید.",R.drawable.design_offline)
             else ErrorBanner(error){error=""}
             GhadirButton("تلاش دوباره",{refresh()})
         }
-        item {Column(verticalArrangement=Arrangement.spacedBy(2.dp)) {
+        item { Column(verticalArrangement=Arrangement.spacedBy(2.dp)) {
             Text("سلام، $customerName",color=Ink,fontSize=22.sp,lineHeight=36.sp,fontWeight=FontWeight.Bold)
             Text("خلاصه حساب شما",color=Muted,fontSize=14.sp,lineHeight=23.sp)
         }}
@@ -464,12 +507,16 @@ private fun PortalHome(api: ApiClient, customerName: String, navigate: (String) 
 }
 @Composable
 private fun PortalSummaryHero(amount: Long, orders: Int, qty: Int) {
-    Column(verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        Text("خلاصه حساب شما",color=Muted,fontSize=14.sp)
-        GlassSurface { Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            DetailLine("سفارش‌های این ماه", "${faNumber(orders)} سفارش")
-            DetailLine("خرید این ماه", "${formatMoney(amount)} تومان")
-        } }
+    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), color = Navy) {
+        Row(Modifier.background(PortalBrandBrush).padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text("خلاصه حساب شما", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("خرید این ماه: ${formatMoney(amount)} تومان", color = Color(0xFFFFC574), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("${faNumber(orders)} سفارش · ${faNumber(qty)} دستگاه", color = Color.White, fontSize = 12.sp)
+            }
+            PaymentArtwork(R.drawable.payment_ref_hero, Modifier.size(82.dp, 64.dp))
+        }
     }
 }
 
@@ -498,6 +545,7 @@ private fun StatTile(title: String, value: String, caption: String, modifier: Mo
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun PortalOrders(
     api:ApiClient,
     deliveredOnly:Boolean=false,
@@ -522,10 +570,10 @@ private fun PortalOrders(
     val term=asciiDigits(query).trim()
     val filtered=orders.filter {o->
         val delivered=o.s("status")=="تحویل شد"
-        (!deliveredOnly||delivered)&&when(group){"delivered"->delivered;"active"->!delivered&&!o.s("status").contains("لغو");"pending"->o.s("status").contains("انتظار");"preparing"->o.s("status").contains("آماده");"shipped"->o.s("status")=="ارسال شد";else->true}&&
+        (!deliveredOnly || (delivered && orderHasSerials(o))) && when(group){"delivered"->delivered;"active"->!delivered&&!o.s("status").contains("لغو");"pending"->o.s("status").contains("انتظار");"preparing"->o.s("status").contains("آماده");"shipped"->o.s("status")=="ارسال شد";else->true}&&
             (term.isBlank()||listOf(o.s("number"),o.s("status"),o.s("payment_status"),orderItemsDescription(o)).any {asciiDigits(it).contains(term,true)})
     }
-    LazyColumn(Modifier.fillMaxSize().background(Color.Transparent).padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().background(Color.Transparent).padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(!deliveredOnly&&abandonedOrder!=null)item {
             ApprovedSurface {Column(Modifier.fillMaxWidth().padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                 Text("سفارشات رها شده",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold,fontSize=14.sp)
@@ -538,7 +586,7 @@ private fun PortalOrders(
                 }
             }}
         }
-        item {
+        if(!deliveredOnly)item {
             Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
                 Spacer(Modifier.weight(1f))
                 ApprovedButton("سفارش جدید", {onNavigate("new")})
@@ -546,7 +594,7 @@ private fun PortalOrders(
         }
         item {ApprovedSearchBox(query,{query=it},"جست‌وجوی شماره سفارش یا کالا")}
         if(!deliveredOnly)item {
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 listOf("all" to "همه","pending" to "در انتظار تأیید","preparing" to "در حال آماده‌سازی","shipped" to "ارسال‌شده","active" to "در جریان","delivered" to "تحویل‌شده").forEach { (key,label) ->
                     FilterChip(selected=group==key,onClick={group=key},label={Text(label)},
                         colors=FilterChipDefaults.filterChipColors(containerColor=ApprovedPalette.surface,
@@ -560,6 +608,10 @@ private fun PortalOrders(
                 DesignState("دریافت سفارش‌ها ناموفق بود",error,R.drawable.design_offline)
                 ApprovedButton("تلاش دوباره",{retry++})
             }
+            filtered.isEmpty()&&deliveredOnly->item {
+                if(term.isEmpty()) DesignNotice("هنوز سریالی برای سفارش‌های تحویل‌شده ثبت نشده است.")
+                else DesignNotice("سفارش دارای سریال مطابق جست‌وجو پیدا نشد.")
+            }
             filtered.isEmpty()->item {
                 DesignState(if(orders.isEmpty())"هنوز سفارشی ندارید" else "سفارشی پیدا نشد",
                     if(orders.isEmpty())"پس از ثبت اولین سفارش، وضعیت و جزئیات آن را اینجا می‌بینید." else "فیلتر یا عبارت جستجو را تغییر دهید.",
@@ -568,7 +620,10 @@ private fun PortalOrders(
                     {if(orders.isEmpty())onNavigate("new") else {query="";group=if(deliveredOnly)"delivered" else "all"}})
                 Spacer(Modifier.height(16.dp));ApprovedButton("مشاهده قیمت‌ها",{onNavigate("catalog")},secondary=true)
             }
-            else->items(filtered,key={it.i("id")}) {o->ApprovedOrderCard(o){onOpen(o)}}
+            else->items(filtered,key={it.i("id")}) { order ->
+                if(deliveredOnly) SerialOrderCard(order) { onOpen(order) }
+                else ApprovedOrderCard(order) { onOpen(order) }
+            }
         }
     }
 }
@@ -597,10 +652,14 @@ private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->
         }
     }
     LaunchedEffect(initialOrder.i("id")){refreshOrder()}
-    LaunchedEffect(cancelView){onSectionChanged(cancelView)}
+    val detailPage = androidx.compose.foundation.lazy.rememberLazyListState()
+    LaunchedEffect(cancelView) {
+        detailPage.scrollToItem(0)
+        onSectionChanged(cancelView)
+    }
     LaunchedEffect(backRequest){if(backRequest>0)cancelView=false}
     BackHandler(cancelView){if(!cancelling)cancelView=false}
-    LazyColumn(Modifier.fillMaxSize().background(Color.Transparent).padding(horizontal=16.dp),contentPadding=PaddingValues(top=12.dp,bottom=28.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal=16.dp),state=detailPage,contentPadding=PaddingValues(top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
         if(error.isNotBlank())item {ErrorBanner(error){error=""}}
         if(cancelSent)item {DesignNotice("درخواست لغو ثبت شد و در انتظار بررسی است.")}
         if(cancelView) {
@@ -624,13 +683,15 @@ private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->
             item {GhadirButton("انصراف و نگهداری سفارش",{cancelView=false},secondary=true,enabled=!cancelling)}
         } else {
             item { ApprovedOrderSummary(order, me, total) }
+            item(key = "amendment") { OrderAmendmentPanel(api, order.i("id"), order.s("updated_at")) }
             items(order.arr("purchase_items").objects().ifEmpty {order.arr("items").objects()}) { line ->
                 ApprovedOrderProduct(line)
             }
             val correction = order.obj("customer_correction")
             if (correction.s("status") == "requested") {
                 item { DesignNotice("درخواست اصلاح سفارش\n\n" + correction.s("reason")) }
-                item { GhadirButton("اصلاح و ارسال دوباره", { onRevise(order) }) }
+                val label = if (correction.has("settlement_amounts")) "ادامه خرید با شرایط اعلام‌شده" else "اصلاح و ارسال دوباره"
+                item { GhadirButton(label, { onRevise(order) }) }
                 val proofs = order.obj("native_settlement").arr("proofs").objects()
                 if (proofs.isNotEmpty()) item {
                     val repository = remember(api) { OrderFollowupRepository(api) }
@@ -656,10 +717,11 @@ private fun PortalOrderDetails(api:ApiClient,initialOrder:JSONObject,onBack:()->
                 val snapshot=order.obj("delivery_address")
                 val shipping=order.s("shipping_address").ifBlank {listOf(snapshot.s("province"),snapshot.s("city"),snapshot.s("address")).filter{it.isNotBlank()}.joinToString("، ")}
                 if(shipping.isNotBlank())Text("نشانی: "+shipping,color=Ink,fontSize=14.sp)
-                if(order.s("shipping_type").isNotBlank())DetailLine("روش ارسال",order.s("shipping_type"))
+                if(order.s("shipping_type").isNotBlank())DetailLine("روش ارسال", carrierLabel(order.s("shipping_type")))
+                if (order.s("suggested_shipping_date").isNotBlank()) DetailLine("تاریخ پیشنهادی ارسال", faDigits(order.s("suggested_shipping_date")))
                 if(order.s("tracking_code").isNotBlank())DetailLine("کد مرسوله",faDigits(order.s("tracking_code")))
             }}}
-            if(delivered)item {GhadirButton("دریافت PDF سریال‌ها",onSerials)}
+            if (delivered && orderHasSerials(order)) item { GhadirButton("مشاهده و دریافت سریال‌ها", onSerials) }
             item {GhadirButton("مشاهده پیش‌فاکتور",onProforma,secondary=true)}
             if(canCancel&&!cancelSent)item {GhadirButton("درخواست لغو سفارش",{cancelView=true;error=""},secondary=true)}
             if(order.s("notes").isNotBlank())item {DesignNotice(order.s("notes"))}
@@ -740,6 +802,8 @@ private fun PortalNewOrder(
     onSuccess:(JSONObject)->Unit,
 ) {
     val checkoutService = remember(api) { OrderCheckoutService(OrderRepository(api)) }
+    val agentTermsLocked = revisionOrder?.obj("customer_correction")?.has("settlement_amounts") == true
+    val lockedTotal = if (agentTermsLocked) revisionOrder?.l("estimated_total") else null
     val cartService = remember { OrderCartService(OrderPolicy(BuildConfig.ORDER_MAXIMUM_QUANTITY, BuildConfig.ORDER_SERIAL_TIER_THRESHOLD)) }
     val scope=rememberCoroutineScope()
     val listState=androidx.compose.foundation.lazy.rememberLazyListState()
@@ -747,10 +811,23 @@ private fun PortalNewOrder(
     var step by rememberSaveable {mutableIntStateOf(0)}
     var submitting by remember {mutableStateOf(false)}
     var evidenceBusy by remember {mutableStateOf(false)}
+    var settlementAttempt by rememberSaveable { mutableIntStateOf(0) }
+    var settlementDialog by rememberSaveable { mutableStateOf("") }
+    var offerOnlineBalance by rememberSaveable { mutableStateOf(false) }
+    var canOfferOnlineBalance by remember { mutableStateOf(false) }
+    var openOnlineBalance by remember { mutableStateOf(false) }
+    var settlementChoiceError by rememberSaveable { mutableStateOf("") }
+    var shippingAttempted by rememberSaveable { mutableStateOf(false) }
     var error by remember {mutableStateOf("")}
     var retry by remember {mutableIntStateOf(0)}
     var products by remember {mutableStateOf(emptyList<JSONObject>())}
     var offers by remember {mutableStateOf(emptyList<JSONObject>())}
+    var offersReady by remember { mutableStateOf(false) }
+    var offersError by remember { mutableStateOf("") }
+    var offersRetry by remember { mutableIntStateOf(0) }
+    var deliveryReady by remember { mutableStateOf(false) }
+    var deliveryError by remember { mutableStateOf("") }
+    var deliveryRetry by remember { mutableIntStateOf(0) }
     var addresses by remember {mutableStateOf(emptyList<JSONObject>())}
     var customer by remember {mutableStateOf(JSONObject())}
     var productQuery by rememberSaveable { mutableStateOf("") }
@@ -761,12 +838,15 @@ private fun PortalNewOrder(
     var productSwitches by remember { mutableStateOf(JSONObject()) }
     val panelSwitches=productSwitches.arr(selected?.s("name").orEmpty()).strings()
     var switchLoadFailed by remember { mutableStateOf(false) }
+    var switchOptionsLoaded by remember { mutableStateOf(false) }
     var switchRetry by remember { mutableIntStateOf(0) }
     LaunchedEffect(api, switchRetry) {
         switchLoadFailed = false
+        switchOptionsLoaded = false
         try {
-            val response = api.request("GET","/api/native/order-options",null) as JSONObject
+            val response = api.request("GET", "/api/native/panel-switches", null) as JSONObject
             productSwitches=response.obj("products")
+            switchOptionsLoaded = true
             switchLoadFailed=false
         } catch (failure: kotlinx.coroutines.CancellationException) {
             throw failure
@@ -776,6 +856,7 @@ private fun PortalNewOrder(
     }
     var qtyText by rememberSaveable {mutableStateOf("1")}
     var shippingMethod by rememberSaveable {mutableStateOf("")}
+    var suggestedShippingDate by rememberSaveable { mutableStateOf("") }
     val shippingMethods=remember {BuildConfig.ORDER_SHIPPING_METHODS.split("|")}
     var selectedAddressId by rememberSaveable {mutableStateOf("")}
     val context=LocalContext.current
@@ -812,30 +893,69 @@ private fun PortalNewOrder(
         }
     }
     LaunchedEffect(initialOfferCode) { if(initialOfferCode.isNotBlank()) { promoCode=initialOfferCode;appliedOffer=null } }
-    LaunchedEffect(retry) {
-        loading=true;error=""
+    LaunchedEffect(api, retry) {
+        loading = true
+        error = ""
+        try {
+            products = (api.get("/api/catalog") as JSONArray).objects().filter(::catalogInStock)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            error = failure.message ?: "دریافت موجودی کالا ناموفق بود"
+        } finally {
+            loading = false
+        }
+    }
+    LaunchedEffect(api, offersRetry) {
+        offersError = ""
+        try {
+            offers = (api.get("/api/offers") as JSONArray).objects().filter {
+                !it.b("used_by_customer") || it.s("promo_code") == revisionOrder?.s("promo_code")
+            }
+            offersReady = true
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            offersError = failure.message ?: "دریافت طرح‌ها و کدهای تخفیف ناموفق بود"
+        }
+    }
+    LaunchedEffect(api, deliveryRetry) {
+        deliveryError = ""
         try {
             coroutineScope {
-                val catalog=async{(api.get("/api/catalog") as JSONArray).objects().filter{catalogInStock(it)}}
-                val plans=async{(api.get("/api/offers") as JSONArray).objects().filter {
-                    !it.b("used_by_customer") || it.s("promo_code") == revisionOrder?.s("promo_code")
-                }}
-                val account=async{api.me().obj("customer")}
-                val saved=async{try{(api.get("/api/addresses") as JSONArray).objects()}catch(e:kotlinx.coroutines.CancellationException){throw e}catch(e:ApiException){if(e.status==404)emptyList() else throw e}}
-                products=catalog.await();offers=plans.await();customer=account.await();addresses=saved.await()
+                val account = async { api.me().obj("customer") }
+                val saved = async {
+                    try {
+                        (api.get("/api/addresses") as JSONArray).objects()
+                    } catch (failure: ApiException) {
+                        if (failure.status == 404) emptyList() else throw failure
+                    }
+                }
+                customer = account.await()
+                addresses = saved.await()
             }
-        }catch(e:kotlinx.coroutines.CancellationException){throw e}
-        catch(e:Exception){error=e.message?:"دریافت اطلاعات سفارش ناموفق بود"}finally{loading=false}
+            deliveryReady = true
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            deliveryError = failure.message ?: "دریافت نشانی‌های تحویل ناموفق بود"
+        }
+    }
+    val matchingProducts = remember(products, productQuery) {
+        if (productQuery.isBlank()) products else products.filter {
+            it.s("name").contains(productQuery, true) || it.s("manufacturer").contains(productQuery, true)
+        }
     }
     val qty=qtyText.toIntOrNull()?:0
     val priceKey=cartService.priceKey(group,panelTier,qty)
     val unit=selected?.obj("prices")?.l(priceKey)?:0L
     val subtotal=cart.sumOf {it.unit*it.qty}
     val discount=discountForOfferNative(appliedOffer,cart)
-    val total=(subtotal-discount).coerceAtLeast(0L)
-    LaunchedEffect(cart,step,selectedAddressId,invoiceType,settlement,notes,promoCode,appliedOffer,total,paymentId,shippingMethod) {
+    val total=lockedTotal ?: (subtotal-discount).coerceAtLeast(0L)
+    val agentReviewRequired = revisionOrder == null && cart.any { it.priceKey == "sales_agent" }
+    LaunchedEffect(cart,step,selectedAddressId,invoiceType,settlement,notes,promoCode,appliedOffer,total,paymentId,shippingMethod,suggestedShippingDate) {
         if (revisionOrder == null) onDraftSnapshot(
-            if (cart.isEmpty()) null else checkoutDraftFromState(cart,step,selectedAddressId,invoiceType,settlement,notes,promoCode,appliedOffer).put("shippingMethod",shippingMethod)
+            if (cart.isEmpty()) null else checkoutDraftFromState(cart,step,selectedAddressId,invoiceType,settlement,notes,promoCode,appliedOffer,keepEvidence=true).put("shippingMethod",shippingMethod).put("suggestedShippingDate", suggestedShippingDate)
                 .put("online_checkout_id", paymentId),
         )
     }
@@ -848,22 +968,22 @@ private fun PortalNewOrder(
         restoreApplied=true
         cart = cartFromDraft(draft).map { line ->
             val currentPrice = products.firstOrNull { it.s("name") == line.product }?.obj("prices")?.l(line.priceKey)
-            if (revisionOrder == null || currentPrice == null || currentPrice <= 0) line else line.copy(unit = currentPrice)
+            if (revisionOrder == null || agentTermsLocked || currentPrice == null || currentPrice <= 0) line else line.copy(unit = currentPrice)
         }
         step=draft.optInt("step").coerceIn(0,3)
         paymentId = draft.s("online_checkout_id")
-        selectedAddressId=draft.s("selectedAddressId");shippingMethod=draft.s("shippingMethod")
+        selectedAddressId=draft.s("selectedAddressId");shippingMethod=draft.s("shippingMethod");suggestedShippingDate=draft.s("suggestedShippingDate")
         invoiceType=draft.s("invoiceType")
         notes=draft.s("notes")
         promoCode=draft.s("promoCode")
-        val restoredTotal=cart.sumOf{it.unit*it.qty}.coerceAtLeast(0L)
+        val restoredTotal=lockedTotal ?: cart.sumOf{it.unit*it.qty}.coerceAtLeast(0L)
         settlement=refreshSettlementTotals(draft.obj("settlement"),restoredTotal)
         val offerRaw=draft.s("appliedOffer")
         appliedOffer=if(offerRaw.isNotBlank())runCatching{JSONObject(offerRaw)}.getOrNull() else null
         onRestoreConsumed()
         onClearAbandoned()
     }
-    val address=addresses.firstOrNull {it.s("id")==selectedAddressId}?:customer
+    val address = if (selectedAddressId.isBlank()) customer else addresses.firstOrNull { it.s("id") == selectedAddressId } ?: JSONObject()
     val addressText=listOf(address.s("province"),address.s("city"),address.s("address")).filter {it.isNotBlank()}.joinToString("، ")
     val receiver=listOf(customer.s("name"),customer.s("company")).filter {it.isNotBlank()}.joinToString(" • ")
     fun applyPromo() {
@@ -876,9 +996,9 @@ private fun PortalNewOrder(
         appliedOffer=if(amount>0)match else null
         promoMessage=if(amount>0)offerDiscountTextNative(match!!)+" اعمال شد." else "این کد برای کالاهای فعلی سفارش معتبر یا فعال نیست."
     }
-    LaunchedEffect(initialOfferCode,offers,cart) {
+    LaunchedEffect(initialOfferCode,offersReady,offers,cart) {
         val original = revisionOrder?.s("promo_code") ?: initialOfferCode
-        if (original.isNotBlank() && promoNorm(promoCode) == promoNorm(original) && cart.isNotEmpty()) applyPromo()
+        if (offersReady && !agentTermsLocked && original.isNotBlank() && promoNorm(promoCode) == promoNorm(original) && cart.isNotEmpty()) applyPromo()
     }
     fun catalogEntry(product: JSONObject): OrderCatalogEntry = OrderCatalogEntry(
         product.s("name"), product.i("stock"),
@@ -886,8 +1006,10 @@ private fun PortalNewOrder(
     )
     fun checkout(): OrderCheckout {
         val refreshed=refreshSettlementTotals(settlement,total)
-        return OrderCheckout(cart,selectedAddressId,invoiceType,settlementPrimaryMethod(refreshed),refreshed,notes,appliedOffer?.s("promo_code")?:"",
-            revisionOrderId = revisionOrder?.i("id") ?: 0, revisionVersion = revisionOrder?.obj("customer_correction")?.i("version") ?: 0, shippingMethod=shippingMethod)
+        val checkoutPromoCode = if (agentTermsLocked) promoCode else appliedOffer?.s("promo_code").orEmpty()
+        return OrderCheckout(cart,selectedAddressId,invoiceType,settlementPrimaryMethod(refreshed),refreshed,notes,checkoutPromoCode,
+            revisionOrderId = revisionOrder?.i("id") ?: 0, revisionVersion = revisionOrder?.obj("customer_correction")?.i("version") ?: 0,
+            agentTermsLocked = agentTermsLocked, shippingMethod=shippingMethod, suggestedShippingDate=suggestedShippingDate)
     }
     fun changeQuantity(line:CartLine, next:Int) {
         val product=products.firstOrNull {it.s("name")==line.product} ?: return
@@ -928,7 +1050,7 @@ private fun PortalNewOrder(
     ) { updatePayment() }
 
     fun editOrder(nextStep: Int) {
-        if (submitting || evidenceBusy || paymentConfirmed) return
+        if (submitting || evidenceBusy || paymentConfirmed || (agentTermsLocked && nextStep < 1)) return
         if (paymentId.isBlank()) {
             step = nextStep
             return
@@ -960,22 +1082,46 @@ private fun PortalNewOrder(
         if (backRequest != handledBackRequest && step > 0) editOrder(step - 1)
         handledBackRequest=backRequest
     }
-    BackHandler(step > 0 || evidenceBusy) { if (step > 0) editOrder(step - 1) }
+    val firstCheckoutStep = if (agentTermsLocked) 1 else 0
+    BackHandler(step > firstCheckoutStep || evidenceBusy) { if (step > firstCheckoutStep) editOrder(step - 1) }
+
+    if (settlementDialog.isNotBlank()) AlertDialog(
+        onDismissRequest = { settlementDialog = "" },
+        icon = { Icon(Icons.Default.WarningAmber, contentDescription = "اخطار", tint = Orange) },
+        title = { Text(if (offerOnlineBalance) "ماندهٔ قابل پرداخت" else "بررسی مبلغ تسویه") },
+        text = { Text(settlementDialog) },
+        confirmButton = {
+            TextButton(onClick = {
+                if (offerOnlineBalance && canOfferOnlineBalance) openOnlineBalance = true
+                settlementDialog = ""
+            }) { Text(if (offerOnlineBalance && canOfferOnlineBalance) "پرداخت آنلاین مانده" else "متوجه شدم") }
+        },
+        dismissButton = if (offerOnlineBalance && canOfferOnlineBalance) {
+            { TextButton(onClick = { settlementDialog = "" }) { Text("ویرایش تسویه") } }
+        } else null,
+    )
 
     fun submit() {
         if(submitting)return
-        if(addressText.isBlank()||shippingMethod.isBlank()){error="نشانی و روش ارسال را انتخاب کنید";step=2;return}
+        if(!deliveryReady || addressText.isBlank()||shippingMethod.isBlank()){shippingAttempted=true;step=2;return}
         if(!paymentConfirmed && cart.any {line -> val p=products.firstOrNull {it.s("name")==line.product};p==null||!catalogInStock(p)||cart.filter{it.product==line.product}.sumOf{it.qty.toLong()}>p.i("stock")}) {
-            error="موجودی سبد را دوباره بررسی کنید";step=0;return
+            error="موجودی سبد را دوباره بررسی کنید";if(!agentTermsLocked)step=0;return
         }
         val validation=checkoutService.validation(checkout())
-        if(validation.isNotBlank()){error=validation;step=if(invoiceType.isBlank())0 else 1;return}
-        if(promoCode.isNotBlank()&&(appliedOffer==null||discount<=0)){error="کد تخفیف را ابتدا اعمال و بررسی کنید";step=0;return}
+        if(settlementAllocated(checkout().settlement)!=total){
+            step=1;offerOnlineBalance=false;settlementDialog="جمع مبلغ‌های تسویه باید برابر مبلغ فاکتور باشد.";return
+        }
+        if(validation.isNotBlank()){
+            step=if(invoiceType.isBlank())0 else 1
+            if(step==0) error=validation else {settlementChoiceError=validation;settlementAttempt++}
+            return
+        }
+        if(!agentTermsLocked&&promoCode.isNotBlank()&&(appliedOffer==null||discount<=0)){error="کد تخفیف را ابتدا اعمال و بررسی کنید";step=0;return}
         scope.launch {
             submitting=true;error=""
             try {
                 val reviewed = checkout()
-                val online = reviewed.settlement.b("cash_online") && reviewed.settlement.b("cash_enabled")
+                val online = CashDepositRows.requiresOnline(reviewed.settlement)
                 if (online && !paymentConfirmed) {
                     if (paymentId.isNotBlank()) {
                         val existing = orderPayment.recheckCheckout(paymentId)
@@ -988,7 +1134,7 @@ private fun PortalNewOrder(
                     if (paymentId.isBlank() && !paymentConfirmed) {
                         val result = checkoutService.preparePayment(reviewed)
                         paymentId = result.s("checkout_id")
-                        checkoutPaymentAmount = reviewed.settlement.l("cash_amount")
+                        checkoutPaymentAmount = CashDepositRows.onlineAmount(reviewed.settlement)
                         paymentConfirmed = result.b("confirmed")
                     }
                     if (!paymentConfirmed) {
@@ -1007,8 +1153,8 @@ private fun PortalNewOrder(
         }
     }
     if(loading){LoadingPane();return}
-    Box(Modifier.fillMaxSize().background(Color.Transparent)) {
-    LazyColumn(Modifier.fillMaxSize().background(Color.Transparent).padding(horizontal=20.dp),state=listState,contentPadding=PaddingValues(top=12.dp,bottom=(if(step==0)88.dp else 28.dp)+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize()) {
+    LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal=20.dp),state=listState,contentPadding=PaddingValues(top=12.dp,bottom=16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(error.isNotBlank())item {ErrorBanner(error){error=""};if(products.isEmpty())ApprovedButton("تلاش دوباره",{retry++})}
         if (revisionOrder != null) item { DesignNotice(revisionOrder.obj("customer_correction").s("reason")) }
         if(abandonedBanner!=null&&cart.isEmpty()&&restoreDraft==null)item {
@@ -1020,7 +1166,7 @@ private fun PortalNewOrder(
                     cart=restored
                     step=abandonedBanner.optInt("step").coerceIn(0,3)
                     paymentId = abandonedBanner.s("online_checkout_id")
-                    selectedAddressId=abandonedBanner.s("selectedAddressId");shippingMethod=abandonedBanner.s("shippingMethod")
+                    selectedAddressId=abandonedBanner.s("selectedAddressId");shippingMethod=abandonedBanner.s("shippingMethod");suggestedShippingDate=abandonedBanner.s("suggestedShippingDate")
                     invoiceType=abandonedBanner.s("invoiceType")
                     notes=abandonedBanner.s("notes")
                     promoCode=abandonedBanner.s("promoCode")
@@ -1036,20 +1182,26 @@ private fun PortalNewOrder(
             item { ApprovedSearchBox(productQuery, {productQuery=it}, "جست‌وجوی کالا یا مدل") }
             item {Text("۱. انتخاب کالا",color=ApprovedPalette.ink,fontSize=18.sp,fontWeight=FontWeight.Bold)}
             item {ApprovedSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                DropdownField("مدل دستگاه",selected?.let {deviceModelLabel(it)}?:"انتخاب دستگاه",products.filter { productQuery.isBlank() || it.s("name").contains(productQuery,true) || it.s("manufacturer").contains(productQuery,true) },{deviceModelLabel(it)}) {selected=it;panelSwitch=""}
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SharpPortalIcon(Icons.Default.ShoppingCart, Orange)
+                    Text("انتخاب دستگاه", color = Ink, fontWeight = FontWeight.Bold)
+                }
+                CheckoutDeviceChooser(
+                    matchingProducts,
+                    selected?.let(::deviceModelLabel).orEmpty(), ::deviceModelLabel,
+                ) { selected = it; panelSwitch = "" }
                 selected?.let { product ->
                     Text(deviceModelLabel(product), color=ApprovedPalette.ink, fontWeight=FontWeight.Bold, fontSize=16.sp, lineHeight=26.sp)
                 }
-                Text("نوع قیمت",color=ApprovedPalette.muted,fontSize=12.sp)
-                DesignChoices(listOf("agent" to "عامل فروش","panel" to "ثبت در پنل","serial" to "سریال آزاد"),group,{group=it})
+                val groups = listOf("agent" to "عامل فروش", "panel" to "ثبت در پنل", "serial" to "سریال آزاد")
+                DropdownField("نوع همکاری", groups.firstOrNull { it.first == group }?.second ?: "انتخاب نوع همکاری",
+                    groups, { it.second }, icon = Icons.Default.Handshake) { group = it.first }
                 if (group == "panel") {
-                    DropdownField("نوع خرید پنل",catalogPriceRows("panel").first {it.first==panelTier}.second,catalogPriceRows("panel"),{it.second}){panelTier=it.first}
+                    DropdownField("نوع خرید پنل",catalogPriceRows("panel").first {it.first==panelTier}.second,catalogPriceRows("panel"),{it.second}, icon = Icons.Default.Storefront){panelTier=it.first}
                     if (switchLoadFailed) {
                         ApprovedButton("دریافت دوبارهٔ سوئیچ‌ها", { switchRetry++ }, secondary = true)
-                    } else if (panelSwitches.isEmpty()) {
-                        Text(if(selected==null)"ابتدا دستگاه را انتخاب کنید" else "این دستگاه سوئیچ ثبت در پنل ندارد", color = Muted)
-                    } else {
-                        DropdownField("مدل سوئیچ", panelSwitch.takeIf { it in panelSwitches } ?: "انتخاب سوئیچ", panelSwitches, { it }) { panelSwitch = it }
+                    } else if (panelSwitches.isNotEmpty()) {
+                        DropdownField("مدل سوئیچ", panelSwitch.takeIf { it in panelSwitches } ?: "انتخاب سوئیچ", panelSwitches, { it }, icon = Icons.Default.SwapHoriz) { panelSwitch = it }
                     }
                 }
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
@@ -1067,11 +1219,13 @@ private fun PortalNewOrder(
                 ApprovedButton("افزودن به سبد خرید",{
                     val product=selected?:return@ApprovedButton
                     try {
-                        cart=cartService.add(cart,catalogEntry(product),qty,priceKey,if(group=="panel")panelSwitch else "")
+                        val selectedSwitch = panelSwitch.takeIf { group == "panel" && it in panelSwitches }.orEmpty()
+                        cart=cartService.add(cart,catalogEntry(product),qty,priceKey,selectedSwitch)
                         selected=null;qtyText="1";panelSwitch="";productQuery=""
                         settlement=AgentSettlementPolicy().defaults(cart,total);error=""
                     } catch(e:IllegalArgumentException) { error=e.message?:"افزودن کالا ناموفق بود" }
-                },enabled=selected!=null&&unit>0&&qty>0&&qty<=(selected?.i("stock")?:0)&&(group!="panel"||panelSwitch in panelSwitches),secondary=true)
+                },enabled=selected!=null&&unit>0&&qty>0&&qty<=(selected?.i("stock")?:0)&&
+                    (group!="panel"||(switchOptionsLoaded&&(panelSwitches.isEmpty()||panelSwitch in panelSwitches))),secondary=true)
             }}}
             item {ApprovedSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 Text("سبد سفارش",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold)
@@ -1115,31 +1269,69 @@ private fun PortalNewOrder(
             }
         } else if(step==1) {
             item {Text("نحوه تسویه",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold)}
-            item {SettlementForm(api,total,invoiceType,settlement,onBusyChanged={evidenceBusy=it}){settlement=it}}
-            if(cart.any {it.priceKey=="sales_agent"}) item {
+            if (agentTermsLocked) item { DesignNotice("مبالغ این مرحله را شرکت تعیین کرده است. اطلاعات پرداخت و مدارک را تکمیل کنید.") }
+            item {SettlementForm(api,total,invoiceType,settlement,amountsLocked=agentTermsLocked,agentReviewRequired=agentReviewRequired,onBusyChanged={evidenceBusy=it},validationAttempt=settlementAttempt,
+                openOnlineBalance=openOnlineBalance, onOnlineBalanceHandled={openOnlineBalance=false},
+                onOnlineBalanceAvailable={canOfferOnlineBalance=it}){settlement=it}}
+            if(!agentTermsLocked && cart.any {it.priceKey=="sales_agent"}) item {
                 DesignNotice("شرایط عامل فروش: ${faNumber(BuildConfig.AGENT_CASH_PERCENT)}٪ نقد و ${faNumber(100-BuildConfig.AGENT_CASH_PERCENT)}٪ چک. تغییر شرایط فقط پس از بررسی مدیر قابل تأیید است.")
-                if(AgentSettlementPolicy().changed(cart,total,settlement)) DesignField("علت درخواست تغییر شرایط",settlement.s("agent_change_reason"),{settlement=JSONObject(settlement.toString()).put("agent_change_reason",it.take(BuildConfig.REQUEST_NOTE_LIMIT))},"درخواست برای مدیر ارسال می‌شود",singleLine=false)
+                if(AgentSettlementPolicy().changed(cart,total,settlement)) DesignField("علت درخواست تغییر شرایط",settlement.s("agent_change_reason"),{settlement=JSONObject(settlement.toString()).put("agent_change_reason",it.take(BuildConfig.REQUEST_NOTE_LIMIT))},"درخواست برای مدیر ارسال می‌شود",singleLine=false,
+                    fieldError=if(settlementAttempt>0 && settlement.s("agent_change_reason").isBlank()) "علت تغییر روش تسویه را وارد کنید." else "")
             }
-            item {ApprovedButton("ادامه به نحوه ارسال",{
-                error=checkoutService.validation(checkout());if(error.isBlank())step=2
-            },enabled=!evidenceBusy)}
-            item {ApprovedButton("بازگشت و ویرایش",{step=0},secondary=true)}
+            if(settlementChoiceError.isNotBlank()) item { Text(settlementChoiceError,color=Danger) }
+            item {ApprovedButton("ادامه و ثبت تسویه",{
+                val draft = checkout()
+                val issue = checkoutService.validation(draft)
+                error = ""
+                settlementChoiceError = ""
+                val balance = outstandingSettlementBalance(draft.settlement, total, agentTermsLocked || agentReviewRequired)
+                offerOnlineBalance = false
+                when {
+                    balance > 0L -> {
+                        offerOnlineBalance = canOfferOnlineBalance
+                        settlementDialog = "ماندهٔ فاکتور " + formatMoney(balance) + " تومان است. " +
+                            if (offerOnlineBalance) "می‌توانید مانده را آنلاین پرداخت کنید." else "مبلغ روش‌های تسویه را تکمیل کنید."
+                    }
+                    settlementAllocated(draft.settlement) != total -> settlementDialog = "جمع مبلغ‌های تسویه باید برابر مبلغ فاکتور باشد."
+                    issue.isBlank() -> step = 2
+                    issue == CashDepositRows.error(draft.settlement) || issue == SettlementProofRules.checkError(draft.settlement) ||
+                        issue.startsWith("علت درخواست") || issue.startsWith("شرایط درخواست") -> settlementAttempt++
+                    else -> settlementChoiceError = issue
+                }
+            },enabled=!evidenceBusy,modifier=Modifier.fillMaxWidth())}
+            if (!agentTermsLocked) item {ApprovedButton("بازگشت و ویرایش",{editOrder(step - 1)},secondary=true)}
         } else if(step==2) {
-            item {CheckoutAddressSection(api,customer,addresses,selectedAddressId,{selectedAddressId=it},{addresses=it})}
+            item { CheckoutArtworkHeading("اطلاعات ارسال", R.drawable.payment_ref_shipping) }
+            item {
+                when {
+                    deliveryReady -> CheckoutAddressSection(api,customer,addresses,selectedAddressId,{selectedAddressId=it},{addresses=it})
+                    deliveryError.isNotBlank() -> {
+                        Text(deliveryError, color = Danger)
+                        ApprovedButton("دریافت دوباره نشانی‌ها", { deliveryRetry++ }, secondary = true)
+                    }
+                    else -> Text("در حال دریافت نشانی‌های تحویل…", color = Muted)
+                }
+                if(shippingAttempted && addressText.isBlank()) Text("نشانی تحویل را انتخاب کنید.",color=Danger)
+            }
             item {DesignField("گیرنده",receiver,{},"",enabled=false)}
-            item {DropdownField("روش ارسال",shippingMethod.ifBlank {"انتخاب روش ارسال"},shippingMethods,{it}){shippingMethod=it}}
+            item {
+                CarrierChoiceGrid(shippingMethods, shippingMethod) { shippingMethod = it }
+                if(shippingAttempted && shippingMethod.isBlank()) Text("روش ارسال را انتخاب کنید.",color=Danger)
+            }
+            item { PersianDateSelectionField("تاریخ پیشنهادی ارسال", suggestedShippingDate, enabled = !submitting) { suggestedShippingDate = it } }
             item {ApprovedButton("مشاهده سبد و ثبت نهایی",{
-                error=when {addressText.isBlank()->"نشانی تحویل را انتخاب کنید";shippingMethod.isBlank()->"روش ارسال را انتخاب کنید";else->""}
-                if(error.isBlank())step=3
-            })}
-            item {ApprovedButton("بازگشت به تسویه",{step=1},secondary=true)}
+                shippingAttempted=true
+                if(addressText.isNotBlank() && shippingMethod.isNotBlank())step=3
+            }, enabled = deliveryReady)}
+            item {ApprovedButton("بازگشت به تسویه",{editOrder(step - 1)},secondary=true)}
         } else {
-            val online = settlement.b("cash_online") && settlement.b("cash_enabled")
+            val online = CashDepositRows.requiresOnline(settlement)
             val showPaymentSuccess = online && paymentConfirmed
             val submitLabel = when {
                 submitting -> "در حال پردازش…"
                 online && !paymentConfirmed -> "پرداخت آنلاین"
                 revisionOrder != null -> "ارسال سفارش اصلاح‌شده"
+                agentReviewRequired -> "ارسال برای بررسی تسویه"
                 else -> "تأیید و ثبت نهایی"
             }
             if (showPaymentSuccess) {
@@ -1154,30 +1346,21 @@ private fun PortalNewOrder(
                     }
                 }
             }
-            item {DesignNotice("سفارش را نهایی می‌کنید؟\n\nمدل، تعداد، نشانی و روش تسویه را بررسی کنید. پس از ثبت، سفارش در انتظار تأیید شرکت قرار می‌گیرد و نتیجه در مراحل سفارش نمایش داده می‌شود.")}
-            item {ApprovedSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-                Text("بررسی سفارش",color=ApprovedPalette.ink,fontSize=20.sp,fontWeight=FontWeight.Bold)
-                DetailLine("نوع فاکتور",invoiceType)
-                cart.forEach { line ->
-                    key(line.stableKey) { OrderLineCard(line) }
-                }
-                DetailLine("تسویه",settlementSummaryLabel(refreshSettlementTotals(settlement,total)))
-                if(settlementRemaining(settlement,total)>0L)DetailLine("مانده فاکتور",formatMoney(settlementRemaining(settlement,total))+" تومان")
-                HorizontalDivider(color=Border)
-                if(discount>0)DetailLine("تخفیف",formatMoney(discount)+" تومان")
-                DetailLine("جمع سفارش",formatMoney(total)+" تومان")
-                if(appliedOffer!=null)DetailLine("کد تخفیف",appliedOffer!!.s("promo_code"))
-                if(notes.isNotBlank())Text("توضیحات: "+notes,color=ApprovedPalette.ink,fontSize=14.sp)
-                Text("گیرنده: "+receiver,color=ApprovedPalette.ink,fontSize=14.sp)
-                Text(addressText,color=ApprovedPalette.ink,fontSize=14.sp)
-                DetailLine("روش ارسال",shippingMethod)
-            }}}
+            item {
+                CheckoutReceipt(
+                    cart, invoiceType, settlementSummaryLabel(refreshSettlementTotals(settlement, total)),
+                    settlementRemaining(settlement, total), discount, total, appliedOffer?.s("promo_code").orEmpty(),
+                    listOf("گیرنده" to receiver, "نشانی" to addressText, "روش ارسال" to carrierLabel(shippingMethod),
+                        "تاریخ پیشنهادی ارسال" to faDigits(suggestedShippingDate)),
+                    notes,
+                )
+            }
             PaymentProofSelection.active(settlement, settlementPrimaryMethod(settlement)).forEach { (kind, files) ->
                 item(key = "review-$kind") {
                     SelectedProofReview(
                         if (kind == "cash") "رسید" else "چک", files,
                         onNote = { index, note -> settlement = PaymentProofSelection.note(settlement, kind, index, note) },
-                        onRemove = { index ->
+                        onRemove = if (kind == "cash" && settlement.has(CashDepositRows.field)) null else { index ->
                             settlement = JSONObject(settlement.toString()).also { next ->
                                 PaymentProofSelection.set(next, kind, files.filterIndexed { i, _ -> i != index }.map { it.data })
                             }
@@ -1192,11 +1375,11 @@ private fun PortalNewOrder(
             if (!showPaymentSuccess) item {
                 ApprovedButton(submitLabel, { submit() }, enabled = !submitting && cart.isNotEmpty())
             }
-            item { ApprovedButton("بازگشت و ویرایش", { editOrder(0) }, secondary = true, enabled = !submitting && !paymentConfirmed) }
+            item { ApprovedButton("بازگشت و ویرایش", { editOrder(step - 1) }, secondary = true, enabled = !submitting && !paymentConfirmed) }
         }
     }
     if (step == 0) {
-        Surface(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom=LocalPortalBottomPadding.current)
+        Surface(Modifier.fillMaxWidth()
             .semantics {contentDescription="خلاصه ثابت سفارش"},
             color=ApprovedPalette.surface, shadowElevation=4.dp) {
             ApprovedCheckoutSummary(total, cart.isNotEmpty()) {
@@ -1235,13 +1418,19 @@ private fun PortalNewOrder(
         )
     }
     if(optionSheet.isNotBlank()) {
-        ModalBottomSheet(onDismissRequest={optionSheet=""},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),containerColor=AppSurface) {
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=20.dp).padding(bottom=24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-                Text(when(optionSheet){"discount"->"کد تخفیف";"invoice"->"نوع فاکتور";else->"توضیحات سفارش"},fontSize=20.sp,fontWeight=FontWeight.Bold,color=ApprovedPalette.ink)
+        val title = when(optionSheet){"discount"->"کد تخفیف";"invoice"->"نوع فاکتور";else->"توضیحات سفارش"}
+        PortalPageDialog(title, {optionSheet=""}) {
+            Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).padding(bottom=24.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                 when(optionSheet) {
                     "discount"->{
                         DesignField("کد تخفیف",promoCode,{promoCode=promoNorm(it).take(24);appliedOffer=null;settlement=AgentSettlementPolicy().defaults(cart,total);promoMessage=""},"کد تخفیف را وارد کنید")
-                        ApprovedButton("اعمال کد تخفیف",{applyPromo()},enabled=promoCode.isNotBlank()&&cart.isNotEmpty())
+                        ApprovedButton("اعمال کد تخفیف",{applyPromo()},enabled=offersReady&&promoCode.isNotBlank()&&cart.isNotEmpty())
+                        if (offersError.isNotBlank()) {
+                            Text(offersError, color = Danger)
+                            ApprovedButton("دریافت دوباره طرح‌ها", { offersRetry++ }, secondary = true)
+                        } else if (!offersReady) {
+                            Text("در حال دریافت طرح‌ها…", color = Muted)
+                        }
                         if(promoMessage.isNotBlank())Text(promoMessage,color=if(appliedOffer!=null)Success else Danger)
                     }
                     "invoice"->DesignChoices(listOf("غیررسمی" to "غیررسمی","رسمی" to "رسمی"),invoiceType,{invoiceType=it})
@@ -1255,9 +1444,8 @@ private fun PortalNewOrder(
         }
     }
 }
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,String)->Unit={_,_->}) {
+private fun PortalCatalog(api: ApiClient, onBack: () -> Unit, onOrder: (String, String) -> Unit) {
     var group by rememberSaveable {mutableStateOf("serial")}
     var loading by remember {mutableStateOf(true)}
     var error by remember {mutableStateOf("")}
@@ -1266,7 +1454,7 @@ private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,Stri
     var showFilters by rememberSaveable {mutableStateOf(false)}
     var modelFilter by rememberSaveable {mutableStateOf("همه مدل‌ها")}
     var manufacturerFilter by rememberSaveable {mutableStateOf("همه سازنده‌ها")}
-    var expandAll by rememberSaveable { mutableStateOf(false) }
+    var selectedModel by rememberSaveable { mutableStateOf<String?>(null) }
     var retry by remember {mutableIntStateOf(0)}
     LaunchedEffect(retry) {
         loading=true;error=""
@@ -1281,10 +1469,14 @@ private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,Stri
         catalogInStock(p)&&matches&&(modelFilter=="همه مدل‌ها"||p.s("name")==modelFilter)&&
             (manufacturerFilter=="همه سازنده‌ها"||maker==manufacturerFilter)
     }
-    Box(Modifier.fillMaxSize().background(Color.Transparent)) {
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=12.dp,bottom=100.dp+LocalPortalBottomPadding.current),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        item { ApprovedSearchBox(query, {query=it}, "جست‌وجوی نام یا مدل کالا") }
-        item { ApprovedButton(if(expandAll) "بستن همه قیمت‌ها" else "نمایش همه قیمت‌ها", {expandAll=!expandAll}, modifier=Modifier.fillMaxWidth(), secondary=true) }
+    Column(Modifier.fillMaxSize().padding(horizontal=16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.weight(1f)) { ApprovedSearchBox(query, {query=it}, "جست‌وجوی نام یا مدل کالا") }
+        IconButton(onClick = { showFilters = true }) {
+            Icon(Icons.Default.FilterList, contentDescription = "فیلتر لیست قیمت‌ها", tint = Ink)
+        }
+    }
+    LazyColumn(Modifier.weight(1f).fillMaxWidth(),contentPadding=PaddingValues(bottom=12.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         when {
             loading-> {
                 item {Text("در حال دریافت قیمت‌ها…",color=ApprovedPalette.muted,fontSize=12.sp)}
@@ -1297,7 +1489,7 @@ private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,Stri
                 DesignState("اتصال برقرار نشد","قیمت‌های به‌روز دریافت نشد. اتصال اینترنت را بررسی و دوباره تلاش کنید.",R.drawable.design_offline)
                 Text(error,color=Danger,fontSize=12.sp)
                 ApprovedButton("تلاش دوباره",{retry++})
-                Spacer(Modifier.height(16.dp));ApprovedButton("بازگشت به پیشخوان",onHome,secondary=true)
+                Spacer(Modifier.height(16.dp));ApprovedButton("بازگشت",onBack,secondary=true)
             }
             filtered.isEmpty()->item {
                 DesignState("نتیجه‌ای پیدا نشد","نام مدل را بررسی کنید یا فیلترها را بردارید.",R.drawable.design_search_empty)
@@ -1306,28 +1498,41 @@ private fun PortalCatalog(api: ApiClient,onHome:()->Unit={},onOrder:(String,Stri
             else->{
                 val date=products.map {it.s("price_updated_at")}.filter {it.isNotBlank()}.maxOrNull()
                 if(date!=null)item {Text("آخرین به‌روزرسانی: "+formatDateFa(date),color=ApprovedPalette.muted,fontSize=12.sp)}
-                items(filtered,key={it.s("name")}) {p->ApprovedPriceCard(p,group,expandAll){onOrder(p.s("name"),group)}}
+                items(filtered, key = { it.s("name") }) { product ->
+                    val model = product.s("name")
+                    ApprovedPriceCard(product, group, onOpenPrices = { selectedModel = model }) {
+                        onOrder(model, group)
+                    }
+                }
             }
         }
     }
-    FloatingActionButton(onClick={showFilters=true},modifier=Modifier.align(Alignment.BottomEnd)
-        .padding(end=20.dp,bottom=20.dp+LocalPortalBottomPadding.current),containerColor=Navy,contentColor=Orange) {
-        Icon(Icons.Default.FilterList,contentDescription="فیلتر لیست قیمت‌ها")
     }
+    products.firstOrNull { it.s("name") == selectedModel }?.let { product ->
+        ProductPriceDialog(product, group, onClose = { selectedModel = null }) {
+            selectedModel = null
+            onOrder(product.s("name"), group)
+        }
     }
-    if(showFilters)ModalBottomSheet(onDismissRequest={showFilters=false},containerColor=AppSurface) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=20.dp).padding(bottom=32.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text("جست‌وجو و فیلتر قیمت‌ها",color=ApprovedPalette.ink,fontWeight=FontWeight.Bold,fontSize=20.sp)
+    if (showFilters) PortalPageDialog("جست‌وجو و فیلتر قیمت‌ها", { showFilters = false }) {
+        Column(Modifier.fillMaxWidth().padding(horizontal=20.dp).padding(bottom=24.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             DesignField("جستجوی مدل یا شرکت سازنده",query,{query=it},"مدل یا سازنده را وارد کنید",R.drawable.design_search)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                listOf("serial" to "سریال آزاد","panel" to "پنل","agent" to "عاملین فروش").forEach { (key,label) ->
-                    FilterChip(selected=group==key,onClick={group=key},label={Text(label)},
-                        modifier=Modifier.weight(1f).semantics {contentDescription="دسته قیمت "+label},
-                        colors=FilterChipDefaults.filterChipColors(containerColor=ApprovedPalette.surface,
-                            selectedContainerColor=ApprovedPalette.accent,labelColor=ApprovedPalette.ink,selectedLabelColor=Color.White))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("serial" to "سریال آزاد", "panel" to "پنل", "agent" to "عاملین فروش").forEach { (key, label) ->
+                    FilterChip(
+                        selected = group == key,
+                        onClick = { group = key },
+                        label = { Text(label) },
+                        modifier = Modifier.weight(1f).semantics { contentDescription = "دسته قیمت " + label },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = ApprovedPalette.surface,
+                            selectedContainerColor = ApprovedPalette.accent,
+                            labelColor = ApprovedPalette.ink,
+                            selectedLabelColor = Color.White,
+                        ),
+                    )
                 }
             }
-
             DropdownField("مدل دستگاه",modelFilter,listOf("همه مدل‌ها")+products.map {it.s("name")}.distinct(),{shortProductName(it)}){modelFilter=it}
             DropdownField("شرکت سازنده",manufacturerFilter,listOf("همه سازنده‌ها")+products.map {it.s("manufacturer").ifBlank {"بدون سازنده"}}.distinct(),{it}){manufacturerFilter=it}
             ApprovedButton("نمایش نتایج",{showFilters=false})
@@ -1349,14 +1554,40 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
     val initial=me.obj("customer")
     val scope=rememberCoroutineScope()
     val context=LocalContext.current
-    var view by remember {mutableStateOf("profile")}
-        var name by rememberSaveable(me.toString()){mutableStateOf(initial.s("name"))}
+    var view by rememberSaveable {mutableStateOf("profile")}
+    var detailOrigin by rememberSaveable {mutableStateOf("profile")}
+    var photoOrigin by rememberSaveable {mutableStateOf("profile")}
+    fun openProfileDetail(destination: String) {
+        if (destination == "photo") photoOrigin = view else detailOrigin = view
+        view = destination
+    }
+    var orderCount by remember(api) {mutableStateOf<Int?>(null)}
+    var walletBalance by remember(api) {mutableStateOf<Long?>(null)}
+    LaunchedEffect(api, view) {
+        if (view != "profile") return@LaunchedEffect
+        try {
+            orderCount = (api.get("/api/orders") as JSONArray).objects().count {
+                it.s("status") !in setOf("لغو شد", "تحویل شد") && it.s("approval_status") != "رد شده"
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { orderCount = null }
+    }
+    LaunchedEffect(api, view) {
+        if (view != "profile") return@LaunchedEffect
+        try {
+            val wallet = (api.get("/api/native/credit") as JSONObject).optJSONObject("wallet")
+            walletBalance = wallet?.optLong("balance", -1L)?.takeIf { it >= 0L }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { walletBalance = null }
+    }
+    val accountAccess = me.s("portal_access_level")
+    val roleLabel = if (accountAccess.isBlank() || accountAccess == "manager") "مدیر نمایندگی" else DelegateAccess.label(accountAccess)
+    var name by rememberSaveable(me.toString()){mutableStateOf(initial.s("name"))}
     var company by rememberSaveable(me.toString()){mutableStateOf(initial.s("company"))}
-    var province by rememberSaveable(me.toString()){mutableStateOf(initial.s("province"))}
-    var city by rememberSaveable(me.toString()){mutableStateOf(initial.s("city"))}
-    var address by rememberSaveable(me.toString()){mutableStateOf(initial.s("address"))}
-    var alternate by rememberSaveable(me.toString()){mutableStateOf(me.s("alternate_mobile"))}
-    var postalCode by rememberSaveable(me.toString()){mutableStateOf(initial.s("postal_code"))}
+
+    val alternate = me.s("alternate_mobile")
+    val postalCode = initial.s("postal_code")
+    var editAttempted by rememberSaveable { mutableStateOf(false) }
     var saving by remember {mutableStateOf(false)}
     var error by remember {mutableStateOf("")}
     var saved by remember {mutableStateOf("")}
@@ -1365,83 +1596,71 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
     val photoKey="photo_uri:"+me.s("username")
     val prefs=remember(context){context.getSharedPreferences("ghadir_profile",android.content.Context.MODE_PRIVATE)}
     var photoUri by remember(me.s("username")){mutableStateOf(prefs.getString(photoKey,"")?:"")}
-    fun savePhoto(uri:String){photoUri=uri;prefs.edit().putString(photoKey,uri).apply();onPhotoUpdated(uri);view="services"}
-    fun parentView()=when(view){"edit","photo","deleted"->"services";"password","phone"->"settings";else->"profile"}
+    fun savePhoto(uri:String){photoUri=uri;prefs.edit().putString(photoKey,uri).apply();onPhotoUpdated(uri);view=photoOrigin}
+    fun parentView()=when(view){"edit","bank"->detailOrigin;"photo","deleted"->photoOrigin;"password","users"->"settings";else->"profile"}
     LaunchedEffect(view){onSectionChanged(when(view){
-        "services"->"پروفایل من";"settings"->"تنظیمات";"password"->"تغییر رمز ورود";"phone"->"تغییر شماره تماس";"wallet"->"کیف پول و اعتبار"
-        "edit"->"ویرایش اطلاعات مشتری";"photo"->"تصویر پروفایل";"deleted"->"تصویر پروفایل";else->"پروفایل"})}
+        "settings"->"تنظیمات";"password"->"تغییر رمز ورود";"users"->"دسترسی کاربران";"wallet"->"کیف پول و اعتبار";"contact"->"تماس با ما"
+        "edit"->"اطلاعات شخصی";"bank"->"اطلاعات بانکی (شبا)";"photo"->"تصویر پروفایل";"deleted"->"تصویر پروفایل";else->"پروفایل"})}
     var handledBackRequest by rememberSaveable {mutableIntStateOf(backRequest)}
     LaunchedEffect(backRequest){if(backRequest!=handledBackRequest&&!saving)view=parentView();handledBackRequest=backRequest}
     BackHandler(view!="profile"){if(!saving)view=parentView()}
     val isOverview = view == "profile"
-    val navigationPadding = LocalPortalBottomPadding.current
     Column(Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp),
             contentPadding = PaddingValues(
                 top = 12.dp,
-                bottom = if (isOverview) 12.dp else 28.dp + navigationPadding,
+                bottom = if (isOverview) 12.dp else 28.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(if (isOverview) 9.dp else 16.dp),
         ) {
-            if(error.isNotBlank())item {ErrorBanner(error){error=""}}
-            if(saved.isNotBlank()&&view in setOf("profile","services","settings"))item {DesignNotice(saved)}
+            if(error.isNotBlank()&&view!="edit")item {ErrorBanner(error){error=""}}
+            if(saved.isNotBlank()&&view in setOf("profile","settings"))item {DesignNotice(saved)}
             when(view) {
-                "services"->{
-                    item {Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Navy,Color(0xFF213E61)))).padding(18.dp)) {
-                        Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(14.dp)) {
-                            ProfilePhoto(photoUri,56.dp)
-                            Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                                Text(initial.s("name").ifBlank {me.s("username")},textAlign=TextAlign.Center,color=Color.White,fontSize=20.sp,fontWeight=FontWeight.Bold)
-                                Text("حساب همکاری • "+faDigits(initial.s("code")),color=Color.White.copy(alpha=.75f),fontSize=12.sp)
-                            }
-                        }
-                    }}
-                    item {ProfileServiceTile("ویرایش اطلاعات مشتری","مشخصات، فروشگاه و نشانی تحویل",Icons.Default.ManageAccounts,Modifier.fillMaxWidth(),wide=true){view="edit"}}
-                    item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        ProfileServiceTile("آدرس‌های منتخب","نشانی‌های ذخیره‌شده",Icons.Default.LocationOn,Modifier.weight(1f)){onNavigate("addresses")}
-                        ProfileServiceTile("فاکتورهای من","مشاهده و دریافت PDF",Icons.Default.ReceiptLong,Modifier.weight(1f)){onProforma()}
-                    }}
-                    item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        ProfileServiceTile("سریال‌های من","شناسهٔ دستگاه‌ها",Icons.Default.QrCode2,Modifier.weight(1f)){onNavigate("serials")}
-                        ProfileServiceTile("آفرهای من","طرح‌ها و پیشنهادها",Icons.Default.LocalOffer,Modifier.weight(1f)){onNavigate("offers")}
-                    }}
-                    item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        ProfileServiceTile("تصویر پروفایل","انتخاب یا تغییر تصویر",Icons.Default.PhotoCamera,Modifier.weight(1f)){view="photo"}
-                        ProfileServiceTile("گزارش خرید","مرور سفارش‌های شما",Icons.Default.BarChart,Modifier.weight(1f)){onNavigate("summary")}
-                    }}
-                }
                 "settings"->{
-                    item {BiometricPreference(me.s("username"))}
                     item {GhadirButton("تغییر رمز ورود",{view="password"},secondary=true)}
-                    item {GhadirButton("تغییر شماره تماس",{view="phone"},secondary=true)}
+                    if (accountAccess.isBlank() || accountAccess == "manager") item {GhadirButton("دسترسی کاربران",{view="users"},secondary=true)}
+                    item {BiometricPreference(me.s("username"))}
                     item {Text("نسخه "+BuildConfig.VERSION_NAME,color=Muted,fontSize=12.sp)}
                 }
                 "password"->{item {AccountPasswordForm(api,me.s("username"),onChanged={saved="رمز ورود با موفقیت تغییر کرد.";view="settings"},onBusyChanged={saving=it})}}
-                "phone"->{item {AccountContactForm(api,me,onUpdated={result->onUpdated(result);saved="شماره تماس جایگزین ذخیره شد.";view="settings"},onBusyChanged={saving=it})}}
-                "wallet" -> item { CustomerWallet(api) }
+                "users"-> item { AccountUsersForm(api, onBusyChanged={saving=it}) }
+                "wallet" -> item { CustomerWallet(api, onEditBank={openProfileDetail("bank")}) }
+                "contact" -> item { SupportMessengerActions() }
+                "bank" -> item { AccountBankForm(api, onBusyChanged={saving=it}) }
                 "edit"->{
-                    item {DesignField("نام و نام خانوادگی",name,{name=it;saved=""})}
-                    item {DesignField("نام شرکت / فروشگاه",company,{company=it;saved=""})}
-                    item {DesignField("شماره همراه",faDigits(me.s("username")),{},enabled=false)}
-                    item {DesignField("نشانی تحویل",address,{address=it;saved=""},singleLine=false)}
-                    item {DesignNotice("نام، شرکت و نشانی را پیش از ثبت تغییرات بررسی کنید.")}
-                    item {GhadirButton(if(saving)"در حال ذخیره…" else "ثبت تغییرات",{
+                    item {
+                        ProfileIdentityCard(name, roleLabel, initial.s("code"), onPhotoClick = { openProfileDetail("photo") }, photoActionIcon = Icons.Default.PhotoCamera) {
+                            ProfilePhoto(photoUri, 72.dp, avatar = true)
+                        }
+                    }
+                    item {DesignField("نام و نام خانوادگی",name,{name=it;saved="";error=""},
+                        pill=true, fieldGlyph=Icons.Default.PersonOutline, fieldError=if(editAttempted&&name.trim().length<3)"نام و نام خانوادگی را کامل وارد کنید." else "")}
+                    item {DesignField("نام شرکت / فروشگاه",company,{company=it;saved=""}, pill=true, fieldGlyph=Icons.Default.Storefront)}
+                    item {DesignField("شماره همراه",faDigits(me.s("username")),{},enabled=false, pill=true, fieldGlyph=Icons.Default.PhoneAndroid)}
+                    if (initial.s("national_id").isNotBlank()) {
+                        item { DesignField("کد ملی", faDigits(initial.s("national_id")), {}, enabled = false, pill=true, fieldGlyph=Icons.Default.Badge) }
+                    }
+                    item { DesignField("نقش کاربری", roleLabel, {}, enabled = false, pill=true, fieldGlyph=Icons.Default.Groups) }
+                    if(error.isNotBlank()) item { Text(error,color=Danger) }
+                    item {ProfileSaveButton(if(saving)"در حال ذخیره…" else "ذخیره تغییرات",{
+                        editAttempted=true
+                        if(name.trim().length<3)return@ProfileSaveButton
                         scope.launch {
                             saving=true;error="";saved=""
                             try {
-                                val body=JSONObject().put("name",name.trim()).put("company",company.trim()).put("province",province.trim())
-                                    .put("city",city.trim()).put("address",address.trim()).put("postal_code",postalCode).put("alternate_mobile",alternate)
+                                val body=JSONObject().put("name",name.trim()).put("company",company.trim()).put("province",initial.s("province"))
+                                    .put("city",initial.s("city")).put("address",initial.s("address")).put("postal_code",postalCode).put("alternate_mobile",alternate)
                                 val result=api.post("/api/profile/update",body) as JSONObject
-                                onUpdated(result);view="services";saved="اطلاعات پروفایل با موفقیت به‌روزرسانی شد."
+                                onUpdated(result);view=detailOrigin;saved="اطلاعات پروفایل با موفقیت به‌روزرسانی شد."
                             }catch(e:kotlinx.coroutines.CancellationException){throw e}
                             catch(e:Exception){error=e.message?:"ذخیره پروفایل ناموفق بود"}finally{saving=false}
                         }
-                    },enabled=!saving&&name.trim().length>=3)}
+                    },enabled=!saving)}
 
                 }
                 "photo"->{
-                    item {Column(Modifier.fillMaxWidth().padding(top=28.dp,bottom=28.dp+LocalPortalBottomPadding.current),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)){
+                    item {Column(Modifier.fillMaxWidth().padding(top=28.dp,bottom=28.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)){
                         ProfilePhoto(photoUri,112.dp);Text(name,color=Ink,fontSize=20.sp,fontWeight=FontWeight.Bold)
                     }}
                     item {DesignNotice("انتخاب تصویر\n\nاز دوربین یا گالری عکس انتخاب کنید. در صورت حذف، لوگوی اصلی شرکت نمایش داده می‌شود.")}
@@ -1449,7 +1668,7 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
                     item {GhadirButton("حذف عکس و بازگشت به لوگو",{
                         photoUri="";prefs.edit().remove(photoKey).apply();onPhotoUpdated("");view="deleted"
                     },secondary=true,enabled=photoUri.isNotBlank())}
-                    item {GhadirButton("انصراف",{view="services"},secondary=true)}
+                    item {GhadirButton("انصراف",{view=photoOrigin},secondary=true)}
                 }
                 "deleted"->{
                     item {GlassSurface {Column(Modifier.fillMaxWidth().padding(40.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(20.dp)){
@@ -1462,36 +1681,39 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
                         }
                     }}
                     item {GhadirButton("انتخاب عکس جدید",{view="photo"},secondary=true)}
-                    item {GhadirButton("بازگشت به پروفایل",{view="services"},secondary=true)}
+                    item {GhadirButton("بازگشت به پروفایل",{view=photoOrigin},secondary=true)}
                 }
                 else->{
-                    item {GlassSurface {Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-                        Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(14.dp)){
-                            ProfilePhoto(photoUri)
-                            Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally){
-                                Text(initial.s("name").ifBlank {me.s("username")},textAlign=TextAlign.Center,color=Ink,fontSize=24.sp,lineHeight=40.sp,fontWeight=FontWeight.Bold)
-                                Text(initial.s("company")+" • کد همکار "+faDigits(initial.s("code")),textAlign=TextAlign.Center,color=Muted,fontSize=12.sp)
-                            }
-                        }
-                        HorizontalDivider(color=Border)
-                        Text("شماره همراه: "+faDigits(me.s("username")),color=Ink,textAlign=TextAlign.Center,modifier=Modifier.fillMaxWidth())
-                    }}}
-                    item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        ProfileServiceTile("پروفایل من","اطلاعات و خدمات مشتری",Icons.Default.PersonOutline,Modifier.weight(1f)){view="services"}
-                        ProfileServiceTile("تنظیمات","امنیت و اطلاعات تماس",Icons.Default.Settings,Modifier.weight(1f)){view="settings"}
-                    }}
-                    item {ProfileServiceTile("کیف پول و اعتبار","موجودی، سقف اعتبار و گردش پرداخت",Icons.Default.ReceiptLong,Modifier.fillMaxWidth(),wide=true){view="wallet"}}
-                    item {ProfileServiceTile("تماس با پشتیبانی ۰۲۱۷۷۲۴۷۰۷۰","همراه شما در خرید و خدمات",Icons.Default.HeadsetMic,Modifier.fillMaxWidth(),wide=true) {
-                        try{context.startActivity(android.content.Intent(android.content.Intent.ACTION_DIAL,Uri.parse("tel:02177247070")))}
-                        catch(_:Exception){error="برنامه تماس روی این دستگاه در دسترس نیست"}
-                    }}
-                    item {ProfileServiceTile("خروج از حساب","پایان نشست فعلی",Icons.Default.Logout,Modifier.fillMaxWidth(),wide=true,onClick=onLogout)}
+                    val blue = Color(0xFF1769CC)
+                    val violet = SettlementEditor.Deposit.paymentAccent
+                    val green = SettlementEditor.Wallet.paymentAccent
+                    item {
+                        ProfileIdentityCard(name.ifBlank { me.s("username") }, roleLabel, initial.s("code"),
+                            onPhotoClick = { openProfileDetail("photo") }) { ProfilePhoto(photoUri, 64.dp, avatar = true) }
+                    }
+                    item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ProfileShortcut("سفارش‌های من", Icons.Default.ShoppingCart, Orange, Modifier.weight(1f),
+                            orderCount?.let { faNumber(it) + " سفارش فعال" } ?: "پیگیری سفارش‌ها") { onNavigate("orders") }
+                        ProfileShortcut("کیف پول", Icons.Default.AccountBalanceWallet, violet, Modifier.weight(1f),
+                            walletBalance?.let { formatMoney(it) + " تومان" } ?: "موجودی و اعتبار") { view = "wallet" }
+                    } }
+                    item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ProfileShortcut("گزارش خرید", Icons.Default.BarChart, blue, Modifier.weight(1f), "سفارش‌ها و خریدها") { onNavigate("summary") }
+                        ProfileShortcut("سریال‌های من", Icons.Default.QrCode2, green, Modifier.weight(1f), "دستگاه‌های خریداری‌شده") { onNavigate("serials") }
+                    } }
+                    item { ProfileShortcut("اطلاعات شخصی", Icons.Default.PersonOutline, blue, Modifier.fillMaxWidth()) { openProfileDetail("edit") } }
+                    item { ProfileShortcut("اطلاعات بانکی (شبا)", Icons.Default.CreditCard, violet, Modifier.fillMaxWidth()) { openProfileDetail("bank") } }
+                    item { ProfileShortcut("فاکتورهای من", Icons.AutoMirrored.Filled.ReceiptLong, Orange, Modifier.fillMaxWidth(), onClick = onProforma) }
+                    item { ProfileShortcut("تنظیمات", Icons.Default.Settings, green, Modifier.fillMaxWidth()) { view = "settings" } }
+                    item { ProfileShortcut("اعلان‌ها", Icons.Default.Notifications, Danger, Modifier.fillMaxWidth()) { onNavigate("inbox") } }
+                    item { ProfileShortcut("تماس با ما", Icons.Default.HeadsetMic, blue, Modifier.fillMaxWidth()) { view = "contact" } }
+                    item { ProfileShortcut("خروج از حساب", Icons.AutoMirrored.Filled.Logout, Danger, Modifier.fillMaxWidth(), onClick = onLogout) }
                 }
             }
         }
         if (isOverview) {
             Box(
-                modifier = Modifier.fillMaxWidth().padding(bottom = navigationPadding),
+                modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center,
             ) {
                 PortalPrivacyLink()
@@ -1500,7 +1722,7 @@ private fun PortalProfile(api:ApiClient,me:JSONObject,onUpdated:(JSONObject)->Un
     }
 }
 @Composable
-private fun ProfilePhoto(uri: String, size: androidx.compose.ui.unit.Dp = 80.dp) {
+private fun ProfilePhoto(uri: String, size: androidx.compose.ui.unit.Dp = 80.dp, avatar: Boolean = false) {
     val context = LocalContext.current
     val bitmap = remember(uri) {
         if (uri.isBlank()) null else try {
@@ -1511,9 +1733,18 @@ private fun ProfilePhoto(uri: String, size: androidx.compose.ui.unit.Dp = 80.dp)
             context.contentResolver.openInputStream(Uri.parse(uri))?.use { BitmapFactory.decodeStream(it,null,opts) }
         } catch (_: Exception) { null }
     }
-    Surface(shape = RoundedCornerShape(16.dp), color = AppSurface, modifier = Modifier.size(size)) {
+    Surface(
+        shape = if (avatar) CircleShape else RoundedCornerShape(16.dp),
+        color = AppSurface,
+        modifier = Modifier.size(size),
+        border = if (avatar) BorderStroke(2.dp, AppSurface) else null,
+    ) {
         if (bitmap != null) {
             Image(bitmap = bitmap.asImageBitmap(), contentDescription = "عکس پروفایل", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        } else if (avatar) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.background(AppSecondary)) {
+                Icon(Icons.Default.Person, null, tint = Ink, modifier = Modifier.size(size * .62f))
+            }
         } else {
             Image(
                 painter = painterResource(R.drawable.brand_logo),
@@ -1532,25 +1763,4 @@ private fun ProfileEditField(title: String, value: String, onValueChange: (Strin
         label = { Text(title) }, shape = RoundedCornerShape(17.dp),
         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Orange, unfocusedBorderColor = Border, focusedContainerColor = AppSurface, unfocusedContainerColor = AppSurface)
     )
-}
-
-@Composable
-internal fun <T> DropdownField(title:String,value:String,options:List<T>,display:(T)->String,onSelect:(T)->Unit) {
-    var open by remember {mutableStateOf(false)}
-    Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-        Text(title,color=Muted,fontSize=12.sp,lineHeight=20.sp)
-        Box {
-            Row(Modifier.fillMaxWidth().heightIn(min=52.dp).clip(RoundedCornerShape(16.dp)).background(AppSurface)
-                .border(1.dp,Border,RoundedCornerShape(16.dp)).clickable {open=true}
-                .semantics {contentDescription=title}.padding(14.dp),
-                verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                DesignGlyph(if(title=="نشانی تحویل"||title=="آدرس تحویل")R.drawable.design_map_pin else R.drawable.design_chevron,
-                    null,Modifier.size(28.dp),tint=androidx.compose.ui.graphics.ColorFilter.tint(Muted))
-                Text(value,color=Ink,fontSize=14.sp,lineHeight=23.sp,modifier=Modifier.weight(1f),maxLines=1,overflow=TextOverflow.Ellipsis)
-            }
-            DropdownMenu(expanded=open,onDismissRequest={open=false},modifier=Modifier.fillMaxWidth(.86f)) {
-                options.forEach {option->DropdownMenuItem(text={Text(display(option))},onClick={onSelect(option);open=false})}
-            }
-        }
-    }
 }

@@ -48,8 +48,12 @@ internal fun DesignField(
     transformation: VisualTransformation = VisualTransformation.None,
     enabled: Boolean = true, modifier: Modifier = Modifier, singleLine: Boolean = true,
     textDirection: TextDirection = TextDirection.Unspecified, textAlign: TextAlign = TextAlign.Start,
+    compact: Boolean = false, fieldError: String = "",
+    pill: Boolean = false, fieldGlyph: androidx.compose.ui.graphics.vector.ImageVector? = null,
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val fieldHeight = if (compact) 46.dp else 52.dp
+    val fieldShape = if (pill) RoundedCornerShape(50) else RoundedCornerShape(16.dp)
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 6.dp)) {
         if(label.isNotBlank()) Text(label, color=Muted, fontSize=12.sp, lineHeight=20.sp,
             modifier=Modifier.fillMaxWidth(), textAlign=TextAlign.Start)
         BasicTextField(value=value, onValueChange=onChange, enabled=enabled,
@@ -57,12 +61,16 @@ internal fun DesignField(
             keyboardOptions=KeyboardOptions(keyboardType=keyboardType),
             textStyle=MaterialTheme.typography.bodyMedium.copy(color=Ink, fontSize=14.sp, lineHeight=23.sp, textAlign=textAlign, textDirection=textDirection),
             cursorBrush=SolidColor(Orange),
-            modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).semantics { contentDescription=label },
+            modifier=Modifier.fillMaxWidth().heightIn(min=fieldHeight).semantics { contentDescription=label },
             decorationBox={inner ->
-                Row(Modifier.fillMaxWidth().heightIn(min=52.dp).clip(RoundedCornerShape(16.dp))
-                    .background(AppSurface).border(1.dp,Border,RoundedCornerShape(16.dp))
-                    .padding(horizontal=14.dp,vertical=12.dp), verticalAlignment=Alignment.CenterVertically,
+                Row(Modifier.fillMaxWidth().heightIn(min=fieldHeight).clip(fieldShape)
+                    .background(if (pill) AppSecondary else AppSurface)
+                    .border(1.dp,if (fieldError.isBlank()) Border else Danger,fieldShape)
+                    .padding(horizontal=14.dp,vertical=if (compact) 7.dp else 12.dp), verticalAlignment=Alignment.CenterVertically,
                     horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                    if (fieldGlyph != null) {
+                        Icon(fieldGlyph, null, tint = Ink, modifier = Modifier.size(23.dp))
+                    }
                     if(icon!=null&&icon!=R.drawable.r54_eye) {
                         val svg=when(icon){R.drawable.r54_phone->"phone";R.drawable.r54_eye->"eye";R.drawable.design_search->"search";R.drawable.design_calendar->"calendar";R.drawable.design_map_pin->"map_pin";R.drawable.design_chevron->"chevron";else->null}
                         val glyph:@Composable ()->Unit = {
@@ -85,6 +93,7 @@ internal fun DesignField(
                     }
                 }
             })
+        if (fieldError.isNotBlank()) Text(fieldError, color = Danger, fontSize = 12.sp)
     }
 }
 
@@ -153,16 +162,21 @@ internal fun DesignOtp(value:String,onChange:(String)->Unit,label:String="کد �
     }
 }
 
+/** Display the original brand artwork supplied for the app. */
 @Composable
-internal fun PortalBackHeader(title:String,onBack:()->Unit) {
-    Row(Modifier.fillMaxWidth().statusBarsPadding().heightIn(min=84.dp).padding(horizontal=20.dp,vertical=12.dp),
-        verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-        IconButton(onClick=onBack,modifier=Modifier.size(48.dp)) {
-            FigmaSvg("back","بازگشت",Modifier.size(28.dp),tint=ColorFilter.tint(Ink))
-        }
-        Column(Modifier.weight(1f)) {
-            Text(title,color=Ink,fontSize=22.sp,lineHeight=36.sp,fontWeight=FontWeight.Bold)
-            Text("قدیر پارتنر",color=Muted,fontSize=12.sp,lineHeight=20.sp)
+internal fun PortalHeaderLogo() {
+    Image(painterResource(R.drawable.brand_logo), "لوگوی قدیر پرداخت", Modifier.size(42.dp))
+}
+
+@Composable
+internal fun PortalBackHeader(title: String, onBack: () -> Unit) {
+    Row(Modifier.fillMaxWidth().background(PortalBrandBrush).statusBarsPadding().heightIn(min = 72.dp).padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        PortalHeaderLogo()
+        Text(title, modifier = Modifier.weight(1f), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center, maxLines = 2)
+        IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
+            FigmaSvg("back", "بازگشت", Modifier.size(25.dp), tint = ColorFilter.tint(Color.White))
         }
     }
 }
@@ -234,11 +248,27 @@ internal fun CheckoutOptionCard(title:String,summary:String,icon:androidx.compos
 
 @Composable
 internal fun ProfileServiceTile(title:String,subtitle:String,icon:androidx.compose.ui.graphics.vector.ImageVector,modifier:Modifier=Modifier,wide:Boolean=false,onClick:()->Unit) {
+    val accent = when (title) {
+        "کیف پول و اعتبار", "کیف پول" -> Color(0xFF008577)
+        "فاکتورهای من", "آدرس‌های منتخب" -> Color(0xFF643CC2)
+        "گزارش خرید", "آفرهای من" -> Color(0xFFB56900)
+        else -> Color(0xFF1769CC)
+    }
+    val artwork = when (title) {
+        "کیف پول و اعتبار", "کیف پول" -> R.drawable.payment_ref_wallet
+        "فاکتورهای من" -> R.drawable.payment_ref_receipt
+        "گزارش خرید" -> R.drawable.payment_ref_credit
+        else -> null
+    }
     Surface(modifier=modifier.clip(RoundedCornerShape(22.dp)).clickable(role=Role.Button,onClick=onClick),
-        shape=RoundedCornerShape(22.dp),color=AppSurface,border=androidx.compose.foundation.BorderStroke(1.dp,Border)) {
+        shape=RoundedCornerShape(22.dp),color=androidx.compose.ui.graphics.lerp(AppSurface,accent,.10f),
+        border=androidx.compose.foundation.BorderStroke(1.dp,accent.copy(alpha=.24f))) {
         Column(Modifier.fillMaxWidth().heightIn(min=if(wide)100.dp else 126.dp).padding(14.dp),
             horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(8.dp,Alignment.CenterVertically)) {
-            Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(AppSecondary),contentAlignment=Alignment.Center){Icon(icon,null,tint=Orange,modifier=Modifier.size(25.dp))}
+            Box(Modifier.size(45.dp).clip(RoundedCornerShape(14.dp)).background(if (artwork == R.drawable.payment_ref_receipt) accent else accent.copy(alpha=.10f)),contentAlignment=Alignment.Center) {
+                if (artwork != null) PaymentArtwork(artwork, Modifier.size(35.dp))
+                else Icon(icon,null,tint=if(AppAppearance.dark)Color.White else accent,modifier=Modifier.size(25.dp))
+            }
             Text(title,color=Ink,fontWeight=FontWeight.Bold,fontSize=14.sp,lineHeight=22.sp,textAlign=TextAlign.Center)
             Text(subtitle,color=Muted,fontSize=11.sp,lineHeight=18.sp,textAlign=TextAlign.Center)
         }

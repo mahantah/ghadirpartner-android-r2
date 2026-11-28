@@ -5,7 +5,7 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,17 +45,16 @@ internal fun rememberBiometricEnabled(context:Context,account:String):Boolean {
 @Composable
 internal fun PortalGlassHeader(title: String, dashboard: Boolean, unread: Int, onOffers: () -> Unit, onBell: () -> Unit) {
     val context=LocalContext.current
-    Row(Modifier.fillMaxWidth().statusBarsPadding().heightIn(min=84.dp).padding(horizontal=20.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-        Image(painterResource(R.drawable.brand_logo),"قدیر پارتنر",Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)))
+    Row(Modifier.fillMaxWidth().background(PortalBrandBrush).statusBarsPadding().heightIn(min=76.dp).padding(horizontal=20.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+        PortalHeaderLogo()
         Column(Modifier.weight(1f)) {
-            Text(title,color=Ink,fontSize=20.sp,lineHeight=33.sp,fontWeight=FontWeight.Bold,maxLines=2)
-            Text("قدیر پارتنر",color=Muted,fontSize=12.sp,lineHeight=20.sp)
+            Text(title,color=Color.White,fontSize=19.sp,lineHeight=33.sp,fontWeight=FontWeight.Bold,maxLines=2)
         }
         Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            FigmaSvg(if(AppAppearance.dark) "offers_night" else "offers_day","طرح‌ها و آفرها",Modifier.size(40.dp,44.dp).clickable(onClick=onOffers))
-            FigmaSvg(if(AppAppearance.dark) "theme_night" else "theme_day",if(AppAppearance.dark) "حالت روز" else "حالت شب",Modifier.size(40.dp,44.dp).clickable {AppAppearance.toggle(context)})
+            FigmaSvg("offers_night","طرح‌ها و آفرها",Modifier.size(40.dp,44.dp).clickable(onClick=onOffers))
+            FigmaSvg("theme_night",if(AppAppearance.dark) "حالت روز" else "حالت شب",Modifier.size(40.dp,44.dp).clickable {AppAppearance.toggle(context)})
             Box {
-                FigmaSvg(if(AppAppearance.dark) "bell_night" else "bell_day","اعلان‌ها",Modifier.size(40.dp,44.dp).clickable(onClick=onBell))
+                FigmaSvg("bell_night","اعلان‌ها",Modifier.size(40.dp,44.dp).clickable(onClick=onBell))
                 if(unread>0) Badge(Modifier.align(Alignment.TopEnd),containerColor=Orange,contentColor=Navy){Text(faNumber(unread),fontSize=9.sp)}
             }
         }

@@ -50,7 +50,7 @@ internal class OrderCartService(
             "مجموع تعداد این مدل در تمام نوع‌های خرید از موجودی قابل سفارش بیشتر است"
         }
         val unit: Long = product.prices[priceKey] ?: 0L
-        require(unit > 0L) { "این نوع قیمت برای حساب شما فعال نیست" }
+        require(unit > 0L) { "این نوع همکاری برای حساب شما فعال نیست" }
         val serial: Boolean = priceKey.startsWith("serial_")
         val existing: CartLine? =
             lines.firstOrNull {
@@ -72,7 +72,7 @@ internal class OrderCartService(
         require(index >= 0) { "ردیف سفارش پیدا نشد" }
         require(product.product == line.product) { "مدل ردیف سفارش مطابقت ندارد" }
         require(quantity in 1..policy.maximumQuantity) { "تعداد معتبر وارد کنید" }
-        require((product.prices[line.priceKey] ?: 0L) > 0L) { "این نوع قیمت برای حساب شما فعال نیست" }
+        require((product.prices[line.priceKey] ?: 0L) > 0L) { "این نوع همکاری برای حساب شما فعال نیست" }
         // Update in place: remove/add changes the user's visual order and scroll target.
         val updated: List<CartLine> = lines.mapIndexed { position, current ->
             if (position == index) current.copy(qty = quantity, unit = product.prices[line.priceKey] ?: 0L) else current
@@ -126,6 +126,6 @@ internal class OrderCartService(
             "serial_1_50" -> "سریال آزاد — ۱ تا ۵۰"
             "serial_51_200" -> "سریال آزاد — ۵۱ تا ۲۰۰"
             "sales_agent" -> "عامل فروش"
-            else -> error("نوع قیمت نامعتبر است")
+            else -> error("نوع همکاری نامعتبر است")
         }
 }

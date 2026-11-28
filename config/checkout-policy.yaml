@@ -1,5 +1,7 @@
 time_zone: Asia/Tehran
 formal_payee: هوشمند پرداز پویا تجارت قدیر
+formal_national_id: "14010366395"
+formal_cash_iban: "IR950550014100207494885001"
 informal_payee: سلمان بور بور
 informal_national_id: "0493391762"
 informal_cash_card: "5041-7212-5310-7552"
@@ -48,6 +50,17 @@ banks:
   - کوثر
   - نور
   - ملل
+  - توسعه
+  - کاسپین
+  - ثامن
+legacy_banks:
+  - آینده
+  - انصار
+  - قوامین
+  - حکمت ایرانیان
+  - مهر اقتصاد
+  - کوثر
+  - نور
   - توسعه
   - کاسپین
   - ثامن

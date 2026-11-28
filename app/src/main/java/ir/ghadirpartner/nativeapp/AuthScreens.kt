@@ -10,6 +10,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.MarkEmailRead
+import androidx.compose.material.icons.outlined.Fingerprint
+import androidx.compose.material.icons.outlined.PersonAdd
+import androidx.compose.material.icons.outlined.Sms
+import androidx.compose.material.icons.outlined.Key
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Person
@@ -141,16 +146,32 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
         }
         return
     }
-    Box(Modifier.fillMaxSize().paint(painterResource(R.drawable.brand_login_waves),contentScale=ContentScale.Crop)) {
-    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(pageScroll),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        if(view=="login") Spacer(Modifier.heightIn(min=24.dp,max=130.dp)) else Surface(color=AppSurface.copy(alpha=.94f)) {
+    BoxWithConstraints(
+        Modifier.fillMaxSize()
+            .paint(painterResource(R.drawable.brand_login_waves), contentScale = ContentScale.Crop)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .imePadding()
+    ) {
+    val portalLogin = api.isPortal && view == "login"
+    val keyboardVisible = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+    // Reserve the part of the artwork occupied by the logo while the keyboard is closed.
+    val logoClearance = if (portalLogin && !keyboardVisible) maxHeight * BuildConfig.LOGIN_LOGO_CLEARANCE else 14.dp
+    Column(
+        Modifier.fillMaxWidth().verticalScroll(pageScroll),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (view == "login") {
+            Spacer(Modifier.height(logoClearance))
+        } else Surface(color=AppSurface.copy(alpha=.94f)) {
             PortalBackHeader(when(view){"otp"->"کد تأیید";"biometric"->"ورود امن";else->"ورود به قدیر پارتنر"}) {
                 loginPrompt?.cancelAuthentication();view="login";error=""
             }
         }
-        Surface(modifier=Modifier.padding(horizontal=20.dp).widthIn(max=420.dp).fillMaxWidth(),shape=RoundedCornerShape(24.dp),
-            color=ApprovedPalette.surface.copy(alpha=.94f),border=androidx.compose.foundation.BorderStroke(1.dp,ApprovedPalette.border)) {
-        Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+        Surface(modifier=Modifier.padding(horizontal=16.dp).widthIn(max=360.dp).fillMaxWidth(),shape=RoundedCornerShape(24.dp),
+            color=ApprovedPalette.surface,border=androidx.compose.foundation.BorderStroke(1.dp,ApprovedPalette.border)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal=14.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
             when(view) {
                 "otp"->{
                     LoginStepHeader("کد تأیید را وارد کنید", "کد ارسال‌شده به شماره "+faDigits(identity), Icons.Outlined.MarkEmailRead)
@@ -180,13 +201,14 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
                     GhadirButton("ورود با رمز عبور",{loginPrompt?.cancelAuthentication();view="login";error=""},secondary=true)
                 }
                 else->{
-                    Text("خوش آمدید",color=ApprovedPalette.ink,fontSize=24.sp,lineHeight=36.sp,fontWeight=FontWeight.Bold,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
-                    Text(if(api.isPortal)"پرتال همکاران قدیر پرداخت" else "سامانه اتوماسیون فروش عمده",color=ApprovedPalette.muted,fontSize=14.sp,lineHeight=23.sp,modifier=Modifier.fillMaxWidth(),textAlign=TextAlign.Center)
+                    LoginFormHeading(if (api.isPortal) "ورود به قدیر پارتنر" else "ورود به اتوماسیون")
                     DesignField(if(api.isPortal)"شماره همراه" else "نام کاربری",identity,{val next=asciiDigits(it).take(100);if(next!=identity)password="";identity=next;error=""},
                         if(api.isPortal)"۰۹۱۲…" else "نام کاربری",R.drawable.r54_phone,
-                        keyboardType=if(api.isPortal)androidx.compose.ui.text.input.KeyboardType.Phone else androidx.compose.ui.text.input.KeyboardType.Text)
+                        keyboardType=if(api.isPortal)androidx.compose.ui.text.input.KeyboardType.Phone else androidx.compose.ui.text.input.KeyboardType.Text,
+                        compact=true)
                     DesignField("رمز عبور",password,{password=it;error=""},"رمز عبور",R.drawable.r54_eye,onIcon={visible=!visible},
-                        transformation=if(visible)androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation())
+                        transformation=if(visible)androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
+                        compact=true)
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                         Checkbox(rememberLogin,{rememberLogin=it;if(!it)loginStore.clear()},enabled=!loading)
                         Text("مرا به خاطر بسپار",color=Ink,fontSize=14.sp)
@@ -201,15 +223,19 @@ fun LoginScreen(api:ApiClient,onLoggedIn:(JSONObject)->Unit) {
                             catch(e:kotlinx.coroutines.CancellationException){throw e}
                             catch(e:Exception){error=e.message?:"ورود ناموفق بود"}finally{loading=false}}
                     },enabled=!loading&&identity.isNotBlank()&&password.isNotBlank())
-                    if(api.isPortal) {
-                        WebLoginButton("ورود با کد یک‌بارمصرف", { requestOtp() }, enabled=!loading&&countdown==0&&identity.matches(Regex("09[0-9]{9}")), secondary=true)
-                        WebLoginButton("درخواست عضویت", { view="membership";error="" },enabled=!loading,secondary=true)
+                    if(api.isPortal) Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                        Box(Modifier.weight(1f)) {
+                            WebLoginButton("ورود با کد پیامکی", { requestOtp() }, enabled=!loading&&countdown==0&&identity.matches(Regex("09[0-9]{9}")), secondary=true, icon = Icons.Outlined.Sms, tone = SettlementEditor.Online.paymentAccent)
+                        }
+                        Box(Modifier.weight(1f)) {
+                            WebLoginButton("درخواست عضویت", { view="membership";error="" },enabled=!loading,secondary=true, icon = Icons.Outlined.PersonAdd, tone = SettlementEditor.Wallet.paymentAccent)
+                        }
                     }
                     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         if(api.isPortal) Box(Modifier.weight(1f)) {
-                            WebLoginButton("ورود با اثر انگشت",{view="biometric";biometricFailed=false;error=""},enabled=!loading&&biometricEnabled(context,canonicalPortalIdentity(identity)),secondary=true)
+                            WebLoginButton("ورود با اثر انگشت",{view="biometric";biometricFailed=false;error=""},enabled=!loading&&biometricEnabled(context,canonicalPortalIdentity(identity)),secondary=true, icon = Icons.Outlined.Fingerprint, tone = SettlementEditor.Deposit.paymentAccent)
                         }
-                        Box(Modifier.weight(1f)) {WebLoginButton("فراموشی رمز",{view="reset"},enabled=!loading,secondary=true)}
+                        Box(Modifier.weight(1f)) {WebLoginButton("فراموشی رمز",{view="reset"},enabled=!loading,secondary=true, icon = Icons.Outlined.Key, tone = SettlementEditor.Credit.paymentAccent)}
                     }
 
                 }
@@ -287,13 +313,45 @@ private fun PasswordResetScreen(api:ApiClient,initialIdentity:String,onBack:()->
 }
 
 @Composable
-private fun WebLoginButton(text:String,onClick:()->Unit,enabled:Boolean=true,secondary:Boolean=false) {
-    Button(onClick=onClick,enabled=enabled,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),
-        shape=RoundedCornerShape(12.dp),
-        colors=ButtonDefaults.buttonColors(containerColor=if(secondary) {
-            if(AppAppearance.dark)AppSecondary else Color(0xFFEDF2F7)
-        } else Color(0xFFF58220),contentColor=if(secondary)Ink else Navy)) {
-        Text(text,fontSize=14.sp,lineHeight=23.sp,fontWeight=FontWeight.Bold)
+private fun LoginFormHeading(title: String) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(PortalBrandBrush).padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(Modifier.size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = .18f)), contentAlignment = Alignment.Center) {
+            Icon(Icons.Default.Lock, contentDescription = null, tint = Orange, modifier = Modifier.size(20.dp))
+        }
+        Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+    }
+}
+
+@Composable
+private fun WebLoginButton(
+    text: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    secondary: Boolean = false,
+    icon: ImageVector? = null,
+    tone: Color = Color.Unspecified,
+) {
+    val neutral = if (AppAppearance.dark) AppSecondary else Color(0xFFEDF2F7)
+    val tinted = if (tone == Color.Unspecified) neutral else androidx.compose.ui.graphics.lerp(neutral, tone, .16f)
+    Button(
+        onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (secondary) tinted else Color(0xFFF58220),
+            contentColor = if (secondary) Ink else Navy,
+        ),
+    ) {
+        if (icon != null) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp),
+                tint = if (enabled) androidx.compose.ui.graphics.lerp(tone, Ink, if (AppAppearance.dark) .45f else .15f) else LocalContentColor.current)
+            Spacer(Modifier.width(4.dp))
+        }
+        Text(text, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
     }
 }
 

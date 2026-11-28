@@ -30,7 +30,7 @@ import org.json.JSONObject
 
 /** Display wallet funds and credit exposure independently for the signed-in account. */
 @Composable
-internal fun CustomerWallet(api: ApiClient) {
+internal fun CustomerWallet(api: ApiClient, onEditBank: () -> Unit = {}) {
     val context = LocalContext.current
     var account by remember(api) { mutableStateOf<JSONObject?>(null) }
     var error by remember(api) { mutableStateOf("") }
@@ -171,7 +171,7 @@ internal fun CustomerWallet(api: ApiClient) {
                     GhadirButton("به‌روزرسانی موجودی", { retry++ }, secondary = true)
                 }
                 ApprovedWalletCredit(snapshot)
-                WalletRefundSection(api,wallet.l("available"))
+                WalletRefundSection(api,wallet.l("available"),onEditBank)
                 ApprovedWalletTransactions(wallet.arr("transactions").objects())
             }
         }
